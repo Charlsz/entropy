@@ -4,14 +4,20 @@ import Button from './ui/button';
 
 interface WorkspaceViewProps {
   workspace: WorkspaceSelection;
+  onChangeWorkspace: () => void;
 }
 
-export default function WorkspaceView({ workspace }: WorkspaceViewProps) {
+export default function WorkspaceView({ workspace, onChangeWorkspace }: WorkspaceViewProps) {
   return (
     <section className="w-full max-w-3xl animate-enter">
-      <div className="mb-6 flex items-center gap-3 text-sm text-entropy-muted">
-        <FolderOpen className="h-4 w-4" />
-        <span>Workspace opened successfully</span>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-sm text-entropy-muted">
+        <div className="flex items-center gap-3">
+          <FolderOpen className="h-4 w-4" />
+          <span>Workspace ready</span>
+        </div>
+        <Button variant="secondary" className="min-h-10 px-4 py-2 text-xs" onClick={onChangeWorkspace}>
+          Change workspace
+        </Button>
       </div>
 
       <div className="rounded-2xl border border-entropy-border bg-entropy-panel px-8 py-8 sm:px-10 sm:py-10">

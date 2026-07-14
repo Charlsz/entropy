@@ -1,7 +1,6 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu } from 'electron';
 import path from 'node:path';
-import { WORKSPACE_PICK_CHANNEL } from '../shared/ipc';
-import { deriveWorkspaceName, type WorkspaceAction, type WorkspaceSelection } from '../shared/workspace';
+import { registerWorkspaceIpc } from './ipc/workspace';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -48,30 +47,9 @@ function createWindow() {
   mainWindow = window;
 }
 
-ipcMain.handle(WORKSPACE_PICK_CHANNEL, async (_event, action: WorkspaceAction): Promise<WorkspaceSelection | null> => {
-  const result = dialog.showOpenDialogSync({
-    title: action === 'create' ? 'Create Workspace' : 'Open Workspace',
-    defaultPath: app.getPath('documents'),
-    properties: action === 'create' ? ['openDirectory', 'createDirectory', 'dontAddToRecent'] : ['openDirectory', 'dontAddToRecent']
-  });
-
-  if (!result || result.length === 0) {
-    return null;
-  }
-
-  const workspacePath = result[0];
-  if (!workspacePath) {
-    return null;
-  }
-
-  return {
-    path: workspacePath,
-    name: deriveWorkspaceName(workspacePath)
-  };
-});
-
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+  registerWorkspaceIpc();
   createWindow();
 
   app.on('activate', () => {
