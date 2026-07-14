@@ -1,3 +1,4 @@
+import type { FileRef } from './files';
 import type { CreatePageInput, Page, PageSummary, WritePageInput } from './pages';
 import type { Result } from './result';
 import type { WorkspaceAction, WorkspaceSelection } from './workspace';
@@ -15,4 +16,8 @@ export interface EntropyApi {
   writePage(workspacePath: string, pageId: string, input: WritePageInput): Promise<Result<Page>>;
   renamePage(workspacePath: string, pageId: string, title: string): Promise<Result<Page>>;
   deletePage(workspacePath: string, pageId: string): Promise<Result<void>>;
+
+  pickFile(workspacePath: string): Promise<Result<FileRef | null>>;
+  openFile(filePath: string): Promise<Result<void>>;
+  resolveFileRef(workspacePath: string, href: string): Promise<Result<FileRef>>;
 }

@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { EntropyApi } from '../shared/api';
 import {
+  FILES_OPEN_CHANNEL,
+  FILES_PICK_CHANNEL,
+  FILES_RESOLVE_CHANNEL,
   PAGES_CREATE_CHANNEL,
   PAGES_DELETE_CHANNEL,
   PAGES_LIST_CHANNEL,
@@ -50,6 +53,16 @@ const api: EntropyApi = {
   },
   deletePage(workspacePath: string, pageId: string) {
     return ipcRenderer.invoke(PAGES_DELETE_CHANNEL, workspacePath, pageId);
+  },
+
+  pickFile(workspacePath: string) {
+    return ipcRenderer.invoke(FILES_PICK_CHANNEL, workspacePath);
+  },
+  openFile(filePath: string) {
+    return ipcRenderer.invoke(FILES_OPEN_CHANNEL, filePath);
+  },
+  resolveFileRef(workspacePath: string, href: string) {
+    return ipcRenderer.invoke(FILES_RESOLVE_CHANNEL, workspacePath, href);
   }
 };
 

@@ -69,6 +69,7 @@ export default function WorkspaceView({ workspace, onChangeWorkspace }: Workspac
               onCreate={() => void createPage()}
             />
             <PageEditor
+              workspacePath={workspace.path}
               page={activePage}
               title={draftTitle}
               content={draftContent}
@@ -77,6 +78,7 @@ export default function WorkspaceView({ workspace, onChangeWorkspace }: Workspac
               onTitleChange={updateTitle}
               onTitleBlur={(title) => void renameActivePage(title)}
               onContentChange={updateContent}
+              onError={setError}
             />
           </div>
         )}
