@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu } from 'electron';
 import path from 'node:path';
+import { registerPagesIpc } from './ipc/pages';
 import { registerWorkspaceIpc } from './ipc/workspace';
 
 let mainWindow: BrowserWindow | null = null;
@@ -50,6 +51,7 @@ function createWindow() {
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   registerWorkspaceIpc();
+  registerPagesIpc();
   createWindow();
 
   app.on('activate', () => {

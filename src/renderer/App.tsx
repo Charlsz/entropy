@@ -132,7 +132,12 @@ export default function App() {
 
   return (
     <main className="min-h-screen bg-entropy-background px-6 text-entropy-text">
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-start pb-10">
+      <div
+        className={[
+          'mx-auto flex min-h-screen w-full flex-col items-center justify-start pb-10',
+          workspace ? 'max-w-6xl' : 'max-w-5xl'
+        ].join(' ')}
+      >
         {workspace ? (
           <WorkspaceView workspace={workspace} onChangeWorkspace={() => void leaveWorkspace()} />
         ) : (
