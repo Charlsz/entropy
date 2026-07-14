@@ -1,0 +1,1 @@
+export const WORKSPACE_PICK_CHANNEL = 'workspace:pick';

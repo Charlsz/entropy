@@ -1,0 +1,45 @@
+{
+  "name": "entropy",
+  "version": "1.0.0",
+  "description": "I just want a better way to organize my ideas and files.",
+  "main": "dist-electron/main/main.js",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.electron.json",
+    "typecheck": "tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "start": "npm run build && electron ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Charlsz/entropy.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Charlsz/entropy/issues"
+  },
+  "homepage": "https://github.com/Charlsz/entropy#readme",
+  "dependencies": {
+    "@fontsource/inter": "^5.2.6",
+    "electron": "^43.1.0",
+    "lucide-react": "^0.542.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^5.0.2",
+    "@types/electron": "^1.4.38",
+    "@types/node": "^26.1.1",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^7.0.2",
+    "vite": "^6.0.7"
+  }
+}
