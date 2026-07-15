@@ -5,7 +5,10 @@
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "types": ["vite/client"]
   },
-  "include": ["src/renderer/**/*", "src/shared/**/*", "vite.config.ts"]
+  "include": ["src/renderer/**/*", "src/components/**/*", "src/lib/**/*", "vite.config.ts"]
 }

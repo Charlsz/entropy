@@ -1,9 +1,5 @@
 import { app, BrowserWindow, Menu } from 'electron';
 import path from 'node:path';
-import { registerFilesIpc } from './ipc/files';
-import { registerPagesIpc } from './ipc/pages';
-import { registerSearchIpc } from './ipc/search';
-import { registerWorkspaceIpc } from './ipc/workspace';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -28,8 +24,7 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
-      preload: path.join(__dirname, 'preload.js')
+      sandbox: true
     }
   });
 
@@ -52,10 +47,6 @@ function createWindow() {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
-  registerWorkspaceIpc();
-  registerPagesIpc();
-  registerFilesIpc();
-  registerSearchIpc();
   createWindow();
 
   app.on('activate', () => {
