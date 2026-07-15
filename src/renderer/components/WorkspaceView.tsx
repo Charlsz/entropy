@@ -1,8 +1,11 @@
 import { FolderOpen } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import type { WorkspaceSelection } from '../../shared/workspace';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { usePages } from '../hooks/usePages';
 import Button from './ui/button';
-import PageEditor from './PageEditor';
+import ConfirmDialog from './ConfirmDialog';
+import PageEditor, { type PageEditorHandle } from './PageEditor';
 import PageSidebar from './PageSidebar';
 
 interface WorkspaceViewProps {
@@ -22,11 +25,67 @@ export default function WorkspaceView({ workspace, onChangeWorkspace }: Workspac
     error,
     createPage,
     selectPage,
+    selectAdjacentPage,
     updateContent,
     updateTitle,
     renameActivePage,
+    deleteActivePage,
+    flushSave,
     setError
   } = usePages(workspace);
+
+  const editorRef = useRef<PageEditorHandle | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+
+  const shortcuts = useMemo(
+    () => ({
+      onNewPage: () => {
+        void createPage();
+      },
+      onSave: () => {
+        void flushSave();
+      },
+      onDelete: () => {
+        if (activePage) {
+          setConfirmDelete(true);
+        }
+      },
+      onNextPage: () => {
+        void selectAdjacentPage(1);
+      },
+      onPrevPage: () => {
+        void selectAdjacentPage(-1);
+      },
+      onLinkFile: () => {
+        void editorRef.current?.linkFile();
+      }
+    }),
+    [activePage, createPage, flushSave, selectAdjacentPage]
+  );
+
+  useKeyboardShortcuts(shortcuts, !loading);
+
+  async function handleLeaveWorkspace() {
+    if (dirty) {
+      const saved = await flushSave();
+      if (!saved) {
+        setConfirmLeave(true);
+        return;
+      }
+    }
+    onChangeWorkspace();
+  }
+
+  async function confirmLeaveAnyway() {
+    setConfirmLeave(false);
+    onChangeWorkspace();
+  }
+
+  async function confirmDeletePage() {
+    setConfirmDelete(false);
+    await deleteActivePage();
+  }
 
   return (
     <section className="flex h-[calc(100vh-2.5rem)] w-full max-w-6xl flex-col animate-enter pt-4">
@@ -35,10 +94,17 @@ export default function WorkspaceView({ workspace, onChangeWorkspace }: Workspac
           <div className="flex items-center gap-2 text-sm text-entropy-muted">
             <FolderOpen className="h-4 w-4 shrink-0" />
             <span className="truncate">{workspace.name}</span>
+            {dirty ? (
+              <span className="rounded-full border border-entropy-border px-2 py-0.5 text-[11px]">Unsaved</span>
+            ) : null}
           </div>
           <p className="mt-1 truncate text-xs text-entropy-muted/80">{workspace.path}</p>
         </div>
-        <Button variant="secondary" className="min-h-10 px-4 py-2 text-xs" onClick={onChangeWorkspace}>
+        <Button
+          variant="secondary"
+          className="min-h-10 px-4 py-2 text-xs"
+          onClick={() => void handleLeaveWorkspace()}
+        >
           Change workspace
         </Button>
       </header>
@@ -69,6 +135,7 @@ export default function WorkspaceView({ workspace, onChangeWorkspace }: Workspac
               onCreate={() => void createPage()}
             />
             <PageEditor
+              ref={editorRef}
               workspacePath={workspace.path}
               page={activePage}
               title={draftTitle}
@@ -78,11 +145,36 @@ export default function WorkspaceView({ workspace, onChangeWorkspace }: Workspac
               onTitleChange={updateTitle}
               onTitleBlur={(title) => void renameActivePage(title)}
               onContentChange={updateContent}
+              onDeleteRequest={() => setConfirmDelete(true)}
               onError={setError}
             />
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this page?"
+        description={
+          activePage
+            ? `“${activePage.title}” will be permanently removed from disk (${activePage.fileName}). This cannot be undone.`
+            : 'This page will be permanently removed from disk.'
+        }
+        confirmLabel="Delete page"
+        danger
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => void confirmDeletePage()}
+      />
+
+      <ConfirmDialog
+        open={confirmLeave}
+        title="Leave without saving?"
+        description="The latest changes could not be saved. Leave the workspace anyway?"
+        confirmLabel="Leave anyway"
+        danger
+        onCancel={() => setConfirmLeave(false)}
+        onConfirm={() => void confirmLeaveAnyway()}
+      />
     </section>
   );
 }

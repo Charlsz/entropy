@@ -15,9 +15,16 @@ export default function PageSidebar({ pages, activePageId, onSelect, onCreate }:
       <div className="flex items-center justify-between gap-2 border-b border-entropy-border px-4 py-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.08em] text-entropy-muted">Pages</p>
-          <p className="text-sm text-entropy-text">{pages.length} note{pages.length === 1 ? '' : 's'}</p>
+          <p className="text-sm text-entropy-text">
+            {pages.length} note{pages.length === 1 ? '' : 's'}
+          </p>
         </div>
-        <Button variant="secondary" className="min-h-9 px-3 py-2 text-xs" onClick={onCreate} title="New page">
+        <Button
+          variant="secondary"
+          className="min-h-9 px-3 py-2 text-xs"
+          onClick={onCreate}
+          title="New page (Ctrl/Cmd+N)"
+        >
           <Plus className="h-4 w-4" />
           New
         </Button>
@@ -27,7 +34,10 @@ export default function PageSidebar({ pages, activePageId, onSelect, onCreate }:
         {pages.length === 0 ? (
           <div className="rounded-xl border border-dashed border-entropy-border px-3 py-8 text-center">
             <FileText className="mx-auto mb-3 h-6 w-6 text-entropy-muted" />
-            <p className="text-sm text-entropy-muted">No pages yet. Create your first note.</p>
+            <p className="text-sm leading-6 text-entropy-muted">
+              Empty notebook. Press <span className="text-entropy-text">New</span> or{' '}
+              <kbd className="rounded border border-entropy-border px-1.5 py-0.5 text-[10px]">Ctrl+N</kbd>.
+            </p>
           </div>
         ) : (
           <ul className="space-y-1">
@@ -53,6 +63,13 @@ export default function PageSidebar({ pages, activePageId, onSelect, onCreate }:
             })}
           </ul>
         )}
+      </div>
+
+      <div className="border-t border-entropy-border px-3 py-2 text-[11px] leading-5 text-entropy-muted/80">
+        <p>
+          <kbd className="rounded border border-entropy-border px-1">⌘/Ctrl+S</kbd> save ·{' '}
+          <kbd className="rounded border border-entropy-border px-1">⌘/Ctrl+Alt+↑↓</kbd> pages
+        </p>
       </div>
     </aside>
   );

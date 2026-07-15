@@ -15,6 +15,21 @@ export function usePages(workspace: WorkspaceSelection) {
   const [error, setError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeIdRef = useRef<string | null>(null);
+  const dirtyRef = useRef(false);
+  const draftContentRef = useRef('');
+  const draftTitleRef = useRef('');
+
+  useEffect(() => {
+    dirtyRef.current = dirty;
+  }, [dirty]);
+
+  useEffect(() => {
+    draftContentRef.current = draftContent;
+  }, [draftContent]);
+
+  useEffect(() => {
+    draftTitleRef.current = draftTitle;
+  }, [draftTitle]);
 
   const refreshList = useCallback(async () => {
     const result = await window.entropy.listPages(workspace.path);
@@ -89,8 +104,8 @@ export function usePages(workspace: WorkspaceSelection) {
 
   const flushSave = useCallback(async () => {
     const pageId = activeIdRef.current;
-    if (!pageId || !dirty) {
-      return;
+    if (!pageId || !dirtyRef.current) {
+      return true;
     }
 
     setSaving(true);
@@ -98,25 +113,27 @@ export function usePages(workspace: WorkspaceSelection) {
 
     try {
       const result = await window.entropy.writePage(workspace.path, pageId, {
-        content: draftContent,
-        title: draftTitle
+        content: draftContentRef.current,
+        title: draftTitleRef.current
       });
 
       if (!result.ok) {
         setError(result.error);
-        return;
+        return false;
       }
 
       setActivePage(result.data);
       setDraftTitle(result.data.title);
       setDirty(false);
       await refreshList();
+      return true;
     } catch {
       setError('Failed to save the page.');
+      return false;
     } finally {
       setSaving(false);
     }
-  }, [dirty, draftContent, draftTitle, refreshList, workspace.path]);
+  }, [refreshList, workspace.path]);
 
   useEffect(() => {
     if (!dirty || !activeIdRef.current) {
@@ -138,11 +155,27 @@ export function usePages(workspace: WorkspaceSelection) {
     };
   }, [dirty, draftContent, draftTitle, flushSave]);
 
+  useEffect(() => {
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      if (!dirtyRef.current) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = '';
+    }
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
+
   async function createPage(title?: string) {
     setError(null);
 
-    if (dirty) {
-      await flushSave();
+    if (dirtyRef.current) {
+      const saved = await flushSave();
+      if (!saved) {
+        return;
+      }
     }
 
     const result = await window.entropy.createPage(workspace.path, title ? { title } : undefined);
@@ -164,8 +197,11 @@ export function usePages(workspace: WorkspaceSelection) {
       return;
     }
 
-    if (dirty) {
-      await flushSave();
+    if (dirtyRef.current) {
+      const saved = await flushSave();
+      if (!saved) {
+        return;
+      }
     }
 
     await openPage(pageId);
@@ -187,6 +223,13 @@ export function usePages(workspace: WorkspaceSelection) {
       return;
     }
 
+    if (dirtyRef.current) {
+      const saved = await flushSave();
+      if (!saved) {
+        return;
+      }
+    }
+
     setError(null);
     const result = await window.entropy.renamePage(workspace.path, pageId, title);
     if (!result.ok) {
@@ -205,14 +248,14 @@ export function usePages(workspace: WorkspaceSelection) {
   async function deleteActivePage() {
     const pageId = activeIdRef.current;
     if (!pageId) {
-      return;
+      return false;
     }
 
     setError(null);
     const result = await window.entropy.deletePage(workspace.path, pageId);
     if (!result.ok) {
       setError(result.error);
-      return;
+      return false;
     }
 
     const list = await refreshList();
@@ -225,6 +268,22 @@ export function usePages(workspace: WorkspaceSelection) {
       setDraftContent('');
       setDraftTitle('');
       setDirty(false);
+    }
+    return true;
+  }
+
+  async function selectAdjacentPage(direction: 1 | -1) {
+    if (pages.length === 0) {
+      return;
+    }
+
+    const currentId = activeIdRef.current;
+    const index = pages.findIndex((page) => page.id === currentId);
+    const fallbackIndex = direction === 1 ? 0 : pages.length - 1;
+    const nextIndex = index === -1 ? fallbackIndex : (index + direction + pages.length) % pages.length;
+    const next = pages[nextIndex];
+    if (next) {
+      await selectPage(next.id);
     }
   }
 
@@ -239,6 +298,7 @@ export function usePages(workspace: WorkspaceSelection) {
     error,
     createPage,
     selectPage,
+    selectAdjacentPage,
     updateContent,
     updateTitle,
     renameActivePage,
