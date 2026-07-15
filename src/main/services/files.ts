@@ -89,3 +89,37 @@ export function formatMarkdownLink(ref: FileRef, label?: string): string {
   const text = label?.trim() || ref.name;
   return `[${text}](${ref.href})`;
 }
+
+const PREVIEW_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon'
+};
+
+const MAX_PREVIEW_BYTES = 5 * 1024 * 1024;
+
+export function getImagePreviewDataUrl(filePath: string): string | null {
+  const resolved = path.resolve(filePath);
+  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+    return null;
+  }
+
+  const ext = path.extname(resolved).toLowerCase();
+  const mime = PREVIEW_MIME[ext];
+  if (!mime) {
+    return null;
+  }
+
+  const stat = fs.statSync(resolved);
+  if (stat.size > MAX_PREVIEW_BYTES) {
+    return null;
+  }
+
+  const buffer = fs.readFileSync(resolved);
+  return `data:${mime};base64,${buffer.toString('base64')}`;
+}

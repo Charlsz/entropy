@@ -5,7 +5,8 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
-  useState
+  useState,
+  type DragEvent
 } from 'react';
 import type { FileRef } from '../../shared/files';
 import type { Page } from '../../shared/pages';
@@ -31,6 +32,20 @@ interface PageEditorProps {
   onError: (message: string | null) => void;
 }
 
+function getDroppedPaths(event: DragEvent): string[] {
+  const files = Array.from(event.dataTransfer?.files ?? []);
+  return files
+    .map((file) => {
+      try {
+        return window.entropy.getPathForFile(file);
+      } catch {
+        const withPath = file as File & { path?: string };
+        return typeof withPath.path === 'string' ? withPath.path : '';
+      }
+    })
+    .filter(Boolean);
+}
+
 const PageEditor = forwardRef<PageEditorHandle, PageEditorProps>(function PageEditor(
   {
     workspacePath,
@@ -50,6 +65,8 @@ const PageEditor = forwardRef<PageEditorHandle, PageEditorProps>(function PageEd
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const contentRef = useRef(content);
   const [linkedFiles, setLinkedFiles] = useState<FileRef[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const linkHrefs = useMemo(() => extractFileLinks(content).map((link) => link.href), [content]);
 
   useEffect(() => {
@@ -87,6 +104,33 @@ const PageEditor = forwardRef<PageEditorHandle, PageEditorProps>(function PageEd
     };
   }, [linkHrefs, workspacePath]);
 
+  function insertMarkdownLinks(refs: FileRef[]) {
+    if (refs.length === 0) {
+      return;
+    }
+
+    let current = contentRef.current;
+    let cursor = textareaRef.current?.selectionStart ?? current.length;
+
+    for (const fileRef of refs) {
+      const markdown = formatFileMarkdownLink(fileRef.name, fileRef.href);
+      const inserted = insertAtCursor(current, `${markdown}\n`, cursor);
+      current = inserted.next;
+      cursor = inserted.cursor;
+    }
+
+    onContentChange(current);
+
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) {
+        return;
+      }
+      el.focus();
+      el.setSelectionRange(cursor, cursor);
+    });
+  }
+
   async function linkFile() {
     if (!page) {
       return;
@@ -103,25 +147,74 @@ const PageEditor = forwardRef<PageEditorHandle, PageEditorProps>(function PageEd
       return;
     }
 
-    const current = contentRef.current;
-    const markdown = formatFileMarkdownLink(result.data.name, result.data.href);
-    const cursor = textareaRef.current?.selectionStart ?? current.length;
-    const { next, cursor: nextCursor } = insertAtCursor(current, markdown, cursor);
-    onContentChange(next);
-
-    requestAnimationFrame(() => {
-      const el = textareaRef.current;
-      if (!el) {
-        return;
-      }
-      el.focus();
-      el.setSelectionRange(nextCursor, nextCursor);
-    });
+    insertMarkdownLinks([result.data]);
   }
 
   useImperativeHandle(ref, () => ({
     linkFile
   }));
+
+  async function handleDroppedPaths(paths: string[]) {
+    onError(null);
+    const refs: FileRef[] = [];
+
+    for (const absolutePath of paths) {
+      const result = await window.entropy.fileRefFromPath(workspacePath, absolutePath);
+      if (!result.ok) {
+        onError(result.error);
+        continue;
+      }
+      refs.push(result.data);
+    }
+
+    insertMarkdownLinks(refs);
+  }
+
+  function onDragEnter(event: DragEvent) {
+    if (!page) {
+      return;
+    }
+    event.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  }
+
+  function onDragOver(event: DragEvent) {
+    if (!page) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  }
+
+  function onDragLeave(event: DragEvent) {
+    if (!page) {
+      return;
+    }
+    event.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) {
+      setDragging(false);
+    }
+  }
+
+  async function onDrop(event: DragEvent) {
+    if (!page) {
+      return;
+    }
+
+    event.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+
+    const paths = getDroppedPaths(event);
+    if (paths.length === 0) {
+      onError('Could not read dropped files. Use “Link file” instead.');
+      return;
+    }
+
+    await handleDroppedPaths(paths);
+  }
 
   if (!page) {
     return (
@@ -153,7 +246,22 @@ const PageEditor = forwardRef<PageEditorHandle, PageEditorProps>(function PageEd
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      className="relative flex h-full min-h-0 flex-col"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={(event) => void onDrop(event)}
+    >
+      {dragging ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-none border-2 border-dashed border-entropy-text/40 bg-entropy-background/80">
+          <div className="rounded-2xl border border-entropy-border bg-entropy-panel px-6 py-4 text-center">
+            <p className="text-sm font-medium text-entropy-text">Drop files to link them</p>
+            <p className="mt-1 text-xs text-entropy-muted">Originals stay in place — only a reference is added</p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between gap-3 border-b border-entropy-border px-5 py-3">
         <input
           value={title}
@@ -193,7 +301,7 @@ const PageEditor = forwardRef<PageEditorHandle, PageEditorProps>(function PageEd
         value={content}
         onChange={(event) => onContentChange(event.target.value)}
         className="min-h-0 flex-1 resize-none bg-transparent px-5 py-4 font-mono text-sm leading-7 text-entropy-text outline-none placeholder:text-entropy-muted"
-        placeholder="Write in Markdown… link ideas, drop thoughts, keep context with your files."
+        placeholder="Write in Markdown… drop images, PDFs, or any file to keep them as references."
         spellCheck
       />
 

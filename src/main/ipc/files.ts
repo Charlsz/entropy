@@ -1,8 +1,14 @@
 import { dialog, ipcMain, shell } from 'electron';
-import { FILES_OPEN_CHANNEL, FILES_PICK_CHANNEL, FILES_RESOLVE_CHANNEL } from '../../shared/ipc';
+import {
+  FILES_FROM_PATH_CHANNEL,
+  FILES_IMAGE_PREVIEW_CHANNEL,
+  FILES_OPEN_CHANNEL,
+  FILES_PICK_CHANNEL,
+  FILES_RESOLVE_CHANNEL
+} from '../../shared/ipc';
 import type { FileRef } from '../../shared/files';
 import { err, ok, type Result } from '../../shared/result';
-import { buildFileRef, resolveHref } from '../services/files';
+import { buildFileRef, getImagePreviewDataUrl, resolveHref } from '../services/files';
 import { isValidWorkspacePath } from '../services/workspace';
 
 export function registerFilesIpc(): void {
@@ -60,6 +66,34 @@ export function registerFilesIpc(): void {
         return ok(resolveHref(workspacePath, href));
       } catch (error) {
         return err(error instanceof Error ? error.message : 'Failed to resolve file reference.');
+      }
+    }
+  );
+
+  ipcMain.handle(
+    FILES_FROM_PATH_CHANNEL,
+    async (_event, workspacePath: string, absolutePath: string): Promise<Result<FileRef>> => {
+      try {
+        if (!absolutePath || typeof absolutePath !== 'string') {
+          return err('Invalid file path.');
+        }
+        return ok(buildFileRef(workspacePath, absolutePath));
+      } catch (error) {
+        return err(error instanceof Error ? error.message : 'Failed to link file path.');
+      }
+    }
+  );
+
+  ipcMain.handle(
+    FILES_IMAGE_PREVIEW_CHANNEL,
+    async (_event, filePath: string): Promise<Result<string | null>> => {
+      try {
+        if (!filePath || typeof filePath !== 'string') {
+          return err('Invalid file path.');
+        }
+        return ok(getImagePreviewDataUrl(filePath));
+      } catch (error) {
+        return err(error instanceof Error ? error.message : 'Failed to load image preview.');
       }
     }
   );

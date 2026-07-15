@@ -21,6 +21,9 @@ export interface EntropyApi {
   pickFile(workspacePath: string): Promise<Result<FileRef | null>>;
   openFile(filePath: string): Promise<Result<void>>;
   resolveFileRef(workspacePath: string, href: string): Promise<Result<FileRef>>;
+  fileRefFromPath(workspacePath: string, absolutePath: string): Promise<Result<FileRef>>;
+  getImagePreview(filePath: string): Promise<Result<string | null>>;
+  getPathForFile(file: File): string;
 
   searchPages(workspacePath: string, query: SearchQuery): Promise<Result<SearchHit[]>>;
 }

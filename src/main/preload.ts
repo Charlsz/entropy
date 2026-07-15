@@ -1,6 +1,8 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { EntropyApi } from '../shared/api';
 import {
+  FILES_FROM_PATH_CHANNEL,
+  FILES_IMAGE_PREVIEW_CHANNEL,
   FILES_OPEN_CHANNEL,
   FILES_PICK_CHANNEL,
   FILES_RESOLVE_CHANNEL,
@@ -10,11 +12,11 @@ import {
   PAGES_READ_CHANNEL,
   PAGES_RENAME_CHANNEL,
   PAGES_WRITE_CHANNEL,
+  SEARCH_PAGES_CHANNEL,
   WORKSPACE_CLEAR_LAST_CHANNEL,
   WORKSPACE_GET_LAST_CHANNEL,
   WORKSPACE_PICK_CHANNEL,
   WORKSPACE_SET_LAST_CHANNEL,
-  SEARCH_PAGES_CHANNEL,
   WORKSPACE_VALIDATE_CHANNEL
 } from '../shared/ipc';
 import type { CreatePageInput, WritePageInput } from '../shared/pages';
@@ -65,6 +67,15 @@ const api: EntropyApi = {
   },
   resolveFileRef(workspacePath: string, href: string) {
     return ipcRenderer.invoke(FILES_RESOLVE_CHANNEL, workspacePath, href);
+  },
+  fileRefFromPath(workspacePath: string, absolutePath: string) {
+    return ipcRenderer.invoke(FILES_FROM_PATH_CHANNEL, workspacePath, absolutePath);
+  },
+  getImagePreview(filePath: string) {
+    return ipcRenderer.invoke(FILES_IMAGE_PREVIEW_CHANNEL, filePath);
+  },
+  getPathForFile(file: File) {
+    return webUtils.getPathForFile(file);
   },
 
   searchPages(workspacePath: string, query: SearchQuery) {
