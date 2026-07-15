@@ -20,6 +20,7 @@ function createWindow() {
     show: false,
     title: 'Entropy',
     backgroundColor: '#212121',
+    icon: path.join(app.getAppPath(), 'Entropy.png'),
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
@@ -46,6 +47,10 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.entropy.app');
+  }
+
   Menu.setApplicationMenu(null);
   createWindow();
 

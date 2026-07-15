@@ -9,27 +9,27 @@
 
 export const colors = {
   // Base neutrals — dark mode first
-  background: '#0d0d0d',
-  surface: '#141414',
-  surfaceElevated: '#1a1a1a',
+  background: '#212121',
+  surface: '#242424',
+  surfaceElevated: '#2a2a2a',
   surfaceBorder: '#242424',
 
   // Text
-  textPrimary: '#e8e8e8',
-  textSecondary: '#888888',
-  textMuted: '#555555',
-  textDisabled: '#3a3a3a',
+  textPrimary: '#f8f8ff',
+  textSecondary: '#f4f4ff',
+  textMuted: '#d8d8e6',
+  textDisabled: '#a8a8b8',
 
-  // Accent — a single calm blue, never screaming
-  accent: '#4a90d9',
-  accentHover: '#5a9fe8',
-  accentSubtle: 'rgba(74,144,217,0.12)',
+  // Accent
+  accent: '#f4f4ff',
+  accentHover: '#ffffff',
+  accentSubtle: '#2a2a2a',
 
   // Semantic
   danger: '#e05c5c',
-  dangerSubtle: 'rgba(224,92,92,0.12)',
+  dangerSubtle: '#2d2222',
   success: '#5cba8a',
-  successSubtle: 'rgba(92,186,138,0.12)',
+  successSubtle: '#222d26',
 } as const;
 
 export const spacing = {
@@ -79,9 +79,9 @@ export const radius = {
 } as const;
 
 export const shadow = {
-  sm: '0 1px 3px rgba(0,0,0,0.4)',
-  md: '0 4px 12px rgba(0,0,0,0.5)',
-  lg: '0 8px 24px rgba(0,0,0,0.6)',
+  sm: '0 1px 3px #00000066',
+  md: '0 4px 12px #00000080',
+  lg: '0 8px 24px #00000099',
 } as const;
 
 export const transition = {
