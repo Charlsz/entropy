@@ -1,4 +1,4 @@
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Search } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { WorkspaceSelection } from '../../shared/workspace';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
@@ -7,6 +7,7 @@ import Button from './ui/button';
 import ConfirmDialog from './ConfirmDialog';
 import PageEditor, { type PageEditorHandle } from './PageEditor';
 import PageSidebar from './PageSidebar';
+import SearchPanel from './SearchPanel';
 
 interface WorkspaceViewProps {
   workspace: WorkspaceSelection;
@@ -37,6 +38,7 @@ export default function WorkspaceView({ workspace, onChangeWorkspace }: Workspac
   const editorRef = useRef<PageEditorHandle | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const shortcuts = useMemo(
     () => ({
@@ -59,6 +61,14 @@ export default function WorkspaceView({ workspace, onChangeWorkspace }: Workspac
       },
       onLinkFile: () => {
         void editorRef.current?.linkFile();
+      },
+      onSearch: () => {
+        setSearchOpen(true);
+      },
+      onEscape: () => {
+        setSearchOpen(false);
+        setConfirmDelete(false);
+        setConfirmLeave(false);
       }
     }),
     [activePage, createPage, flushSave, selectAdjacentPage]
@@ -100,13 +110,24 @@ export default function WorkspaceView({ workspace, onChangeWorkspace }: Workspac
           </div>
           <p className="mt-1 truncate text-xs text-entropy-muted/80">{workspace.path}</p>
         </div>
-        <Button
-          variant="secondary"
-          className="min-h-10 px-4 py-2 text-xs"
-          onClick={() => void handleLeaveWorkspace()}
-        >
-          Change workspace
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            className="min-h-10 px-4 py-2 text-xs"
+            onClick={() => setSearchOpen(true)}
+            title="Search pages (Ctrl/Cmd+K)"
+          >
+            <Search className="h-3.5 w-3.5" />
+            Search
+          </Button>
+          <Button
+            variant="secondary"
+            className="min-h-10 px-4 py-2 text-xs"
+            onClick={() => void handleLeaveWorkspace()}
+          >
+            Change workspace
+          </Button>
+        </div>
       </header>
 
       {error ? (
@@ -174,6 +195,14 @@ export default function WorkspaceView({ workspace, onChangeWorkspace }: Workspac
         danger
         onCancel={() => setConfirmLeave(false)}
         onConfirm={() => void confirmLeaveAnyway()}
+      />
+
+      <SearchPanel
+        open={searchOpen}
+        workspacePath={workspace.path}
+        onClose={() => setSearchOpen(false)}
+        onSelect={(pageId) => void selectPage(pageId)}
+        onError={setError}
       />
     </section>
   );

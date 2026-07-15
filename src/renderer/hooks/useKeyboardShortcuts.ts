@@ -7,6 +7,8 @@ export interface ShortcutHandlers {
   onNextPage?: () => void;
   onPrevPage?: () => void;
   onLinkFile?: () => void;
+  onSearch?: () => void;
+  onEscape?: () => void;
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -28,6 +30,11 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers, enabled = true)
       const mod = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
 
+      if (key === 'escape') {
+        handlers.onEscape?.();
+        return;
+      }
+
       if (mod && key === 'n') {
         event.preventDefault();
         handlers.onNewPage?.();
@@ -43,6 +50,18 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers, enabled = true)
       if (mod && key === 'l') {
         event.preventDefault();
         handlers.onLinkFile?.();
+        return;
+      }
+
+      if (mod && key === 'k') {
+        event.preventDefault();
+        handlers.onSearch?.();
+        return;
+      }
+
+      if (mod && key === 'f' && !isEditableTarget(event.target)) {
+        event.preventDefault();
+        handlers.onSearch?.();
         return;
       }
 

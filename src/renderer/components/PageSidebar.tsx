@@ -67,8 +67,8 @@ export default function PageSidebar({ pages, activePageId, onSelect, onCreate }:
 
       <div className="border-t border-entropy-border px-3 py-2 text-[11px] leading-5 text-entropy-muted/80">
         <p>
-          <kbd className="rounded border border-entropy-border px-1">⌘/Ctrl+S</kbd> save ·{' '}
-          <kbd className="rounded border border-entropy-border px-1">⌘/Ctrl+Alt+↑↓</kbd> pages
+          <kbd className="rounded border border-entropy-border px-1">⌘/Ctrl+K</kbd> search ·{' '}
+          <kbd className="rounded border border-entropy-border px-1">⌘/Ctrl+S</kbd> save
         </p>
       </div>
     </aside>

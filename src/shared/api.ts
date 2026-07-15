@@ -1,6 +1,7 @@
 import type { FileRef } from './files';
 import type { CreatePageInput, Page, PageSummary, WritePageInput } from './pages';
 import type { Result } from './result';
+import type { SearchHit, SearchQuery } from './search';
 import type { WorkspaceAction, WorkspaceSelection } from './workspace';
 
 export interface EntropyApi {
@@ -20,4 +21,6 @@ export interface EntropyApi {
   pickFile(workspacePath: string): Promise<Result<FileRef | null>>;
   openFile(filePath: string): Promise<Result<void>>;
   resolveFileRef(workspacePath: string, href: string): Promise<Result<FileRef>>;
+
+  searchPages(workspacePath: string, query: SearchQuery): Promise<Result<SearchHit[]>>;
 }

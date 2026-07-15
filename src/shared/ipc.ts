@@ -14,3 +14,5 @@ export const PAGES_DELETE_CHANNEL = 'pages:delete';
 export const FILES_PICK_CHANNEL = 'files:pick';
 export const FILES_OPEN_CHANNEL = 'files:open';
 export const FILES_RESOLVE_CHANNEL = 'files:resolve';
+
+export const SEARCH_PAGES_CHANNEL = 'search:pages';

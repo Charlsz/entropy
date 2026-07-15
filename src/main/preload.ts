@@ -14,9 +14,11 @@ import {
   WORKSPACE_GET_LAST_CHANNEL,
   WORKSPACE_PICK_CHANNEL,
   WORKSPACE_SET_LAST_CHANNEL,
+  SEARCH_PAGES_CHANNEL,
   WORKSPACE_VALIDATE_CHANNEL
 } from '../shared/ipc';
 import type { CreatePageInput, WritePageInput } from '../shared/pages';
+import type { SearchQuery } from '../shared/search';
 import type { WorkspaceAction, WorkspaceSelection } from '../shared/workspace';
 
 const api: EntropyApi = {
@@ -63,6 +65,10 @@ const api: EntropyApi = {
   },
   resolveFileRef(workspacePath: string, href: string) {
     return ipcRenderer.invoke(FILES_RESOLVE_CHANNEL, workspacePath, href);
+  },
+
+  searchPages(workspacePath: string, query: SearchQuery) {
+    return ipcRenderer.invoke(SEARCH_PAGES_CHANNEL, workspacePath, query);
   }
 };
 

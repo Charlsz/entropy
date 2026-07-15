@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu } from 'electron';
 import path from 'node:path';
 import { registerFilesIpc } from './ipc/files';
 import { registerPagesIpc } from './ipc/pages';
+import { registerSearchIpc } from './ipc/search';
 import { registerWorkspaceIpc } from './ipc/workspace';
 
 let mainWindow: BrowserWindow | null = null;
@@ -54,6 +55,7 @@ app.whenReady().then(() => {
   registerWorkspaceIpc();
   registerPagesIpc();
   registerFilesIpc();
+  registerSearchIpc();
   createWindow();
 
   app.on('activate', () => {
