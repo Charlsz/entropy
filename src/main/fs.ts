@@ -218,3 +218,33 @@ export async function createNote(dirPath: string, name?: string): Promise<string
   await writeText(filePath, `# ${path.basename(filePath, ".md")}\n\n`);
   return filePath;
 }
+
+export async function duplicate(targetPath: string): Promise<string> {
+  const dir = path.dirname(targetPath);
+  const ext = path.extname(targetPath);
+  const base = path.basename(targetPath, ext);
+  let next = path.join(dir, `${base} copy${ext}`);
+  let suffix = 2;
+
+  while (await exists(next)) {
+    next = path.join(dir, `${base} copy ${suffix}${ext}`);
+    suffix += 1;
+  }
+
+  const info = await fs.stat(targetPath);
+  if (info.isDirectory()) {
+    await fs.cp(targetPath, next, { recursive: true });
+  } else {
+    await fs.copyFile(targetPath, next);
+  }
+
+  return next;
+}
+
+export async function revealInFolder(targetPath: string): Promise<void> {
+  shell.showItemInFolder(targetPath);
+}
+
+export async function openExternal(targetPath: string): Promise<void> {
+  await shell.openPath(targetPath);
+}

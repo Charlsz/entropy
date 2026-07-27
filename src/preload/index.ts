@@ -35,6 +35,9 @@ const api: EntropyApi = {
     dirname: (filePath) => ipcRenderer.invoke("fs:dirname", filePath),
     basename: (filePath) => ipcRenderer.invoke("fs:basename", filePath),
     toUrl: (filePath) => ipcRenderer.invoke("fs:toUrl", filePath),
+    duplicate: (targetPath) => ipcRenderer.invoke("fs:duplicate", targetPath),
+    reveal: (targetPath) => ipcRenderer.invoke("fs:reveal", targetPath),
+    openExternal: (targetPath) => ipcRenderer.invoke("fs:openExternal", targetPath),
   },
 };
 

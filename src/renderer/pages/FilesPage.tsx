@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 import type { FileEntry, TreeNode } from "../../shared/types";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FolderTree } from "./FolderTree";
@@ -28,6 +28,9 @@ export function FilesPage() {
   const [crumbs, setCrumbs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [dragOverPath, setDragOverPath] = useState<string | null>(null);
 
   const view = workspace.settings.filesView;
 
@@ -44,19 +47,25 @@ export function FilesPage() {
 
       const relative = workspace.currentFolder
         .slice(workspace.path.length)
-        .replace(/^[/\\]/, "");
+        .replace(/^[/\\]+/, "");
       const parts = relative ? relative.split(/[/\\]/) : [];
       setCrumbs(parts);
+
+      if (selected) {
+        const stillThere = listing.find((entry) => entry.path === selected.path);
+        setSelected(stillThere ?? null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to read folder");
     } finally {
       setLoading(false);
     }
-  }, [workspace.path, workspace.currentFolder]);
+  }, [workspace.path, workspace.currentFolder, selected]);
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.path, workspace.currentFolder]);
 
   const visible = useMemo(() => {
     const filtered = entries.filter((entry) =>
@@ -96,6 +105,92 @@ export function FilesPage() {
     setCurrentFolder(next);
   }
 
+  function startRename(entry: FileEntry): void {
+    setSelected(entry);
+    setRenaming(true);
+    setRenameValue(entry.name);
+  }
+
+  async function commitRename(): Promise<void> {
+    if (!selected || !renaming) return;
+    const nextName = renameValue.trim();
+    setRenaming(false);
+    if (!nextName || nextName === selected.name) return;
+
+    try {
+      const dir = await window.entropy.fs.dirname(selected.path);
+      const target = await window.entropy.fs.join(dir, nextName);
+      if (await window.entropy.fs.exists(target)) {
+        setError("A file with that name already exists.");
+        return;
+      }
+      await window.entropy.fs.rename(selected.path, target);
+      await refresh();
+      const info = await window.entropy.fs.stat(target);
+      setSelected(info);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to rename");
+    }
+  }
+
+  async function handleDelete(entry: FileEntry): Promise<void> {
+    if (!window.confirm(`Move "${entry.name}" to the system trash?`)) return;
+    try {
+      await window.entropy.fs.remove(entry.path);
+      if (selected?.path === entry.path) setSelected(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete");
+    }
+  }
+
+  async function handleDuplicate(entry: FileEntry): Promise<void> {
+    try {
+      const created = await window.entropy.fs.duplicate(entry.path);
+      await refresh();
+      const info = await window.entropy.fs.stat(created);
+      setSelected(info);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to duplicate");
+    }
+  }
+
+  async function moveToFolder(sourcePath: string, folderPath: string): Promise<void> {
+    if (sourcePath === folderPath) return;
+    const name = sourcePath.split(/[/\\]/).pop();
+    if (!name) return;
+    try {
+      const target = await window.entropy.fs.join(folderPath, name);
+      if (await window.entropy.fs.exists(target)) {
+        setError("An item with that name already exists in the destination.");
+        return;
+      }
+      await window.entropy.fs.rename(sourcePath, target);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to move");
+    }
+  }
+
+  function onDragStart(event: DragEvent, entry: FileEntry): void {
+    event.dataTransfer.setData("application/x-entropy-path", entry.path);
+    event.dataTransfer.effectAllowed = "move";
+  }
+
+  function onDragOver(event: DragEvent, folderPath: string): void {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverPath(folderPath);
+  }
+
+  async function onDrop(event: DragEvent, folderPath: string): Promise<void> {
+    event.preventDefault();
+    setDragOverPath(null);
+    const source = event.dataTransfer.getData("application/x-entropy-path");
+    if (!source || source === folderPath) return;
+    await moveToFolder(source, folderPath);
+  }
+
   return (
     <main className="content-area files-page" aria-label="Files">
       <aside className="files-tree-pane">
@@ -104,8 +199,11 @@ export function FilesPage() {
         </div>
         <button
           type="button"
-          className={`tree-root${workspace.currentFolder === workspace.path ? " is-active" : ""}`}
+          className={`tree-root${workspace.currentFolder === workspace.path ? " is-active" : ""}${dragOverPath === workspace.path ? " is-drop-target" : ""}`}
           onClick={() => setCurrentFolder(workspace.path)}
+          onDragOver={(event) => onDragOver(event, workspace.path)}
+          onDragLeave={() => setDragOverPath(null)}
+          onDrop={(event) => void onDrop(event, workspace.path)}
         >
           {workspace.name}
         </button>
@@ -116,7 +214,11 @@ export function FilesPage() {
         />
       </aside>
 
-      <section className="files-main-pane">
+      <section
+        className="files-main-pane"
+        onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
+        onDrop={(event) => void onDrop(event, workspace.currentFolder)}
+      >
         <div className="files-toolbar">
           <nav className="breadcrumb" aria-label="Breadcrumb">
             <button type="button" onClick={() => void goToCrumb(-1)}>
@@ -150,15 +252,17 @@ export function FilesPage() {
               <option value="size">Size</option>
               <option value="type">Type</option>
             </select>
-            <button type="button" className="btn btn-secondary btn-small" onClick={() => setSortAsc((v) => !v)}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-small"
+              onClick={() => setSortAsc((value) => !value)}
+            >
               {sortAsc ? "Asc" : "Desc"}
             </button>
             <button
               type="button"
               className="btn btn-secondary btn-small"
-              onClick={() =>
-                updateSettings({ filesView: view === "list" ? "grid" : "list" })
-              }
+              onClick={() => updateSettings({ filesView: view === "list" ? "grid" : "list" })}
             >
               {view === "list" ? "Grid" : "List"}
             </button>
@@ -167,10 +271,7 @@ export function FilesPage() {
 
         {error ? <p className="inline-error">{error}</p> : null}
         {loading ? <p className="pane-empty">Loading…</p> : null}
-
-        {!loading && visible.length === 0 ? (
-          <p className="pane-empty">This folder is empty.</p>
-        ) : null}
+        {!loading && visible.length === 0 ? <p className="pane-empty">This folder is empty.</p> : null}
 
         {view === "list" ? (
           <div className="files-list" role="table" aria-label="Files">
@@ -184,8 +285,16 @@ export function FilesPage() {
               <button
                 key={entry.path}
                 type="button"
-                className={`files-list-row${selected?.path === entry.path ? " is-selected" : ""}`}
+                draggable
+                className={`files-list-row${selected?.path === entry.path ? " is-selected" : ""}${entry.isDirectory && dragOverPath === entry.path ? " is-drop-target" : ""}`}
                 onClick={() => void openEntry(entry)}
+                onDragStart={(event) => onDragStart(event, entry)}
+                onDragOver={
+                  entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
+                }
+                onDrop={
+                  entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
+                }
               >
                 <span className="files-name">
                   {entry.isDirectory ? "[dir] " : ""}
@@ -203,10 +312,22 @@ export function FilesPage() {
               <button
                 key={entry.path}
                 type="button"
-                className={`files-grid-card${selected?.path === entry.path ? " is-selected" : ""}`}
+                draggable
+                className={`files-grid-card${selected?.path === entry.path ? " is-selected" : ""}${entry.isDirectory && dragOverPath === entry.path ? " is-drop-target" : ""}`}
                 onClick={() => void openEntry(entry)}
+                onDragStart={(event) => onDragStart(event, entry)}
+                onDragOver={
+                  entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
+                }
+                onDrop={
+                  entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
+                }
               >
-                <span className="files-grid-icon">{entry.isDirectory ? "DIR" : entry.extension.replace(".", "").toUpperCase() || "FILE"}</span>
+                <span className="files-grid-icon">
+                  {entry.isDirectory
+                    ? "DIR"
+                    : entry.extension.replace(".", "").toUpperCase() || "FILE"}
+                </span>
                 <span className="files-grid-name">{entry.name}</span>
                 <span className="files-grid-meta">
                   {entry.isDirectory ? "Folder" : formatBytes(entry.size)}
@@ -221,7 +342,43 @@ export function FilesPage() {
         {selected && !selected.isDirectory ? (
           <div className="files-meta files-preview-panel">
             <h2>Preview</h2>
-            <p className="files-meta-name">{selected.name}</p>
+            {renaming ? (
+              <input
+                className="note-rename-input"
+                value={renameValue}
+                autoFocus
+                onChange={(event) => setRenameValue(event.target.value)}
+                onBlur={() => void commitRename()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void commitRename();
+                  if (event.key === "Escape") setRenaming(false);
+                }}
+              />
+            ) : (
+              <p className="files-meta-name">{selected.name}</p>
+            )}
+
+            <div className="file-actions">
+              <button type="button" onClick={() => startRename(selected)}>
+                Rename
+              </button>
+              <button type="button" onClick={() => void handleDuplicate(selected)}>
+                Duplicate
+              </button>
+              <button type="button" onClick={() => void handleDelete(selected)}>
+                Delete
+              </button>
+              <button type="button" onClick={() => void window.entropy.fs.reveal(selected.path)}>
+                Reveal
+              </button>
+              <button
+                type="button"
+                onClick={() => void window.entropy.fs.openExternal(selected.path)}
+              >
+                Open
+              </button>
+            </div>
+
             <FilePreview file={selected} />
             <dl>
               <div>
@@ -241,11 +398,31 @@ export function FilesPage() {
                 <dd>{formatDate(selected.modifiedAt)}</dd>
               </div>
             </dl>
+            <p className="pane-empty">Drag files onto folders to move them.</p>
+          </div>
+        ) : selected?.isDirectory ? (
+          <div className="files-meta">
+            <h2>Folder</h2>
+            <p className="files-meta-name">{selected.name}</p>
+            <div className="file-actions">
+              <button type="button" onClick={() => startRename(selected)}>
+                Rename
+              </button>
+              <button type="button" onClick={() => void handleDuplicate(selected)}>
+                Duplicate
+              </button>
+              <button type="button" onClick={() => void handleDelete(selected)}>
+                Delete
+              </button>
+              <button type="button" onClick={() => void window.entropy.fs.reveal(selected.path)}>
+                Reveal
+              </button>
+            </div>
           </div>
         ) : (
           <div className="content-empty">
             <h1>Files</h1>
-            <p>Select a file to preview it.</p>
+            <p>Select a file to preview and manage it.</p>
           </div>
         )}
       </aside>

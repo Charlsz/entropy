@@ -108,6 +108,11 @@ function registerIpc(): void {
   ipcMain.handle("fs:dirname", (_event, filePath: string) => filesystem.dirnamePath(filePath));
   ipcMain.handle("fs:basename", (_event, filePath: string) => filesystem.basenamePath(filePath));
   ipcMain.handle("fs:toUrl", (_event, filePath: string) => toEntropyUrl(filePath));
+  ipcMain.handle("fs:duplicate", (_event, targetPath: string) => filesystem.duplicate(targetPath));
+  ipcMain.handle("fs:reveal", (_event, targetPath: string) => filesystem.revealInFolder(targetPath));
+  ipcMain.handle("fs:openExternal", (_event, targetPath: string) =>
+    filesystem.openExternal(targetPath),
+  );
 }
 
 app.whenReady().then(() => {
