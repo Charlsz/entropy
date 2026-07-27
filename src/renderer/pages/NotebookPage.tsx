@@ -4,7 +4,13 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { FolderTree } from "./FolderTree";
 import { MarkdownEditor } from "./MarkdownEditor";
 
-export function NotebookPage() {
+export function NotebookPage({
+  pendingNote,
+  onPendingNoteHandled,
+}: {
+  pendingNote?: string | null;
+  onPendingNoteHandled?: () => void;
+} = {}) {
   const { workspace, setCurrentFolder, addRecentFile } = useWorkspace();
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [notes, setNotes] = useState<FileEntry[]>([]);
@@ -37,6 +43,13 @@ export function NotebookPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!pendingNote) return;
+    setOpenPaths((prev) => (prev.includes(pendingNote) ? prev : [...prev, pendingNote]));
+    setActivePath(pendingNote);
+    onPendingNoteHandled?.();
+  }, [pendingNote, onPendingNoteHandled]);
 
   useEffect(() => {
     if (!query.trim()) {

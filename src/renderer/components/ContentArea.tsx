@@ -4,6 +4,8 @@ import { NotebookPage } from "../pages/NotebookPage";
 
 interface ContentAreaProps {
   section: SectionId;
+  pendingNote?: string | null;
+  onPendingNoteHandled?: () => void;
 }
 
 const LABELS: Record<SectionId, string> = {
@@ -13,9 +15,18 @@ const LABELS: Record<SectionId, string> = {
   settings: "Settings",
 };
 
-export function ContentArea({ section }: ContentAreaProps) {
+export function ContentArea({
+  section,
+  pendingNote,
+  onPendingNoteHandled,
+}: ContentAreaProps) {
   if (section === "notebook") {
-    return <NotebookPage />;
+    return (
+      <NotebookPage
+        pendingNote={pendingNote}
+        onPendingNoteHandled={onPendingNoteHandled}
+      />
+    );
   }
 
   if (section === "settings") {
@@ -72,6 +83,11 @@ function SettingsPanel() {
           <button type="button" className="btn btn-secondary" onClick={clearRecentFiles}>
             Clear ({workspace.recentFiles.length})
           </button>
+        </div>
+
+        <div className="settings-row">
+          <span>Search</span>
+          <span className="settings-hint">Ctrl/Cmd + K</span>
         </div>
       </div>
     </main>
