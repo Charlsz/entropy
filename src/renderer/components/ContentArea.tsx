@@ -1,6 +1,7 @@
 import type { SectionId } from "./Sidebar";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { NotebookPage } from "../pages/NotebookPage";
+import { FilesPage } from "../pages/FilesPage";
 
 interface ContentAreaProps {
   section: SectionId;
@@ -27,6 +28,10 @@ export function ContentArea({
         onPendingNoteHandled={onPendingNoteHandled}
       />
     );
+  }
+
+  if (section === "files") {
+    return <FilesPage />;
   }
 
   if (section === "settings") {
