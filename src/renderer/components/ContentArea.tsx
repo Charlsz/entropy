@@ -2,6 +2,7 @@ import type { SectionId } from "./Sidebar";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { NotebookPage } from "../pages/NotebookPage";
 import { FilesPage } from "../pages/FilesPage";
+import { CanvasPage } from "../pages/CanvasPage";
 
 interface ContentAreaProps {
   section: SectionId;
@@ -32,6 +33,10 @@ export function ContentArea({
 
   if (section === "files") {
     return <FilesPage />;
+  }
+
+  if (section === "canvas") {
+    return <CanvasPage />;
   }
 
   if (section === "settings") {
