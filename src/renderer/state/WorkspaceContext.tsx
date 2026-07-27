@@ -1,7 +1,6 @@
 import {
   createContext,
   useCallback,
-  useContext,
   useMemo,
   useState,
   type ReactNode,
@@ -87,10 +86,5 @@ export function WorkspaceProvider({ path, onClose, children }: WorkspaceProvider
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
 
-export function useWorkspaceContext(): WorkspaceContextValue {
-  const value = useContext(WorkspaceContext);
-  if (!value) {
-    throw new Error("useWorkspace must be used within WorkspaceProvider");
-  }
-  return value;
-}
+export { WorkspaceContext };
+export type { WorkspaceContextValue };
