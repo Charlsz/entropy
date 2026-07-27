@@ -1,3 +1,21 @@
+:root {
+  --bg-app: #111111;
+  --bg-sidebar: #161616;
+  --bg-titlebar: #141414;
+  --bg-content: #111111;
+  --bg-hover: #1e1e1e;
+  --bg-active: #242424;
+  --border: #262626;
+  --text: #eaeaea;
+  --text-muted: #8b8b8b;
+  --accent: #c8c8c8;
+  --titlebar-height: 40px;
+  --sidebar-width: 220px;
+  --sidebar-collapsed: 64px;
+  --radius: 8px;
+  --font-ui: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
+}
+
 *,
 *::before,
 *::after {
@@ -13,13 +31,9 @@ body,
 }
 
 body {
-  font-family:
-    "Segoe UI",
-    system-ui,
-    -apple-system,
-    sans-serif;
-  background: #0f0f0f;
-  color: #e8e8e8;
+  font-family: var(--font-ui);
+  background: var(--bg-app);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   user-select: none;
@@ -29,25 +43,209 @@ button,
 input,
 textarea {
   font: inherit;
+  color: inherit;
 }
 
-.app-placeholder {
-  display: grid;
-  place-content: center;
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  gap: 0.5rem;
-  text-align: center;
+  background: var(--bg-app);
 }
 
-.app-placeholder h1 {
-  margin: 0;
-  font-size: 1.75rem;
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--titlebar-height);
+  min-height: var(--titlebar-height);
+  padding: 0 14px;
+  background: var(--bg-titlebar);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar-drag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.titlebar-brand {
+  font-size: 13px;
+  font-weight: 560;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.titlebar-controls {
+  width: 70px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  text-align: left;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.sidebar-item.is-active {
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+.sidebar-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid currentColor;
+  opacity: 0.7;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.sidebar-icon[data-section="notebook"] {
+  border-radius: 3px 3px 2px 2px;
+}
+
+.sidebar-icon[data-section="files"]::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+}
+
+.sidebar-icon[data-section="canvas"] {
+  border-radius: 50%;
+}
+
+.sidebar-icon[data-section="settings"] {
+  border-radius: 50%;
+  border-style: dashed;
+}
+
+.sidebar-label {
+  font-size: 14px;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
 }
 
-.app-placeholder p {
+.content-area {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-content);
+  display: flex;
+  flex-direction: column;
+}
+
+.content-empty {
+  margin: auto;
+  text-align: center;
+  padding: 32px;
+}
+
+.content-empty h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.content-empty p {
   margin: 0;
-  color: #8a8a8a;
+  color: var(--text-muted);
   font-size: 0.95rem;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: var(--sidebar-collapsed);
+    min-width: var(--sidebar-collapsed);
+    padding: 12px 8px;
+  }
+
+  .sidebar-item {
+    justify-content: center;
+    padding: 12px 8px;
+  }
+
+  .sidebar-label {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 8px;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .sidebar-item {
+    width: auto;
+    flex: 1;
+    min-width: 64px;
+  }
+
+  .sidebar-label {
+    display: none;
+  }
 }

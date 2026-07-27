@@ -7,11 +7,15 @@ function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 720,
+    minHeight: 520,
     show: false,
-    backgroundColor: "#0f0f0f",
-    titleBarStyle: "hiddenInset",
+    backgroundColor: "#111111",
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
+    titleBarOverlay:
+      process.platform === "win32"
+        ? { color: "#141414", symbolColor: "#eaeaea", height: 40 }
+        : undefined,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
