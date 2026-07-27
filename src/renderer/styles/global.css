@@ -1144,6 +1144,16 @@ button {
   user-select: text;
 }
 
+.canvas-connections {
+  position: absolute;
+  left: -5000px;
+  top: -5000px;
+  width: 10000px;
+  height: 10000px;
+  overflow: visible;
+  pointer-events: none;
+}
+
 .files-toolbar {
   display: flex;
   flex-direction: column;

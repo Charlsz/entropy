@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, protocol } from "electron";
 import path from "node:path";
 import * as filesystem from "./fs";
 import { FILE_PROTOCOL, registerFileProtocol, toEntropyUrl } from "./protocol";
+import { loadCanvas, saveCanvas, type PersistedCanvas } from "./canvasStore";
 import {
   clearRecentWorkspaces,
   createWorkspaceDialog,
@@ -116,6 +117,9 @@ function registerIpc(): void {
   ipcMain.handle("fs:openExternal", (_event, targetPath: string) =>
     filesystem.openExternal(targetPath),
   );
+
+  ipcMain.handle("canvas:load", (_event, workspacePath: string) => loadCanvas(workspacePath));
+  ipcMain.handle("canvas:save", (_event, doc: PersistedCanvas) => saveCanvas(doc));
 }
 
 app.whenReady().then(() => {

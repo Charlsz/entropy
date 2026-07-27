@@ -57,12 +57,38 @@ export interface EntropyApi {
     reveal: (targetPath: string) => Promise<void>;
     openExternal: (targetPath: string) => Promise<void>;
   };
+  canvas: {
+    load: (workspacePath: string) => Promise<CanvasDocument | null>;
+    save: (doc: CanvasDocument) => Promise<void>;
+  };
 }
 
 export interface RecentWorkspace {
   path: string;
   name: string;
   openedAt: number;
+}
+
+export interface CanvasDocument {
+  version: 1;
+  workspacePath: string;
+  camera: { x: number; y: number; scale: number };
+  objects: Array<{
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    path: string;
+    title: string;
+    text?: string;
+  }>;
+  connections: Array<{
+    id: string;
+    fromId: string;
+    toId: string;
+  }>;
 }
 
 declare global {

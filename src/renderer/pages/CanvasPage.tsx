@@ -8,12 +8,14 @@ import {
   type WheelEvent,
 } from "react";
 import {
-  createEmptyCanvas,
   defaultSize,
   detectCanvasType,
+  type CanvasConnection,
   type CanvasObject,
+  type CanvasObjectType,
 } from "../canvas/types";
 import { CanvasObjectView } from "../canvas/CanvasObjectView";
+import { useWorkspace } from "../state/WorkspaceContext";
 
 interface Camera {
   x: number;
@@ -36,10 +38,14 @@ function uid(): string {
 }
 
 export function CanvasPage() {
-  const [camera, setCamera] = useState<Camera>(createEmptyCanvas().camera);
+  const { workspace } = useWorkspace();
+  const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, scale: 1 });
   const [objects, setObjects] = useState<CanvasObject[]>([]);
+  const [connections, setConnections] = useState<CanvasConnection[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selection, setSelection] = useState<SelectionBox | null>(null);
+  const [linkFromId, setLinkFromId] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
   const spaceDown = useRef(false);
   const dragRef = useRef<{
@@ -51,11 +57,61 @@ export function CanvasPage() {
   } | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setReady(false);
+    void window.entropy.canvas.load(workspace.path).then((doc) => {
+      if (cancelled) return;
+      if (doc) {
+        setCamera(doc.camera);
+        setObjects(
+          doc.objects.map((item) => ({
+            ...item,
+            type: item.type as CanvasObjectType,
+          })),
+        );
+        setConnections(doc.connections);
+      } else {
+        setCamera({ x: 0, y: 0, scale: 1 });
+        setObjects([]);
+        setConnections([]);
+      }
+      setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace.path]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const handle = window.setTimeout(() => {
+      void window.entropy.canvas.save({
+        version: 1,
+        workspacePath: workspace.path,
+        camera,
+        objects,
+        connections,
+      });
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [ready, workspace.path, camera, objects, connections]);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (event.code === "Space") spaceDown.current = true;
       if (event.key === "Delete" || event.key === "Backspace") {
+        const target = event.target as HTMLElement | null;
+        if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) return;
         setObjects((prev) => prev.filter((item) => !selectedIds.includes(item.id)));
+        setConnections((prev) =>
+          prev.filter(
+            (link) => !selectedIds.includes(link.fromId) && !selectedIds.includes(link.toId),
+          ),
+        );
         setSelectedIds([]);
+      }
+      if (event.key.toLowerCase() === "l" && selectedIds.length === 1) {
+        setLinkFromId(selectedIds[0]);
       }
     }
     function onKeyUp(event: KeyboardEvent): void {
@@ -134,6 +190,7 @@ export function CanvasPage() {
       const world = screenToWorld(event.clientX, event.clientY);
       setSelection({ x: world.x, y: world.y, width: 0, height: 0 });
       setSelectedIds([]);
+      setLinkFromId(null);
     }
   }
 
@@ -224,6 +281,25 @@ export function CanvasPage() {
     setSelectedIds([object.id]);
   }
 
+  function selectObject(id: string): void {
+    if (linkFromId && linkFromId !== id) {
+      setConnections((prev) => [
+        ...prev,
+        { id: uid(), fromId: linkFromId, toId: id },
+      ]);
+      setLinkFromId(null);
+      setSelectedIds([id]);
+      return;
+    }
+    setSelectedIds([id]);
+  }
+
+  function objectCenter(id: string): { x: number; y: number } | null {
+    const object = objects.find((item) => item.id === id);
+    if (!object) return null;
+    return { x: object.x + object.width / 2, y: object.y + object.height / 2 };
+  }
+
   return (
     <main className="content-area canvas-page" aria-label="Canvas">
       <div className="canvas-toolbar">
@@ -238,8 +314,16 @@ export function CanvasPage() {
         <button type="button" className="btn btn-secondary btn-small" onClick={addTextCard}>
           Add text card
         </button>
+        <button
+          type="button"
+          className="btn btn-secondary btn-small"
+          onClick={() => setLinkFromId(selectedIds[0] ?? null)}
+          disabled={selectedIds.length !== 1}
+        >
+          {linkFromId ? "Click target to connect" : "Connect"}
+        </button>
         <span className="canvas-hint">
-          Drop files from Files · References only · Delete removes canvas cards, not files
+          Layout autosaves per workspace · Press L then another card to connect
         </span>
       </div>
 
@@ -261,13 +345,31 @@ export function CanvasPage() {
           }}
         >
           <div className="canvas-grid" />
+          <svg className="canvas-connections" aria-hidden="true">
+            {connections.map((link) => {
+              const from = objectCenter(link.fromId);
+              const to = objectCenter(link.toId);
+              if (!from || !to) return null;
+              return (
+                <line
+                  key={link.id}
+                  x1={from.x}
+                  y1={from.y}
+                  x2={to.x}
+                  y2={to.y}
+                  stroke="rgba(180,180,180,0.45)"
+                  strokeWidth={2}
+                />
+              );
+            })}
+          </svg>
           {objects.map((object) => (
             <CanvasObjectView
               key={object.id}
               object={object}
               selected={selectedIds.includes(object.id)}
               scale={camera.scale}
-              onSelect={(id) => setSelectedIds([id])}
+              onSelect={selectObject}
               onMove={(id, x, y) =>
                 setObjects((prev) =>
                   prev.map((item) => (item.id === id ? { ...item, x, y } : item)),

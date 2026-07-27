@@ -40,6 +40,10 @@ const api: EntropyApi = {
     reveal: (targetPath) => ipcRenderer.invoke("fs:reveal", targetPath),
     openExternal: (targetPath) => ipcRenderer.invoke("fs:openExternal", targetPath),
   },
+  canvas: {
+    load: (workspacePath) => ipcRenderer.invoke("canvas:load", workspacePath),
+    save: (doc) => ipcRenderer.invoke("canvas:save", doc),
+  },
 };
 
 contextBridge.exposeInMainWorld("entropy", api);
