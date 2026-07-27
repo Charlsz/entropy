@@ -17,6 +17,24 @@ const api: EntropyApi = {
     removeRecent: (workspacePath: string) =>
       ipcRenderer.invoke("workspace:removeRecent", workspacePath),
   },
+  fs: {
+    listDir: (dirPath) => ipcRenderer.invoke("fs:listDir", dirPath),
+    readText: (filePath) => ipcRenderer.invoke("fs:readText", filePath),
+    writeText: (filePath, content) => ipcRenderer.invoke("fs:writeText", filePath, content),
+    mkdir: (dirPath) => ipcRenderer.invoke("fs:mkdir", dirPath),
+    rename: (fromPath, toPath) => ipcRenderer.invoke("fs:rename", fromPath, toPath),
+    remove: (targetPath) => ipcRenderer.invoke("fs:remove", targetPath),
+    exists: (targetPath) => ipcRenderer.invoke("fs:exists", targetPath),
+    stat: (targetPath) => ipcRenderer.invoke("fs:stat", targetPath),
+    folderTree: (rootPath, maxDepth) => ipcRenderer.invoke("fs:folderTree", rootPath, maxDepth),
+    listMarkdown: (rootPath) => ipcRenderer.invoke("fs:listMarkdown", rootPath),
+    searchMarkdown: (rootPath, query) =>
+      ipcRenderer.invoke("fs:searchMarkdown", rootPath, query),
+    createNote: (dirPath, name) => ipcRenderer.invoke("fs:createNote", dirPath, name),
+    join: (...parts) => ipcRenderer.invoke("fs:join", ...parts),
+    dirname: (filePath) => ipcRenderer.invoke("fs:dirname", filePath),
+    basename: (filePath) => ipcRenderer.invoke("fs:basename", filePath),
+  },
 };
 
 contextBridge.exposeInMainWorld("entropy", api);

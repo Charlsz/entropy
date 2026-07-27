@@ -1,5 +1,6 @@
-import type { SectionId } from "../components/Sidebar";
+import type { SectionId } from "./Sidebar";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { NotebookPage } from "../pages/NotebookPage";
 
 interface ContentAreaProps {
   section: SectionId;
@@ -13,6 +14,10 @@ const LABELS: Record<SectionId, string> = {
 };
 
 export function ContentArea({ section }: ContentAreaProps) {
+  if (section === "notebook") {
+    return <NotebookPage />;
+  }
+
   if (section === "settings") {
     return <SettingsPanel />;
   }
