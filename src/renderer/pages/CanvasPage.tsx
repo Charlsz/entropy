@@ -1,4 +1,19 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent, type WheelEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type PointerEvent,
+  type WheelEvent,
+} from "react";
+import {
+  createEmptyCanvas,
+  defaultSize,
+  detectCanvasType,
+  type CanvasObject,
+} from "../canvas/types";
+import { CanvasObjectView } from "../canvas/CanvasObjectView";
 
 interface Camera {
   x: number;
@@ -16,8 +31,14 @@ interface SelectionBox {
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 3;
 
+function uid(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function CanvasPage() {
-  const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, scale: 1 });
+  const [camera, setCamera] = useState<Camera>(createEmptyCanvas().camera);
+  const [objects, setObjects] = useState<CanvasObject[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selection, setSelection] = useState<SelectionBox | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const spaceDown = useRef(false);
@@ -32,6 +53,10 @@ export function CanvasPage() {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (event.code === "Space") spaceDown.current = true;
+      if (event.key === "Delete" || event.key === "Backspace") {
+        setObjects((prev) => prev.filter((item) => !selectedIds.includes(item.id)));
+        setSelectedIds([]);
+      }
     }
     function onKeyUp(event: KeyboardEvent): void {
       if (event.code === "Space") spaceDown.current = false;
@@ -42,7 +67,7 @@ export function CanvasPage() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, []);
+  }, [selectedIds]);
 
   const onWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -68,13 +93,18 @@ export function CanvasPage() {
     });
   }, []);
 
+  function screenToWorld(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return {
+      x: (clientX - rect.left - camera.x) / camera.scale,
+      y: (clientY - rect.top - camera.y) / camera.scale,
+    };
+  }
+
   function onPointerDown(event: PointerEvent<HTMLDivElement>): void {
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
-
-    const rect = target.getBoundingClientRect();
-    const localX = event.clientX - rect.left;
-    const localY = event.clientY - rect.top;
     const pan =
       event.button === 1 ||
       event.altKey ||
@@ -101,9 +131,9 @@ export function CanvasPage() {
         originX: camera.x,
         originY: camera.y,
       };
-      const worldX = (localX - camera.x) / camera.scale;
-      const worldY = (localY - camera.y) / camera.scale;
-      setSelection({ x: worldX, y: worldY, width: 0, height: 0 });
+      const world = screenToWorld(event.clientX, event.clientY);
+      setSelection({ x: world.x, y: world.y, width: 0, height: 0 });
+      setSelectedIds([]);
     }
   }
 
@@ -120,25 +150,78 @@ export function CanvasPage() {
       return;
     }
 
-    const rect = viewportRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const localX = event.clientX - rect.left;
-    const localY = event.clientY - rect.top;
-    const worldX = (localX - camera.x) / camera.scale;
-    const worldY = (localY - camera.y) / camera.scale;
-    const startWorldX = (drag.startX - rect.left - camera.x) / camera.scale;
-    const startWorldY = (drag.startY - rect.top - camera.y) / camera.scale;
-
-    setSelection({
-      x: Math.min(startWorldX, worldX),
-      y: Math.min(startWorldY, worldY),
-      width: Math.abs(worldX - startWorldX),
-      height: Math.abs(worldY - startWorldY),
-    });
+    const world = screenToWorld(event.clientX, event.clientY);
+    const start = screenToWorld(drag.startX, drag.startY);
+    const box = {
+      x: Math.min(start.x, world.x),
+      y: Math.min(start.y, world.y),
+      width: Math.abs(world.x - start.x),
+      height: Math.abs(world.y - start.y),
+    };
+    setSelection(box);
+    setSelectedIds(
+      objects
+        .filter(
+          (item) =>
+            item.x >= box.x &&
+            item.y >= box.y &&
+            item.x + item.width <= box.x + box.width &&
+            item.y + item.height <= box.y + box.height,
+        )
+        .map((item) => item.id),
+    );
   }
 
   function onPointerUp(): void {
     dragRef.current = null;
+  }
+
+  async function addFromPath(filePath: string, x: number, y: number): Promise<void> {
+    try {
+      const info = await window.entropy.fs.stat(filePath);
+      const type = detectCanvasType(info);
+      const size = defaultSize(type);
+      const object: CanvasObject = {
+        id: uid(),
+        type,
+        x,
+        y,
+        width: size.width,
+        height: size.height,
+        path: filePath,
+        title: info.name,
+      };
+      setObjects((prev) => [...prev, object]);
+      setSelectedIds([object.id]);
+    } catch {
+      // Ignore invalid drops.
+    }
+  }
+
+  async function onDrop(event: DragEvent<HTMLDivElement>): Promise<void> {
+    event.preventDefault();
+    const filePath = event.dataTransfer.getData("application/x-entropy-path");
+    const world = screenToWorld(event.clientX, event.clientY);
+    if (filePath) {
+      await addFromPath(filePath, world.x, world.y);
+    }
+  }
+
+  function addTextCard(): void {
+    const size = defaultSize("text");
+    const object: CanvasObject = {
+      id: uid(),
+      type: "text",
+      x: (200 - camera.x) / camera.scale,
+      y: (160 - camera.y) / camera.scale,
+      width: size.width,
+      height: size.height,
+      path: "",
+      title: "Text",
+      text: "",
+    };
+    setObjects((prev) => [...prev, object]);
+    setSelectedIds([object.id]);
   }
 
   return (
@@ -152,8 +235,11 @@ export function CanvasPage() {
         >
           Reset view
         </button>
+        <button type="button" className="btn btn-secondary btn-small" onClick={addTextCard}>
+          Add text card
+        </button>
         <span className="canvas-hint">
-          Scroll to zoom · Drag to select · Space/Shift-drag or middle-click to pan
+          Drop files from Files · References only · Delete removes canvas cards, not files
         </span>
       </div>
 
@@ -165,6 +251,8 @@ export function CanvasPage() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => void onDrop(event)}
       >
         <div
           className="canvas-world"
@@ -173,6 +261,25 @@ export function CanvasPage() {
           }}
         >
           <div className="canvas-grid" />
+          {objects.map((object) => (
+            <CanvasObjectView
+              key={object.id}
+              object={object}
+              selected={selectedIds.includes(object.id)}
+              scale={camera.scale}
+              onSelect={(id) => setSelectedIds([id])}
+              onMove={(id, x, y) =>
+                setObjects((prev) =>
+                  prev.map((item) => (item.id === id ? { ...item, x, y } : item)),
+                )
+              }
+              onChangeText={(id, text) =>
+                setObjects((prev) =>
+                  prev.map((item) => (item.id === id ? { ...item, text } : item)),
+                )
+              }
+            />
+          ))}
           {selection ? (
             <div
               className="canvas-selection"
