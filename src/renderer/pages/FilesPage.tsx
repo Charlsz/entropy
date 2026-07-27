@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FileEntry, TreeNode } from "../../shared/types";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FolderTree } from "./FolderTree";
+import { FilePreview } from "./FilePreview";
 
 type SortKey = "name" | "modified" | "size" | "type";
 
@@ -217,10 +218,11 @@ export function FilesPage() {
       </section>
 
       <aside className="files-meta-pane">
-        {selected ? (
-          <div className="files-meta">
-            <h2>Details</h2>
+        {selected && !selected.isDirectory ? (
+          <div className="files-meta files-preview-panel">
+            <h2>Preview</h2>
             <p className="files-meta-name">{selected.name}</p>
+            <FilePreview file={selected} />
             <dl>
               <div>
                 <dt>Path</dt>
@@ -228,11 +230,11 @@ export function FilesPage() {
               </div>
               <div>
                 <dt>Type</dt>
-                <dd>{selected.isDirectory ? "Folder" : selected.extension || "File"}</dd>
+                <dd>{selected.extension || "File"}</dd>
               </div>
               <div>
                 <dt>Size</dt>
-                <dd>{selected.isDirectory ? "—" : formatBytes(selected.size)}</dd>
+                <dd>{formatBytes(selected.size)}</dd>
               </div>
               <div>
                 <dt>Modified</dt>
@@ -243,7 +245,7 @@ export function FilesPage() {
         ) : (
           <div className="content-empty">
             <h1>Files</h1>
-            <p>Select a file to inspect metadata.</p>
+            <p>Select a file to preview it.</p>
           </div>
         )}
       </aside>

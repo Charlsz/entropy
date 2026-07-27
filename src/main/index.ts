@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, protocol } from "electron";
 import path from "node:path";
 import * as filesystem from "./fs";
+import { FILE_PROTOCOL, registerFileProtocol, toEntropyUrl } from "./protocol";
 import {
   clearRecentWorkspaces,
   createWorkspaceDialog,
@@ -11,6 +12,19 @@ import {
 } from "./workspaces";
 
 const isDev = !app.isPackaged;
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: FILE_PROTOCOL,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: true,
+    },
+  },
+]);
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -93,9 +107,11 @@ function registerIpc(): void {
   ipcMain.handle("fs:join", (_event, ...parts: string[]) => filesystem.joinPath(...parts));
   ipcMain.handle("fs:dirname", (_event, filePath: string) => filesystem.dirnamePath(filePath));
   ipcMain.handle("fs:basename", (_event, filePath: string) => filesystem.basenamePath(filePath));
+  ipcMain.handle("fs:toUrl", (_event, filePath: string) => toEntropyUrl(filePath));
 }
 
 app.whenReady().then(() => {
+  registerFileProtocol();
   registerIpc();
   createWindow();
 

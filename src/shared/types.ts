@@ -51,6 +51,7 @@ export interface EntropyApi {
     join: (...parts: string[]) => Promise<string>;
     dirname: (filePath: string) => Promise<string>;
     basename: (filePath: string) => Promise<string>;
+    toUrl: (filePath: string) => Promise<string>;
   };
 }
 
