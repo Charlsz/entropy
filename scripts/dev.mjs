@@ -1,95 +1,90 @@
-import { spawn } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import process from 'node:process';
+import { spawn } from "node:child_process";
+import { Socket } from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const rootDir = process.cwd();
-const electronOutDir = path.join(rootDir, 'dist-electron');
-const rendererDevUrl = 'http://127.0.0.1:5173';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const isWindows = process.platform === "win32";
+const children = [];
 
-let electronProcess = null;
-let restartTimer = null;
-
-function start(command, args, extraEnv = {}) {
+function run(command, args, options = {}) {
   const child = spawn(command, args, {
-    stdio: 'inherit',
-    shell: true,
-    env: {
-      ...process.env,
-      ...extraEnv
-    }
+    cwd: root,
+    stdio: "inherit",
+    shell: isWindows,
+    ...options,
   });
-
-  child.on('exit', (code, signal) => {
-    if (signal) {
-      process.exitCode = 0;
-      return;
-    }
-
-    if (code && code !== 0) {
-      process.exitCode = code;
-    }
-  });
-
+  children.push(child);
   return child;
 }
 
-async function waitForFile(filePath) {
-  for (;;) {
-    if (fs.existsSync(filePath)) {
-      return;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-}
-
-function stopElectron() {
-  if (!electronProcess || electronProcess.killed) {
-    return;
-  }
-
-  electronProcess.kill();
-  electronProcess = null;
-}
-
-function startElectron() {
-  stopElectron();
-
-  electronProcess = start('electron', ['.'], {
-    VITE_DEV_SERVER_URL: rendererDevUrl
+function exec(command, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: root,
+      stdio: "inherit",
+      shell: isWindows,
+    });
+    child.on("exit", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command} ${args.join(" ")} exited with ${code}`));
+    });
   });
 }
 
-function scheduleRestart() {
-  if (!electronProcess) {
-    return;
-  }
+function waitForPort(port, host = "127.0.0.1", timeoutMs = 30000) {
+  const start = Date.now();
 
-  if (restartTimer) {
-    clearTimeout(restartTimer);
-  }
-
-  restartTimer = setTimeout(() => {
-    restartTimer = null;
-    startElectron();
-  }, 300);
+  return new Promise((resolve, reject) => {
+    const attempt = () => {
+      const socket = new Socket();
+      socket.once("connect", () => {
+        socket.end();
+        resolve();
+      });
+      socket.once("error", () => {
+        socket.destroy();
+        if (Date.now() - start > timeoutMs) {
+          reject(new Error(`Timed out waiting for port ${port}`));
+          return;
+        }
+        setTimeout(attempt, 200);
+      });
+      socket.connect(port, host);
+    };
+    attempt();
+  });
 }
 
-start('vite', ['--host', '127.0.0.1', '--port', '5173', '--strictPort']);
-start('tsc', ['-p', 'tsconfig.electron.json', '--watch', '--preserveWatchOutput']);
-
-await waitForFile(path.join(electronOutDir, 'main.js'));
-startElectron();
-
-fs.watch(electronOutDir, { recursive: true }, scheduleRestart);
-
-process.on('SIGINT', () => {
-  stopElectron();
+function shutdown() {
+  for (const child of children) {
+    child.kill();
+  }
   process.exit(0);
-});
+}
 
-process.on('SIGTERM', () => {
-  stopElectron();
-  process.exit(0);
+async function main() {
+  console.log("Building main and preload…");
+  await Promise.all([
+    exec("npx", ["tsc", "-p", "tsconfig.main.json"]),
+    exec("npx", ["tsc", "-p", "tsconfig.preload.json"]),
+  ]);
+
+  console.log("Starting Vite…");
+  run("npx", ["vite", "--config", "vite.config.ts"]);
+  await waitForPort(5173);
+
+  console.log("Starting Electron…");
+  const electron = run("npx", ["electron", "."], {
+    env: { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: "true" },
+  });
+
+  electron.on("exit", shutdown);
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
 });

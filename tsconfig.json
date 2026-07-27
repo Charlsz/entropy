@@ -1,22 +1,17 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "Node16",
-    "jsx": "react-jsx",
-    "paths": {
-      "@/*": ["./src/*"]
-    },
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "strict": true,
-    "isolatedModules": true,
-    "noUncheckedSideEffectImports": true,
-    "moduleDetection": "force",
-    "moduleResolution": "Node16",
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  }
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "files": []
 }

@@ -1,50 +1,53 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Electron drag regions */
-.app-drag {
-  -webkit-app-region: drag;
-}
-.app-no-drag {
-  -webkit-app-region: no-drag;
-}
-
-/* Base resets */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-html, body, #root {
-  height: 100%;
+html,
+body,
+#root {
   margin: 0;
-  padding: 0;
-  background-color: #212121;
-  color: #f8f8ff;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  font-size: 13px;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family:
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background: #0f0f0f;
+  color: #e8e8e8;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  user-select: none;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #242424;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #2a2a2a;
+button,
+input,
+textarea {
+  font: inherit;
 }
 
-/* Selection */
-::selection {
-  background-color: #242424;
-  color: #f8f8ff;
+.app-placeholder {
+  display: grid;
+  place-content: center;
+  height: 100%;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.app-placeholder h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.app-placeholder p {
+  margin: 0;
+  color: #8a8a8a;
+  font-size: 0.95rem;
 }
