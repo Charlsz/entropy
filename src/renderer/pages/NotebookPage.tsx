@@ -2,14 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import type { FileEntry, NoteSearchResult, TreeNode } from "../../shared/types";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FolderTree } from "./FolderTree";
+import { MarkdownEditor } from "./MarkdownEditor";
 
 export function NotebookPage() {
-  const { workspace, setCurrentFolder } = useWorkspace();
+  const { workspace, setCurrentFolder, addRecentFile } = useWorkspace();
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [notes, setNotes] = useState<FileEntry[]>([]);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<NoteSearchResult[] | null>(null);
-  const [selectedNote, setSelectedNote] = useState<string | null>(null);
+  const [openPaths, setOpenPaths] = useState<string[]>([]);
+  const [activePath, setActivePath] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -52,10 +54,26 @@ export function NotebookPage() {
     return () => window.clearTimeout(handle);
   }, [query, workspace.path]);
 
+  function openNote(notePath: string): void {
+    setOpenPaths((prev) => (prev.includes(notePath) ? prev : [...prev, notePath]));
+    setActivePath(notePath);
+    addRecentFile(notePath);
+  }
+
+  function closeTab(notePath: string): void {
+    setOpenPaths((prev) => {
+      const next = prev.filter((path) => path !== notePath);
+      if (activePath === notePath) {
+        setActivePath(next[next.length - 1] ?? null);
+      }
+      return next;
+    });
+  }
+
   async function handleCreate(): Promise<void> {
     try {
       const created = await window.entropy.fs.createNote(workspace.currentFolder);
-      setSelectedNote(created);
+      openNote(created);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create note");
@@ -68,7 +86,7 @@ export function NotebookPage() {
 
     try {
       await window.entropy.fs.remove(notePath);
-      if (selectedNote === notePath) setSelectedNote(null);
+      closeTab(notePath);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete note");
@@ -94,7 +112,8 @@ export function NotebookPage() {
         return;
       }
       await window.entropy.fs.rename(notePath, target);
-      if (selectedNote === notePath) setSelectedNote(target);
+      setOpenPaths((prev) => prev.map((path) => (path === notePath ? target : path)));
+      if (activePath === notePath) setActivePath(target);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to rename note");
@@ -136,7 +155,11 @@ export function NotebookPage() {
       <section className="notebook-list-pane">
         <div className="pane-header notebook-toolbar">
           <h2>Notes</h2>
-          <button type="button" className="btn btn-primary btn-small" onClick={() => void handleCreate()}>
+          <button
+            type="button"
+            className="btn btn-primary btn-small"
+            onClick={() => void handleCreate()}
+          >
             New note
           </button>
         </div>
@@ -162,7 +185,7 @@ export function NotebookPage() {
 
         <ul className="note-list">
           {visibleNotes.map((note) => (
-            <li key={note.path} className={selectedNote === note.path ? "is-selected" : ""}>
+            <li key={note.path} className={activePath === note.path ? "is-selected" : ""}>
               {renaming === note.path ? (
                 <input
                   className="note-rename-input"
@@ -176,11 +199,15 @@ export function NotebookPage() {
                   }}
                 />
               ) : (
+                <button type="button" className="note-row" onClick={() => openNote(note.path)}>
+                  <span className="note-name">{note.name.replace(/\.md$/i, "")}</span>
+                  {note.excerpt ? <span className="note-excerpt">{note.excerpt}</span> : null}
+                </button>
+              )}
+              <div className="note-actions">
                 <button
                   type="button"
-                  className="note-row"
-                  onClick={() => setSelectedNote(note.path)}
-                  onDoubleClick={() =>
+                  onClick={() =>
                     startRename({
                       name: note.name,
                       path: note.path,
@@ -191,19 +218,6 @@ export function NotebookPage() {
                     })
                   }
                 >
-                  <span className="note-name">{note.name.replace(/\.md$/i, "")}</span>
-                  {note.excerpt ? <span className="note-excerpt">{note.excerpt}</span> : null}
-                </button>
-              )}
-              <div className="note-actions">
-                <button type="button" onClick={() => startRename({
-                  name: note.name,
-                  path: note.path,
-                  isDirectory: false,
-                  size: 0,
-                  modifiedAt: 0,
-                  extension: ".md",
-                })}>
                   Rename
                 </button>
                 <button type="button" onClick={() => void handleDelete(note.path)}>
@@ -216,18 +230,12 @@ export function NotebookPage() {
       </section>
 
       <section className="notebook-detail-pane">
-        {selectedNote ? (
-          <div className="content-empty">
-            <h1>{selectedNote.split(/[/\\]/).pop()?.replace(/\.md$/i, "")}</h1>
-            <p>Editor arrives in the next milestone.</p>
-            <p className="settings-path">{selectedNote}</p>
-          </div>
-        ) : (
-          <div className="content-empty">
-            <h1>Notebook</h1>
-            <p>Select a note or create a new markdown file.</p>
-          </div>
-        )}
+        <MarkdownEditor
+          openPaths={openPaths}
+          activePath={activePath}
+          onActiveChange={setActivePath}
+          onCloseTab={closeTab}
+        />
       </section>
     </main>
   );
