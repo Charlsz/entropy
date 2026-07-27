@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NoteSearchResult } from "../../shared/types";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace } from "../state/useWorkspace";
 
 interface SearchPaletteProps {
   open: boolean;

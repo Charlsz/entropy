@@ -87,7 +87,7 @@ export function WorkspaceProvider({ path, onClose, children }: WorkspaceProvider
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
 
-export function useWorkspace(): WorkspaceContextValue {
+export function useWorkspaceContext(): WorkspaceContextValue {
   const value = useContext(WorkspaceContext);
   if (!value) {
     throw new Error("useWorkspace must be used within WorkspaceProvider");

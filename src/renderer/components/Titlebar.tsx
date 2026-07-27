@@ -2,9 +2,15 @@ interface TitlebarProps {
   workspaceName?: string;
   onCloseWorkspace?: () => void;
   onOpenSearch?: () => void;
+  onOpenCommands?: () => void;
 }
 
-export function Titlebar({ workspaceName, onCloseWorkspace, onOpenSearch }: TitlebarProps) {
+export function Titlebar({
+  workspaceName,
+  onCloseWorkspace,
+  onOpenSearch,
+  onOpenCommands,
+}: TitlebarProps) {
   return (
     <header className="titlebar" aria-label="Application title bar">
       <div className="titlebar-drag">
@@ -12,6 +18,16 @@ export function Titlebar({ workspaceName, onCloseWorkspace, onOpenSearch }: Titl
         {workspaceName ? <span className="titlebar-workspace">{workspaceName}</span> : null}
       </div>
       <div className="titlebar-actions">
+        {onOpenCommands ? (
+          <button
+            type="button"
+            className="titlebar-action"
+            onClick={onOpenCommands}
+            title="Command palette (Ctrl+P)"
+          >
+            Commands
+          </button>
+        ) : null}
         {onOpenSearch ? (
           <button
             type="button"

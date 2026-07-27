@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 import type { FileEntry, TreeNode } from "../../shared/types";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace } from "../state/useWorkspace";
 import { FolderTree } from "./FolderTree";
 import { FilePreview } from "./FilePreview";
 

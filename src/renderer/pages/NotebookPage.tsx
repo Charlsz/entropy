@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FileEntry, NoteSearchResult, TreeNode } from "../../shared/types";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace } from "../state/useWorkspace";
 import { FolderTree } from "./FolderTree";
 import { MarkdownEditor } from "./MarkdownEditor";
 

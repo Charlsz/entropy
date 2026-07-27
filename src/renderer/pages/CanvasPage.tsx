@@ -15,7 +15,7 @@ import {
   type CanvasObjectType,
 } from "../canvas/types";
 import { CanvasObjectView } from "../canvas/CanvasObjectView";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace } from "../state/useWorkspace";
 
 interface Camera {
   x: number;

@@ -1,5 +1,5 @@
 import type { SectionId } from "./Sidebar";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace } from "../state/useWorkspace";
 import { NotebookPage } from "../pages/NotebookPage";
 import { FilesPage } from "../pages/FilesPage";
 import { CanvasPage } from "../pages/CanvasPage";
@@ -98,6 +98,14 @@ function SettingsPanel() {
         <div className="settings-row">
           <span>Search</span>
           <span className="settings-hint">Ctrl/Cmd + K</span>
+        </div>
+        <div className="settings-row">
+          <span>Command palette</span>
+          <span className="settings-hint">Ctrl/Cmd + P</span>
+        </div>
+        <div className="settings-row">
+          <span>Sections</span>
+          <span className="settings-hint">Ctrl/Cmd + 1–3</span>
         </div>
       </div>
     </main>

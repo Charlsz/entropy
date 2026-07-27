@@ -14,6 +14,23 @@
   --sidebar-collapsed: 64px;
   --radius: 8px;
   --font-ui: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
+  --focus: #9a9a9a;
+  --motion: 160ms ease;
+}
+
+:root[data-theme="light"],
+[data-theme="light"] {
+  --bg-app: #f4f4f2;
+  --bg-sidebar: #ecece8;
+  --bg-titlebar: #e8e8e4;
+  --bg-content: #f7f7f5;
+  --bg-hover: #e2e2de;
+  --bg-active: #d9d9d4;
+  --border: #d0d0ca;
+  --text: #1c1c1a;
+  --text-muted: #6a6a64;
+  --accent: #333330;
+  --focus: #555550;
 }
 
 *,
@@ -1152,6 +1169,87 @@ button {
   height: 10000px;
   overflow: visible;
   pointer-events: none;
+}
+
+.content-transition {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  opacity: 1;
+  transition: opacity var(--motion);
+}
+
+.content-transition.is-loading {
+  opacity: 0.72;
+}
+
+.content-transition > .content-area,
+.content-transition > main {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-item,
+.btn,
+.titlebar-action,
+.note-row,
+.files-list-row,
+.files-grid-card,
+.search-result,
+.workspace-row {
+  transition:
+    background var(--motion),
+    color var(--motion),
+    border-color var(--motion),
+    opacity var(--motion),
+    transform var(--motion);
+}
+
+.sidebar-item:focus-visible,
+.btn:focus-visible,
+.titlebar-action:focus-visible,
+.note-row:focus-visible,
+.files-list-row:focus-visible,
+.files-grid-card:focus-visible,
+.search-input:focus-visible,
+.markdown-editor:focus-visible,
+.notebook-search input:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.error-boundary {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 32px;
+}
+
+.error-boundary h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 520;
+}
+
+.error-boundary p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 .files-toolbar {
