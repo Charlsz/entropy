@@ -1,9 +1,17 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
+import {
+  clearRecentWorkspaces,
+  createWorkspaceDialog,
+  getRecentWorkspaces,
+  openWorkspaceDialog,
+  rememberWorkspace,
+  removeRecentWorkspace,
+} from "./workspaces";
 
 const isDev = !app.isPackaged;
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -33,9 +41,38 @@ function createWindow(): void {
   } else {
     void win.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
+
+  return win;
+}
+
+function registerIpc(): void {
+  ipcMain.handle("workspace:open", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return openWorkspaceDialog(win);
+  });
+
+  ipcMain.handle("workspace:create", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return createWorkspaceDialog(win);
+  });
+
+  ipcMain.handle("workspace:getRecent", async () => getRecentWorkspaces());
+
+  ipcMain.handle("workspace:clearRecent", async () => {
+    await clearRecentWorkspaces();
+  });
+
+  ipcMain.handle("workspace:removeRecent", async (_event, workspacePath: string) => {
+    await removeRecentWorkspace(workspacePath);
+  });
+
+  ipcMain.handle("workspace:remember", async (_event, workspacePath: string) => {
+    await rememberWorkspace(workspacePath);
+  });
 }
 
 app.whenReady().then(() => {
+  registerIpc();
   createWindow();
 
   app.on("activate", () => {
