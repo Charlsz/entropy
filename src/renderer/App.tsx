@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Titlebar } from "./components/Titlebar";
-import { Sidebar, type SectionId } from "./components/Sidebar";
-import { ContentArea } from "./components/ContentArea";
 import { WorkspaceSelector } from "./components/WorkspaceSelector";
+import { WorkspaceShell } from "./components/WorkspaceShell";
+import { WorkspaceProvider } from "./state/WorkspaceContext";
 
 export function App() {
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
-  const [section, setSection] = useState<SectionId>("notebook");
+
+  const closeWorkspace = useCallback(() => {
+    setWorkspacePath(null);
+  }, []);
 
   if (!workspacePath) {
     return (
@@ -18,12 +21,8 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
-      <Titlebar workspaceName={workspacePath.split(/[/\\]/).pop() ?? "Workspace"} />
-      <div className="app-body">
-        <Sidebar active={section} onChange={setSection} />
-        <ContentArea section={section} />
-      </div>
-    </div>
+    <WorkspaceProvider key={workspacePath} path={workspacePath} onClose={closeWorkspace}>
+      <WorkspaceShell />
+    </WorkspaceProvider>
   );
 }

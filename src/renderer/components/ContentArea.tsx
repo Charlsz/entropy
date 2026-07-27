@@ -1,4 +1,5 @@
-import type { SectionId } from "./Sidebar";
+import type { SectionId } from "../components/Sidebar";
+import { useWorkspace } from "../state/WorkspaceContext";
 
 interface ContentAreaProps {
   section: SectionId;
@@ -12,11 +13,61 @@ const LABELS: Record<SectionId, string> = {
 };
 
 export function ContentArea({ section }: ContentAreaProps) {
+  if (section === "settings") {
+    return <SettingsPanel />;
+  }
+
   return (
     <main className="content-area" aria-label={LABELS[section]}>
       <div className="content-empty">
         <h1>{LABELS[section]}</h1>
         <p>This section is ready for content.</p>
+      </div>
+    </main>
+  );
+}
+
+function SettingsPanel() {
+  const { workspace, updateSettings, clearRecentFiles } = useWorkspace();
+
+  return (
+    <main className="content-area" aria-label="Settings">
+      <div className="settings-panel">
+        <h1>Settings</h1>
+        <p className="settings-path">{workspace.path}</p>
+
+        <label className="settings-row">
+          <span>Files view</span>
+          <select
+            value={workspace.settings.filesView}
+            onChange={(event) =>
+              updateSettings({ filesView: event.target.value as "list" | "grid" })
+            }
+          >
+            <option value="list">List</option>
+            <option value="grid">Grid</option>
+          </select>
+        </label>
+
+        <label className="settings-row">
+          <span>Theme</span>
+          <select
+            value={workspace.settings.theme}
+            onChange={(event) =>
+              updateSettings({ theme: event.target.value as "dark" | "light" })
+            }
+          >
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+
+        <div className="settings-row">
+          <span>Recent files</span>
+          <button type="button" className="btn btn-secondary" onClick={clearRecentFiles}>
+            Clear ({workspace.recentFiles.length})
+          </button>
+        </div>
       </div>
     </main>
   );

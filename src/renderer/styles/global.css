@@ -87,10 +87,28 @@ button {
   color: var(--text-muted);
 }
 
-.titlebar-controls {
-  width: 70px;
+.titlebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   -webkit-app-region: no-drag;
   app-region: no-drag;
+}
+
+.titlebar-action {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.titlebar-action:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.titlebar-controls {
+  width: 70px;
 }
 
 .app-body {
