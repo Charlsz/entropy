@@ -613,7 +613,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               ) : null}
               {mode !== "edit" ? (
                 <ScrollArea className="min-h-0 flex-1">
-                  <MarkdownPreview content={noteMeta.body} />
+                  <MarkdownPreview content={noteMeta.body} notePath={activeTab?.path} />
                 </ScrollArea>
               ) : null}
             </div>
