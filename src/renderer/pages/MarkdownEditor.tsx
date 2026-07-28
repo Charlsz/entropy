@@ -13,6 +13,7 @@ import { FilePreview } from "./FilePreview";
 import { registerFlush } from "../state/flushRegistry";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
+import { MarkdownPreview } from "../components/MarkdownPreview";
 import { cn } from "../lib/utils";
 
 interface EditorTab {
@@ -34,6 +35,8 @@ interface MarkdownEditorProps {
   onStatsChange?: (stats: string) => void;
 }
 
+type EditorMode = "edit" | "preview" | "split";
+
 const LINK_RE = /\[([^\]]+)\]\(([^)\s]+)\)/g;
 
 function countWords(text: string): number {
@@ -52,6 +55,7 @@ export function MarkdownEditor({
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [linkedFile, setLinkedFile] = useState<FileEntry | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [mode, setMode] = useState<EditorMode>("edit");
   const saveTimers = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -428,6 +432,27 @@ export function MarkdownEditor({
               </div>
             );
           })}
+          <div className="ml-auto flex items-center gap-0.5 px-1 pb-1">
+            {(
+              [
+                ["edit", "Edit"],
+                ["split", "Split"],
+                ["preview", "Preview"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={cn(
+                  "rounded px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground",
+                  mode === value && "bg-accent text-foreground",
+                )}
+                onClick={() => setMode(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {statusMessage || activeTab?.missing || activeTab?.conflict ? (
@@ -483,22 +508,41 @@ export function MarkdownEditor({
         ) : (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="mx-auto w-full max-w-[720px] px-8 pt-8">
-              <h1 className="mb-6 text-center text-3xl font-semibold tracking-tight text-foreground">
+              <h1 className="mb-4 text-center text-3xl font-semibold tracking-tight text-foreground">
                 {activeTab?.title}
               </h1>
             </div>
-            <textarea
-              ref={textareaRef}
-              className="select-text mx-auto mb-8 min-h-0 w-full max-w-[720px] flex-1 resize-none bg-transparent px-8 pb-16 font-sans text-[15px] leading-7 text-foreground outline-none placeholder:text-muted-foreground"
-              value={activeTab?.content ?? ""}
-              onChange={(event) => handleChange(event.target.value)}
-              onKeyDown={handleKeyDown}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => void onDrop(event)}
-              spellCheck
-              aria-label="Markdown editor"
-              disabled={Boolean(activeTab?.conflict)}
-            />
+            <div
+              className={cn(
+                "min-h-0 flex-1",
+                mode === "split" ? "grid grid-cols-2 gap-0" : "flex flex-col",
+              )}
+            >
+              {mode !== "preview" ? (
+                <textarea
+                  ref={textareaRef}
+                  className={cn(
+                    "select-text mb-8 min-h-0 w-full flex-1 resize-none bg-transparent px-8 pb-16 font-sans text-[15px] leading-7 text-foreground outline-none placeholder:text-muted-foreground",
+                    mode === "split"
+                      ? "border-r border-border"
+                      : "mx-auto max-w-[720px]",
+                  )}
+                  value={activeTab?.content ?? ""}
+                  onChange={(event) => handleChange(event.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => void onDrop(event)}
+                  spellCheck
+                  aria-label="Markdown editor"
+                  disabled={Boolean(activeTab?.conflict)}
+                />
+              ) : null}
+              {mode !== "edit" ? (
+                <ScrollArea className="min-h-0 flex-1">
+                  <MarkdownPreview content={activeTab?.content ?? ""} />
+                </ScrollArea>
+              ) : null}
+            </div>
           </div>
         )}
       </div>
