@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
+import { Folder, LayoutGrid, List, FolderOpen } from "lucide-react";
 import type { FileEntry, TreeNode } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { FolderTree } from "./FolderTree";
 import { FilePreview } from "./FilePreview";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { ScrollArea } from "../components/ui/scroll-area";
+import { Separator } from "../components/ui/separator";
+import { StatusBar } from "../components/StatusBar";
+import { ItemActionsMenu } from "../components/ItemActionsMenu";
+import { EntryPreview, useFolderCount } from "../components/EntryPreview";
+import { cn } from "../lib/utils";
 
 type SortKey = "name" | "modified" | "size" | "type";
 
@@ -18,7 +27,8 @@ function formatDate(value: number): string {
 }
 
 export function FilesPage() {
-  const { workspace, setCurrentFolder, updateSettings, addRecentFile } = useWorkspace();
+  const { workspace, setCurrentFolder, updateSettings, addRecentFile, closeWorkspace } =
+    useWorkspace();
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [selected, setSelected] = useState<FileEntry | null>(null);
@@ -192,240 +202,369 @@ export function FilesPage() {
   }
 
   return (
-    <main className="content-area files-page" aria-label="Files">
-      <aside className="files-tree-pane">
-        <div className="pane-header">
-          <h2>Folders</h2>
-        </div>
-        <button
-          type="button"
-          className={`tree-root${workspace.currentFolder === workspace.path ? " is-active" : ""}${dragOverPath === workspace.path ? " is-drop-target" : ""}`}
-          onClick={() => setCurrentFolder(workspace.path)}
-          onDragOver={(event) => onDragOver(event, workspace.path)}
-          onDragLeave={() => setDragOverPath(null)}
-          onDrop={(event) => void onDrop(event, workspace.path)}
-        >
-          {workspace.name}
-        </button>
-        <FolderTree
-          nodes={tree}
-          activePath={workspace.currentFolder}
-          onSelect={setCurrentFolder}
-        />
-      </aside>
-
-      <section
-        className="files-main-pane"
-        onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
-        onDrop={(event) => void onDrop(event, workspace.currentFolder)}
-      >
-        <div className="files-toolbar">
-          <nav className="breadcrumb" aria-label="Breadcrumb">
-            <button type="button" onClick={() => void goToCrumb(-1)}>
-              {workspace.name}
+    <div className="flex h-full min-h-0 w-full flex-col" aria-label="Files">
+      <div className="flex min-h-0 flex-1">
+        <aside className="flex w-[240px] shrink-0 flex-col border-r border-border bg-[hsl(var(--panel))]">
+          <div className="px-3 py-2">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Library
+            </h2>
+          </div>
+          <ScrollArea className="min-h-0 flex-1 px-2">
+            <button
+              type="button"
+              className={cn(
+                "mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
+                workspace.currentFolder === workspace.path && "bg-accent text-foreground",
+                dragOverPath === workspace.path && "ring-1 ring-ring",
+              )}
+              onClick={() => setCurrentFolder(workspace.path)}
+              onDragOver={(event) => onDragOver(event, workspace.path)}
+              onDragLeave={() => setDragOverPath(null)}
+              onDrop={(event) => void onDrop(event, workspace.path)}
+            >
+              <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{workspace.name}</span>
             </button>
-            {crumbs.map((part, index) => (
-              <span key={`${part}-${index}`} className="breadcrumb-item">
-                <span className="breadcrumb-sep">/</span>
-                <button type="button" onClick={() => void goToCrumb(index)}>
-                  {part}
-                </button>
-              </span>
-            ))}
-          </nav>
+            <FolderTree
+              nodes={tree}
+              activePath={workspace.currentFolder}
+              onSelect={setCurrentFolder}
+            />
+          </ScrollArea>
+          <div className="border-t border-border px-2 py-2">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              onClick={closeWorkspace}
+            >
+              <span className="truncate">{workspace.name}</span>
+            </button>
+          </div>
+        </aside>
 
-          <div className="files-toolbar-actions">
-            <input
+        <section
+          className="flex min-w-0 flex-1 flex-col bg-background"
+          onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
+          onDrop={(event) => void onDrop(event, workspace.currentFolder)}
+        >
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+            <nav className="flex min-w-0 flex-1 items-center gap-1 text-sm" aria-label="Breadcrumb">
+              <button
+                type="button"
+                className="truncate text-muted-foreground hover:text-foreground"
+                onClick={() => void goToCrumb(-1)}
+              >
+                {workspace.name}
+              </button>
+              {crumbs.map((part, index) => (
+                <span key={`${part}-${index}`} className="flex min-w-0 items-center gap-1">
+                  <span className="text-muted-foreground/40">/</span>
+                  <button
+                    type="button"
+                    className="truncate text-muted-foreground hover:text-foreground"
+                    onClick={() => void goToCrumb(index)}
+                  >
+                    {part}
+                  </button>
+                </span>
+              ))}
+            </nav>
+
+            <Input
               type="search"
-              placeholder="Filter files…"
+              placeholder="Filter…"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               aria-label="Filter files"
+              className="h-8 w-40 bg-[hsl(var(--panel))]"
             />
             <select
               value={sortKey}
               onChange={(event) => setSortKey(event.target.value as SortKey)}
               aria-label="Sort by"
+              className="h-8 rounded-md border border-border bg-[hsl(var(--panel))] px-2 text-xs text-foreground"
             >
               <option value="name">Name</option>
               <option value="modified">Modified</option>
               <option value="size">Size</option>
               <option value="type">Type</option>
             </select>
-            <button
-              type="button"
-              className="btn btn-secondary btn-small"
-              onClick={() => setSortAsc((value) => !value)}
-            >
+            <Button type="button" variant="secondary" size="sm" onClick={() => setSortAsc((v) => !v)}>
               {sortAsc ? "Asc" : "Desc"}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="btn btn-secondary btn-small"
+              variant="ghost"
+              size="icon"
+              title={view === "list" ? "Grid view" : "List view"}
               onClick={() => updateSettings({ filesView: view === "list" ? "grid" : "list" })}
             >
-              {view === "list" ? "Grid" : "List"}
-            </button>
+              {view === "list" ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+            </Button>
           </div>
+
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="p-3">
+              {error ? <p className="mb-2 text-xs text-destructive">{error}</p> : null}
+              {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
+              {!loading && visible.length === 0 ? (
+                <p className="text-sm text-muted-foreground">This folder is empty.</p>
+              ) : null}
+
+              {view === "list" ? (
+                <div className="space-y-0.5" role="table" aria-label="Files">
+                  <div
+                    className="grid grid-cols-[minmax(0,1fr)_140px_72px_64px_28px] gap-2 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
+                    role="row"
+                  >
+                    <span>Name</span>
+                    <span>Modified</span>
+                    <span>Size</span>
+                    <span>Type</span>
+                    <span className="sr-only">Actions</span>
+                  </div>
+                  {visible.map((entry) => (
+                    <div
+                      key={entry.path}
+                      role="row"
+                      draggable
+                      className={cn(
+                        "grid w-full grid-cols-[minmax(0,1fr)_140px_72px_64px_28px] items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent",
+                        selected?.path === entry.path && "bg-accent",
+                        entry.isDirectory && dragOverPath === entry.path && "ring-1 ring-ring",
+                      )}
+                      onClick={() => void openEntry(entry)}
+                      onDragStart={(event) => onDragStart(event, entry)}
+                      onDragOver={
+                        entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
+                      }
+                      onDrop={
+                        entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
+                      }
+                    >
+                      <span className="flex min-w-0 items-center gap-2 text-foreground">
+                        <EntryPreview entry={entry} size="sm" />
+                        <span className="truncate">{entry.name}</span>
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {formatDate(entry.modifiedAt)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {entry.isDirectory ? "—" : formatBytes(entry.size)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {entry.isDirectory ? "Folder" : entry.extension || "File"}
+                      </span>
+                      <ItemActionsMenu
+                        label={entry.name}
+                        actions={[
+                          { label: "Rename", onSelect: () => startRename(entry) },
+                          {
+                            label: "Delete",
+                            destructive: true,
+                            onSelect: () => void handleDelete(entry),
+                          },
+                        ]}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] gap-x-3 gap-y-5">
+                  {visible.map((entry) => (
+                    <FileGridCard
+                      key={entry.path}
+                      entry={entry}
+                      selected={selected?.path === entry.path}
+                      dropTarget={entry.isDirectory && dragOverPath === entry.path}
+                      onOpen={() => void openEntry(entry)}
+                      onDragStart={(event) => onDragStart(event, entry)}
+                      onDragOver={
+                        entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
+                      }
+                      onDrop={
+                        entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
+                      }
+                      onRename={() => startRename(entry)}
+                      onDelete={() => void handleDelete(entry)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </section>
+
+        <aside className="flex w-[260px] shrink-0 flex-col border-l border-border bg-[hsl(var(--panel))]">
+          {selected ? (
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="space-y-3 p-3">
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  {selected.isDirectory ? "Folder" : "Details"}
+                </h2>
+
+                {renaming ? (
+                  <Input
+                    value={renameValue}
+                    autoFocus
+                    onChange={(event) => setRenameValue(event.target.value)}
+                    onBlur={() => void commitRename()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void commitRename();
+                      if (event.key === "Escape") setRenaming(false);
+                    }}
+                  />
+                ) : (
+                  <p className="break-all text-sm font-medium text-foreground">{selected.name}</p>
+                )}
+
+                <div className="flex flex-wrap gap-1">
+                  <Button type="button" variant="secondary" size="sm" onClick={() => startRename(selected)}>
+                    Rename
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void handleDuplicate(selected)}
+                  >
+                    Duplicate
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void handleDelete(selected)}
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void window.entropy.fs.reveal(selected.path)}
+                  >
+                    Reveal
+                  </Button>
+                  {!selected.isDirectory ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void window.entropy.fs.openExternal(selected.path)}
+                    >
+                      Open
+                    </Button>
+                  ) : null}
+                </div>
+
+                {!selected.isDirectory ? (
+                  <>
+                    <Separator />
+                    <FilePreview file={selected} />
+                    <dl className="space-y-2 text-xs">
+                      <div>
+                        <dt className="text-muted-foreground">Path</dt>
+                        <dd className="break-all text-foreground">{selected.path}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Type</dt>
+                        <dd>{selected.extension || "File"}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Size</dt>
+                        <dd>{formatBytes(selected.size)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Modified</dt>
+                        <dd>{formatDate(selected.modifiedAt)}</dd>
+                      </div>
+                    </dl>
+                  </>
+                ) : null}
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+              <h2 className="text-sm font-medium text-foreground">Inspector</h2>
+              <p className="text-xs text-muted-foreground">
+                Select a file to preview and manage it.
+              </p>
+            </div>
+          )}
+        </aside>
+      </div>
+      <StatusBar
+        left={workspace.currentFolder}
+        right={`${visible.length} items${selected ? ` · ${selected.name}` : ""}`}
+      />
+    </div>
+  );
+}
+
+function FileGridCard({
+  entry,
+  selected,
+  dropTarget,
+  onOpen,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onRename,
+  onDelete,
+}: {
+  entry: FileEntry;
+  selected: boolean;
+  dropTarget: boolean;
+  onOpen: () => void;
+  onDragStart: (event: DragEvent) => void;
+  onDragOver?: (event: DragEvent) => void;
+  onDrop?: (event: DragEvent) => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  const count = useFolderCount(entry.path, entry.isDirectory);
+
+  return (
+    <div
+      draggable
+      className={cn(
+        "flex cursor-pointer flex-col gap-2",
+        dropTarget && "opacity-80",
+      )}
+      onClick={onOpen}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      <div
+        className={cn(
+          "overflow-hidden rounded-lg",
+          selected && "outline outline-1 outline-paper/40 outline-offset-1",
+        )}
+      >
+        <EntryPreview entry={entry} size="lg" />
+      </div>
+
+      <div className="flex min-w-0 items-center gap-1 px-0.5">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] leading-tight text-foreground">{entry.name}</p>
+          {entry.isDirectory ? (
+            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Folder className="h-3 w-3 shrink-0" strokeWidth={1.5} />
+              <span>{count ?? "…"}</span>
+            </p>
+          ) : null}
         </div>
-
-        {error ? <p className="inline-error">{error}</p> : null}
-        {loading ? <p className="pane-empty">Loading…</p> : null}
-        {!loading && visible.length === 0 ? <p className="pane-empty">This folder is empty.</p> : null}
-
-        {view === "list" ? (
-          <div className="files-list" role="table" aria-label="Files">
-            <div className="files-list-header" role="row">
-              <span>Name</span>
-              <span>Modified</span>
-              <span>Size</span>
-              <span>Type</span>
-            </div>
-            {visible.map((entry) => (
-              <button
-                key={entry.path}
-                type="button"
-                draggable
-                className={`files-list-row${selected?.path === entry.path ? " is-selected" : ""}${entry.isDirectory && dragOverPath === entry.path ? " is-drop-target" : ""}`}
-                onClick={() => void openEntry(entry)}
-                onDragStart={(event) => onDragStart(event, entry)}
-                onDragOver={
-                  entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
-                }
-                onDrop={
-                  entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
-                }
-              >
-                <span className="files-name">
-                  {entry.isDirectory ? "[dir] " : ""}
-                  {entry.name}
-                </span>
-                <span>{formatDate(entry.modifiedAt)}</span>
-                <span>{entry.isDirectory ? "—" : formatBytes(entry.size)}</span>
-                <span>{entry.isDirectory ? "Folder" : entry.extension || "File"}</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="files-grid">
-            {visible.map((entry) => (
-              <button
-                key={entry.path}
-                type="button"
-                draggable
-                className={`files-grid-card${selected?.path === entry.path ? " is-selected" : ""}${entry.isDirectory && dragOverPath === entry.path ? " is-drop-target" : ""}`}
-                onClick={() => void openEntry(entry)}
-                onDragStart={(event) => onDragStart(event, entry)}
-                onDragOver={
-                  entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
-                }
-                onDrop={
-                  entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
-                }
-              >
-                <span className="files-grid-icon">
-                  {entry.isDirectory
-                    ? "DIR"
-                    : entry.extension.replace(".", "").toUpperCase() || "FILE"}
-                </span>
-                <span className="files-grid-name">{entry.name}</span>
-                <span className="files-grid-meta">
-                  {entry.isDirectory ? "Folder" : formatBytes(entry.size)}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <aside className="files-meta-pane">
-        {selected && !selected.isDirectory ? (
-          <div className="files-meta files-preview-panel">
-            <h2>Preview</h2>
-            {renaming ? (
-              <input
-                className="note-rename-input"
-                value={renameValue}
-                autoFocus
-                onChange={(event) => setRenameValue(event.target.value)}
-                onBlur={() => void commitRename()}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") void commitRename();
-                  if (event.key === "Escape") setRenaming(false);
-                }}
-              />
-            ) : (
-              <p className="files-meta-name">{selected.name}</p>
-            )}
-
-            <div className="file-actions">
-              <button type="button" onClick={() => startRename(selected)}>
-                Rename
-              </button>
-              <button type="button" onClick={() => void handleDuplicate(selected)}>
-                Duplicate
-              </button>
-              <button type="button" onClick={() => void handleDelete(selected)}>
-                Delete
-              </button>
-              <button type="button" onClick={() => void window.entropy.fs.reveal(selected.path)}>
-                Reveal
-              </button>
-              <button
-                type="button"
-                onClick={() => void window.entropy.fs.openExternal(selected.path)}
-              >
-                Open
-              </button>
-            </div>
-
-            <FilePreview file={selected} />
-            <dl>
-              <div>
-                <dt>Path</dt>
-                <dd>{selected.path}</dd>
-              </div>
-              <div>
-                <dt>Type</dt>
-                <dd>{selected.extension || "File"}</dd>
-              </div>
-              <div>
-                <dt>Size</dt>
-                <dd>{formatBytes(selected.size)}</dd>
-              </div>
-              <div>
-                <dt>Modified</dt>
-                <dd>{formatDate(selected.modifiedAt)}</dd>
-              </div>
-            </dl>
-            <p className="pane-empty">Drag files onto folders to move them.</p>
-          </div>
-        ) : selected?.isDirectory ? (
-          <div className="files-meta">
-            <h2>Folder</h2>
-            <p className="files-meta-name">{selected.name}</p>
-            <div className="file-actions">
-              <button type="button" onClick={() => startRename(selected)}>
-                Rename
-              </button>
-              <button type="button" onClick={() => void handleDuplicate(selected)}>
-                Duplicate
-              </button>
-              <button type="button" onClick={() => void handleDelete(selected)}>
-                Delete
-              </button>
-              <button type="button" onClick={() => void window.entropy.fs.reveal(selected.path)}>
-                Reveal
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="content-empty">
-            <h1>Files</h1>
-            <p>Select a file to preview and manage it.</p>
-          </div>
-        )}
-      </aside>
-    </main>
+        <ItemActionsMenu
+          label={entry.name}
+          actions={[
+            { label: "Rename", onSelect: onRename },
+            { label: "Delete", destructive: true, onSelect: onDelete },
+          ]}
+        />
+      </div>
+    </div>
   );
 }

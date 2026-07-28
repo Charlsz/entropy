@@ -70,13 +70,23 @@ async function main() {
     exec("npx", ["tsc", "-p", "tsconfig.preload.json"]),
   ]);
 
-  console.log("Starting Vite…");
-  run("npx", ["vite", "--config", "vite.config.ts"]);
+  console.log("Starting Vite (no browser)…");
+  run("npx", ["vite", "--config", "vite.config.ts"], {
+    env: {
+      ...process.env,
+      BROWSER: "none",
+    },
+  });
   await waitForPort(5173);
 
-  console.log("Starting Electron…");
+  console.log("Starting Electron desktop window…");
   const electron = run("npx", ["electron", "."], {
-    env: { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: "true" },
+    env: {
+      ...process.env,
+      ENTROPY_DEV: "1",
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
+      BROWSER: "none",
+    },
   });
 
   electron.on("exit", shutdown);

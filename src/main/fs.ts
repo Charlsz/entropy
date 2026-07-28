@@ -53,9 +53,47 @@ export async function readText(filePath: string): Promise<string> {
   return fs.readFile(filePath, "utf8");
 }
 
+/** Atomic write: temp file in same directory, then rename. */
 export async function writeText(filePath: string, content: string): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, content, "utf8");
+  const dir = path.dirname(filePath);
+  await fs.mkdir(dir, { recursive: true });
+  const tempPath = path.join(
+    dir,
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`,
+  );
+
+  try {
+    await fs.writeFile(tempPath, content, "utf8");
+    await fs.rename(tempPath, filePath);
+  } catch (error) {
+    try {
+      await fs.unlink(tempPath);
+    } catch {
+      // Ignore cleanup failures.
+    }
+    throw error;
+  }
+}
+
+export async function writeTextIfUnchanged(
+  filePath: string,
+  content: string,
+  expectedMtimeMs: number | null,
+): Promise<{ ok: true; mtimeMs: number } | { ok: false; reason: "missing" | "conflict"; mtimeMs: number | null }> {
+  try {
+    const info = await fs.stat(filePath);
+    if (expectedMtimeMs !== null && Math.abs(info.mtimeMs - expectedMtimeMs) > 1) {
+      return { ok: false, reason: "conflict", mtimeMs: info.mtimeMs };
+    }
+  } catch {
+    if (expectedMtimeMs !== null) {
+      return { ok: false, reason: "missing", mtimeMs: null };
+    }
+  }
+
+  await writeText(filePath, content);
+  const next = await fs.stat(filePath);
+  return { ok: true, mtimeMs: next.mtimeMs };
 }
 
 export async function mkdir(dirPath: string): Promise<void> {

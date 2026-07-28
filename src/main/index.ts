@@ -3,6 +3,7 @@ import path from "node:path";
 import * as filesystem from "./fs";
 import { FILE_PROTOCOL, registerFileProtocol, toEntropyUrl } from "./protocol";
 import { loadCanvas, saveCanvas, type PersistedCanvas } from "./canvasStore";
+import { loadSession, saveSession, type AppSession } from "./session";
 import {
   clearRecentWorkspaces,
   createWorkspaceDialog,
@@ -12,7 +13,8 @@ import {
   removeRecentWorkspace,
 } from "./workspaces";
 
-const isDev = !app.isPackaged;
+const isDev = process.env.ENTROPY_DEV === "1";
+let allowQuit = false;
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -34,11 +36,11 @@ function createWindow(): BrowserWindow {
     minWidth: 720,
     minHeight: 520,
     show: false,
-    backgroundColor: "#111111",
+    backgroundColor: "#212121",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     titleBarOverlay:
       process.platform === "win32"
-        ? { color: "#141414", symbolColor: "#eaeaea", height: 40 }
+        ? { color: "#1a1a1a", symbolColor: "#f8f8ff", height: 40 }
         : undefined,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
@@ -81,10 +83,18 @@ function registerIpc(): void {
     await rememberWorkspace(workspacePath);
   });
 
+  ipcMain.handle("session:load", async () => loadSession());
+  ipcMain.handle("session:save", async (_event, session: AppSession) => saveSession(session));
+
   ipcMain.handle("fs:listDir", (_event, dirPath: string) => filesystem.listDir(dirPath));
   ipcMain.handle("fs:readText", (_event, filePath: string) => filesystem.readText(filePath));
   ipcMain.handle("fs:writeText", (_event, filePath: string, content: string) =>
     filesystem.writeText(filePath, content),
+  );
+  ipcMain.handle(
+    "fs:writeTextSafe",
+    (_event, filePath: string, content: string, expectedMtimeMs: number | null) =>
+      filesystem.writeTextIfUnchanged(filePath, content, expectedMtimeMs),
   );
   ipcMain.handle("fs:mkdir", (_event, dirPath: string) => filesystem.mkdir(dirPath));
   ipcMain.handle("fs:rename", (_event, fromPath: string, toPath: string) =>
@@ -120,6 +130,11 @@ function registerIpc(): void {
 
   ipcMain.handle("canvas:load", (_event, workspacePath: string) => loadCanvas(workspacePath));
   ipcMain.handle("canvas:save", (_event, doc: PersistedCanvas) => saveCanvas(doc));
+
+  ipcMain.on("app:flushed", () => {
+    allowQuit = true;
+    app.quit();
+  });
 }
 
 app.whenReady().then(() => {
@@ -132,6 +147,23 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+});
+
+app.on("before-quit", (event) => {
+  if (allowQuit) return;
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win || win.isDestroyed()) {
+    allowQuit = true;
+    return;
+  }
+  event.preventDefault();
+  win.webContents.send("app:before-quit");
+  setTimeout(() => {
+    if (!allowQuit) {
+      allowQuit = true;
+      app.quit();
+    }
+  }, 2500);
 });
 
 app.on("window-all-closed", () => {

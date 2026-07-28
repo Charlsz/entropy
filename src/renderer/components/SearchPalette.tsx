@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NoteSearchResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
+import { Input } from "./ui/input";
+import { cn } from "../lib/utils";
 
 interface SearchPaletteProps {
   open: boolean;
@@ -64,13 +66,18 @@ export function SearchPalette({ open, onClose, onOpenNote }: SearchPaletteProps)
   }
 
   return (
-    <div className="search-overlay" role="dialog" aria-modal="true" aria-label="Search notes">
-      <button type="button" className="search-backdrop" aria-label="Close search" onClick={onClose} />
-      <div className="search-palette">
-        <input
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" role="dialog" aria-modal="true" aria-label="Search notes">
+      <button
+        type="button"
+        className="absolute inset-0 bg-ink/60"
+        aria-label="Close search"
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+        <Input
           ref={inputRef}
           type="search"
-          className="search-input"
+          className="h-12 rounded-none border-0 border-b border-border bg-transparent px-4 text-base focus-visible:ring-0"
           placeholder="Search notes across workspace…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -90,20 +97,27 @@ export function SearchPalette({ open, onClose, onOpenNote }: SearchPaletteProps)
             }
           }}
         />
-        <p className="search-status">{status}</p>
-        <ul className="search-results">
+        <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground">{status}</p>
+        <ul className="max-h-[50vh] overflow-auto p-1">
           {results.map((result, index) => (
             <li key={result.path}>
               <button
                 type="button"
-                className={`search-result${index === activeIndex ? " is-active" : ""}`}
+                className={cn(
+                  "flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-accent",
+                  index === activeIndex && "bg-accent",
+                )}
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => choose(result.path)}
               >
-                <span className="search-result-name">{result.name.replace(/\.md$/i, "")}</span>
-                <span className="search-result-path">{result.path}</span>
+                <span className="text-sm text-foreground">
+                  {result.name.replace(/\.md$/i, "")}
+                </span>
+                <span className="truncate text-[11px] text-muted-foreground">{result.path}</span>
                 {result.excerpt ? (
-                  <span className="search-result-excerpt">{result.excerpt}</span>
+                  <span className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                    {result.excerpt}
+                  </span>
                 ) : null}
               </button>
             </li>

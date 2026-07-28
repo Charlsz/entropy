@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Titlebar } from "../components/Titlebar";
-import { Sidebar } from "../components/Sidebar";
-import { ContentArea } from "../components/ContentArea";
-import { SearchPalette } from "../components/SearchPalette";
-import { CommandPalette, type CommandAction } from "../components/CommandPalette";
+import { Titlebar } from "./Titlebar";
+import { IconRail } from "./IconRail";
+import { ContentArea } from "./ContentArea";
+import { SearchPalette } from "./SearchPalette";
+import { CommandPalette, type CommandAction } from "./CommandPalette";
+import { TooltipProvider } from "./ui/tooltip";
 import { useWorkspace } from "../state/useWorkspace";
 
 export function WorkspaceShell() {
@@ -11,7 +12,6 @@ export function WorkspaceShell() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [pendingNote, setPendingNote] = useState<string | null>(null);
-  const [loadingSection, setLoadingSection] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = workspace.settings.theme;
@@ -68,9 +68,7 @@ export function WorkspaceShell() {
   const handleCommand = useCallback(
     (action: CommandAction) => {
       if (action.type === "section") {
-        setLoadingSection(true);
         setSection(action.section);
-        window.setTimeout(() => setLoadingSection(false), 120);
       } else if (action.type === "note") {
         handleOpenNote(action.path);
       } else if (action.type === "search") {
@@ -85,33 +83,39 @@ export function WorkspaceShell() {
   );
 
   return (
-    <div className="app-shell" data-theme={workspace.settings.theme}>
-      <Titlebar
-        workspaceName={workspace.name}
-        onCloseWorkspace={closeWorkspace}
-        onOpenSearch={() => setSearchOpen(true)}
-        onOpenCommands={() => setCommandOpen(true)}
-      />
-      <div className="app-body">
-        <Sidebar active={workspace.currentSection} onChange={setSection} />
-        <div className={`content-transition${loadingSection ? " is-loading" : ""}`}>
-          <ContentArea
-            section={workspace.currentSection}
-            pendingNote={pendingNote}
-            onPendingNoteHandled={() => setPendingNote(null)}
+    <TooltipProvider delayDuration={200}>
+      <div className="flex h-full flex-col bg-background" data-theme={workspace.settings.theme}>
+        <Titlebar
+          workspaceName={workspace.name}
+          onCloseWorkspace={closeWorkspace}
+          onOpenSearch={() => setSearchOpen(true)}
+          onOpenCommands={() => setCommandOpen(true)}
+        />
+        <div className="flex min-h-0 flex-1">
+          <IconRail
+            active={workspace.currentSection}
+            onChange={setSection}
+            onSearch={() => setSearchOpen(true)}
           />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <ContentArea
+              section={workspace.currentSection}
+              pendingNote={pendingNote}
+              onPendingNoteHandled={() => setPendingNote(null)}
+            />
+          </div>
         </div>
+        <SearchPalette
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          onOpenNote={handleOpenNote}
+        />
+        <CommandPalette
+          open={commandOpen}
+          onClose={() => setCommandOpen(false)}
+          onAction={handleCommand}
+        />
       </div>
-      <SearchPalette
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        onOpenNote={handleOpenNote}
-      />
-      <CommandPalette
-        open={commandOpen}
-        onClose={() => setCommandOpen(false)}
-        onAction={handleCommand}
-      />
-    </div>
+    </TooltipProvider>
   );
 }

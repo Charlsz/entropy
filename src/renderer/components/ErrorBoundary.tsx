@@ -22,12 +22,12 @@ export class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (this.state.error) {
       return (
-        <div className="error-boundary">
-          <h1>Something went wrong</h1>
-          <p>{this.state.error.message}</p>
+        <div className="flex h-full flex-col items-center justify-center gap-3 bg-background px-6 text-center text-foreground">
+          <h1 className="text-lg font-medium">Something went wrong</h1>
+          <p className="max-w-md text-sm text-muted-foreground">{this.state.error.message}</p>
           <button
             type="button"
-            className="btn btn-primary"
+            className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
             onClick={() => this.setState({ error: null })}
           >
             Try again

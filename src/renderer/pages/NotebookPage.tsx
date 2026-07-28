@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
+import { FilePlus2, FolderOpen } from "lucide-react";
 import type { FileEntry, NoteSearchResult, TreeNode } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
-import { FolderTree } from "./FolderTree";
-import { MarkdownEditor } from "./MarkdownEditor";
+import { FolderTree } from "../pages/FolderTree";
+import { MarkdownEditor } from "../pages/MarkdownEditor";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { ScrollArea } from "../components/ui/scroll-area";
+import { Separator } from "../components/ui/separator";
+import { StatusBar } from "../components/StatusBar";
+import { ItemActionsMenu } from "../components/ItemActionsMenu";
+import { cn } from "../lib/utils";
 
 export function NotebookPage({
   pendingNote,
@@ -11,7 +19,7 @@ export function NotebookPage({
   pendingNote?: string | null;
   onPendingNoteHandled?: () => void;
 } = {}) {
-  const { workspace, setCurrentFolder, addRecentFile } = useWorkspace();
+  const { workspace, setCurrentFolder, addRecentFile, closeWorkspace } = useWorkspace();
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [notes, setNotes] = useState<FileEntry[]>([]);
   const [query, setQuery] = useState("");
@@ -22,6 +30,7 @@ export function NotebookPage({
   const [renameValue, setRenameValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [statusRight, setStatusRight] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -56,14 +65,12 @@ export function NotebookPage({
       setSearchResults(null);
       return;
     }
-
     const handle = window.setTimeout(() => {
       void window.entropy.fs
         .searchMarkdown(workspace.path, query)
         .then(setSearchResults)
         .catch(() => setSearchResults([]));
     }, 180);
-
     return () => window.clearTimeout(handle);
   }, [query, workspace.path]);
 
@@ -76,9 +83,7 @@ export function NotebookPage({
   function closeTab(notePath: string): void {
     setOpenPaths((prev) => {
       const next = prev.filter((path) => path !== notePath);
-      if (activePath === notePath) {
-        setActivePath(next[next.length - 1] ?? null);
-      }
+      if (activePath === notePath) setActivePath(next[next.length - 1] ?? null);
       return next;
     });
   }
@@ -96,7 +101,6 @@ export function NotebookPage({
   async function handleDelete(notePath: string): Promise<void> {
     const name = notePath.split(/[/\\]/).pop() ?? "note";
     if (!window.confirm(`Move "${name}" to the system trash?`)) return;
-
     try {
       await window.entropy.fs.remove(notePath);
       closeTab(notePath);
@@ -115,7 +119,6 @@ export function NotebookPage({
     const nextName = renameValue.trim().replace(/\.md$/i, "");
     setRenaming(null);
     if (!nextName) return;
-
     try {
       const dir = await window.entropy.fs.dirname(notePath);
       const target = await window.entropy.fs.join(dir, `${nextName}.md`);
@@ -146,110 +149,157 @@ export function NotebookPage({
       }));
 
   return (
-    <main className="content-area notebook-page" aria-label="Notebook">
-      <aside className="notebook-tree-pane">
-        <div className="pane-header">
-          <h2>Folders</h2>
-        </div>
-        <button
-          type="button"
-          className={`tree-root${workspace.currentFolder === workspace.path ? " is-active" : ""}`}
-          onClick={() => setCurrentFolder(workspace.path)}
-        >
-          {workspace.name}
-        </button>
-        <FolderTree
-          nodes={tree}
-          activePath={workspace.currentFolder}
-          onSelect={setCurrentFolder}
-        />
-      </aside>
+    <div className="flex h-full min-h-0 w-full flex-col">
+      <div className="flex min-h-0 flex-1">
+        <aside className="flex w-[280px] shrink-0 flex-col border-r border-border bg-[hsl(var(--panel))]">
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Explorer
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title="New note"
+              onClick={() => void handleCreate()}
+            >
+              <FilePlus2 className="h-4 w-4" />
+            </Button>
+          </div>
 
-      <section className="notebook-list-pane">
-        <div className="pane-header notebook-toolbar">
-          <h2>Notes</h2>
-          <button
-            type="button"
-            className="btn btn-primary btn-small"
-            onClick={() => void handleCreate()}
-          >
-            New note
-          </button>
-        </div>
+          <div className="px-3 pb-2">
+            <Input
+              type="search"
+              placeholder="Filter notes…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="h-8 bg-background"
+            />
+          </div>
 
-        <div className="notebook-search">
-          <input
-            type="search"
-            placeholder="Search notes…"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            aria-label="Search notes"
-          />
-        </div>
-
-        {error ? <p className="inline-error">{error}</p> : null}
-        {loading ? <p className="pane-empty">Loading…</p> : null}
-
-        {!loading && visibleNotes.length === 0 ? (
-          <p className="pane-empty">
-            {query.trim() ? "No matching notes." : "No markdown notes in this folder."}
-          </p>
-        ) : null}
-
-        <ul className="note-list">
-          {visibleNotes.map((note) => (
-            <li key={note.path} className={activePath === note.path ? "is-selected" : ""}>
-              {renaming === note.path ? (
-                <input
-                  className="note-rename-input"
-                  value={renameValue}
-                  autoFocus
-                  onChange={(event) => setRenameValue(event.target.value)}
-                  onBlur={() => void commitRename(note.path)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") void commitRename(note.path);
-                    if (event.key === "Escape") setRenaming(null);
-                  }}
-                />
-              ) : (
-                <button type="button" className="note-row" onClick={() => openNote(note.path)}>
-                  <span className="note-name">{note.name.replace(/\.md$/i, "")}</span>
-                  {note.excerpt ? <span className="note-excerpt">{note.excerpt}</span> : null}
-                </button>
+          <ScrollArea className="min-h-0 flex-1 px-2">
+            <button
+              type="button"
+              className={cn(
+                "mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
+                workspace.currentFolder === workspace.path && "bg-accent text-foreground",
               )}
-              <div className="note-actions">
-                <button
-                  type="button"
-                  onClick={() =>
-                    startRename({
-                      name: note.name,
-                      path: note.path,
-                      isDirectory: false,
-                      size: 0,
-                      modifiedAt: 0,
-                      extension: ".md",
-                    })
-                  }
-                >
-                  Rename
-                </button>
-                <button type="button" onClick={() => void handleDelete(note.path)}>
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+              onClick={() => setCurrentFolder(workspace.path)}
+            >
+              <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{workspace.name}</span>
+            </button>
+            <FolderTree
+              nodes={tree}
+              activePath={workspace.currentFolder}
+              onSelect={setCurrentFolder}
+            />
 
-      <section className="notebook-detail-pane">
-        <MarkdownEditor
-          openPaths={openPaths}
-          activePath={activePath}
-          onActiveChange={setActivePath}
-          onCloseTab={closeTab}
-        />
-      </section>
-    </main>
+            <Separator className="my-2" />
+
+            <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Notes
+            </p>
+
+            {error ? <p className="px-2 text-xs text-destructive">{error}</p> : null}
+            {loading ? <p className="px-2 text-xs text-muted-foreground">Loading…</p> : null}
+            {!loading && visibleNotes.length === 0 ? (
+              <p className="px-2 text-xs text-muted-foreground">No markdown notes here.</p>
+            ) : null}
+
+            <ul className="space-y-0.5 pb-4">
+              {visibleNotes.map((note) => (
+                <li
+                  key={note.path}
+                  className={cn(
+                    "flex items-center gap-0.5 rounded-lg pr-0.5",
+                    activePath === note.path && "bg-accent",
+                  )}
+                >
+                  {renaming === note.path ? (
+                    <Input
+                      className="h-8"
+                      value={renameValue}
+                      autoFocus
+                      onChange={(event) => setRenameValue(event.target.value)}
+                      onBlur={() => void commitRename(note.path)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void commitRename(note.path);
+                        if (event.key === "Escape") setRenaming(null);
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 truncate px-2.5 py-1.5 text-left text-sm text-foreground"
+                        onClick={() => openNote(note.path)}
+                        onDoubleClick={() =>
+                          startRename({
+                            name: note.name,
+                            path: note.path,
+                            isDirectory: false,
+                            size: 0,
+                            modifiedAt: 0,
+                            extension: ".md",
+                          })
+                        }
+                      >
+                        {note.name.replace(/\.md$/i, "")}
+                      </button>
+                      <ItemActionsMenu
+                        label={note.name.replace(/\.md$/i, "")}
+                        actions={[
+                          {
+                            label: "Rename",
+                            onSelect: () =>
+                              startRename({
+                                name: note.name,
+                                path: note.path,
+                                isDirectory: false,
+                                size: 0,
+                                modifiedAt: 0,
+                                extension: ".md",
+                              }),
+                          },
+                          {
+                            label: "Delete",
+                            destructive: true,
+                            onSelect: () => void handleDelete(note.path),
+                          },
+                        ]}
+                      />
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </ScrollArea>
+
+          <div className="flex items-center gap-1 border-t border-border px-2 py-2">
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              onClick={closeWorkspace}
+              title="Switch workspace"
+            >
+              <span className="truncate">{workspace.name}</span>
+            </button>
+          </div>
+        </aside>
+
+        <section className="flex min-w-0 flex-1 flex-col bg-background">
+          <MarkdownEditor
+            openPaths={openPaths}
+            activePath={activePath}
+            onActiveChange={setActivePath}
+            onCloseTab={closeTab}
+            onStatsChange={setStatusRight}
+          />
+        </section>
+      </div>
+      <StatusBar left={activePath ?? workspace.path} right={statusRight} />
+    </div>
   );
 }

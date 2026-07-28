@@ -41,6 +41,20 @@ export async function loadCanvas(workspacePath: string): Promise<PersistedCanvas
 
 export async function saveCanvas(doc: PersistedCanvas): Promise<void> {
   const filePath = canvasFileFor(doc.workspacePath);
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(doc, null, 2), "utf8");
+  const dir = path.dirname(filePath);
+  await fs.mkdir(dir, { recursive: true });
+  const tempPath = path.join(dir, `.${path.basename(filePath)}.${process.pid}.tmp`);
+  const payload = JSON.stringify(doc, null, 2);
+
+  try {
+    await fs.writeFile(tempPath, payload, "utf8");
+    await fs.rename(tempPath, filePath);
+  } catch (error) {
+    try {
+      await fs.unlink(tempPath);
+    } catch {
+      // Ignore cleanup failures.
+    }
+    throw error;
+  }
 }

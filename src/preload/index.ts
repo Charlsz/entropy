@@ -17,10 +17,30 @@ const api: EntropyApi = {
     removeRecent: (workspacePath: string) =>
       ipcRenderer.invoke("workspace:removeRecent", workspacePath),
   },
+  session: {
+    load: () => ipcRenderer.invoke("session:load"),
+    save: (session) => ipcRenderer.invoke("session:save", session),
+  },
+  app: {
+    onBeforeQuit: (callback) => {
+      const listener = () => {
+        void Promise.resolve(callback()).finally(() => {
+          ipcRenderer.send("app:flushed");
+        });
+      };
+      ipcRenderer.on("app:before-quit", listener);
+      return () => {
+        ipcRenderer.removeListener("app:before-quit", listener);
+      };
+    },
+    notifyFlushed: () => ipcRenderer.send("app:flushed"),
+  },
   fs: {
     listDir: (dirPath) => ipcRenderer.invoke("fs:listDir", dirPath),
     readText: (filePath) => ipcRenderer.invoke("fs:readText", filePath),
     writeText: (filePath, content) => ipcRenderer.invoke("fs:writeText", filePath, content),
+    writeTextSafe: (filePath, content, expectedMtimeMs) =>
+      ipcRenderer.invoke("fs:writeTextSafe", filePath, content, expectedMtimeMs),
     mkdir: (dirPath) => ipcRenderer.invoke("fs:mkdir", dirPath),
     rename: (fromPath, toPath) => ipcRenderer.invoke("fs:rename", fromPath, toPath),
     remove: (targetPath) => ipcRenderer.invoke("fs:remove", targetPath),

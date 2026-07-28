@@ -1,3 +1,5 @@
+import { Button } from "./ui/button";
+
 interface TitlebarProps {
   workspaceName?: string;
   onCloseWorkspace?: () => void;
@@ -12,43 +14,54 @@ export function Titlebar({
   onOpenCommands,
 }: TitlebarProps) {
   return (
-    <header className="titlebar" aria-label="Application title bar">
-      <div className="titlebar-drag">
-        <span className="titlebar-brand">Entropy</span>
-        {workspaceName ? <span className="titlebar-workspace">{workspaceName}</span> : null}
+    <header className="drag-region flex h-10 shrink-0 items-center justify-between border-b border-border bg-[hsl(var(--rail))] px-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Entropy
+        </span>
+        {workspaceName ? (
+          <>
+            <span className="text-muted-foreground/40">/</span>
+            <span className="truncate text-sm text-foreground">{workspaceName}</span>
+          </>
+        ) : null}
       </div>
-      <div className="titlebar-actions">
+
+      <div className="no-drag flex items-center gap-1">
         {onOpenCommands ? (
-          <button
+          <Button
             type="button"
-            className="titlebar-action"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground"
             onClick={onOpenCommands}
-            title="Command palette (Ctrl+P)"
           >
             Commands
-          </button>
+          </Button>
         ) : null}
         {onOpenSearch ? (
-          <button
+          <Button
             type="button"
-            className="titlebar-action"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground"
             onClick={onOpenSearch}
-            title="Search notes (Ctrl+K)"
           >
             Search
-          </button>
+          </Button>
         ) : null}
         {onCloseWorkspace ? (
-          <button
+          <Button
             type="button"
-            className="titlebar-action"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground"
             onClick={onCloseWorkspace}
-            title="Close workspace"
           >
             Switch
-          </button>
+          </Button>
         ) : null}
-        <div className="titlebar-controls" aria-hidden="true" />
+        <div className="w-[70px]" aria-hidden />
       </div>
     </header>
   );

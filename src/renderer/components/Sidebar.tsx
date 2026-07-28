@@ -1,4 +1,6 @@
-export type SectionId = "notebook" | "files" | "canvas" | "settings";
+import type { SectionId } from "../types/section";
+
+export type { SectionId };
 
 interface SidebarProps {
   active: SectionId;

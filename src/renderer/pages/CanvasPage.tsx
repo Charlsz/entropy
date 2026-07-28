@@ -16,6 +16,8 @@ import {
 } from "../canvas/types";
 import { CanvasObjectView } from "../canvas/CanvasObjectView";
 import { useWorkspace } from "../state/useWorkspace";
+import { Button } from "../components/ui/button";
+import { StatusBar } from "../components/StatusBar";
 
 interface Camera {
   x: number;
@@ -301,35 +303,39 @@ export function CanvasPage() {
   }
 
   return (
-    <main className="content-area canvas-page" aria-label="Canvas">
-      <div className="canvas-toolbar">
-        <span>Zoom {Math.round(camera.scale * 100)}%</span>
-        <button
+    <div className="flex h-full min-h-0 flex-col" aria-label="Canvas">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-[hsl(var(--rail))] px-3 py-2">
+        <span className="text-xs text-muted-foreground">
+          Zoom {Math.round(camera.scale * 100)}%
+        </span>
+        <Button
           type="button"
-          className="btn btn-secondary btn-small"
+          variant="secondary"
+          size="sm"
           onClick={() => setCamera({ x: 0, y: 0, scale: 1 })}
         >
           Reset view
-        </button>
-        <button type="button" className="btn btn-secondary btn-small" onClick={addTextCard}>
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={addTextCard}>
           Add text card
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="btn btn-secondary btn-small"
+          variant="secondary"
+          size="sm"
           onClick={() => setLinkFromId(selectedIds[0] ?? null)}
           disabled={selectedIds.length !== 1}
         >
           {linkFromId ? "Click target to connect" : "Connect"}
-        </button>
-        <span className="canvas-hint">
-          Layout autosaves per workspace · Press L then another card to connect
+        </Button>
+        <span className="text-[11px] text-muted-foreground">
+          Layout autosaves · Press L then another card to connect
         </span>
       </div>
 
       <div
         ref={viewportRef}
-        className="canvas-viewport"
+        className="canvas-viewport relative min-h-0 flex-1 overflow-hidden bg-background"
         onWheel={onWheel}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -339,13 +345,13 @@ export function CanvasPage() {
         onDrop={(event) => void onDrop(event)}
       >
         <div
-          className="canvas-world"
+          className="canvas-world absolute left-0 top-0 origin-top-left"
           style={{
             transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})`,
           }}
         >
           <div className="canvas-grid" />
-          <svg className="canvas-connections" aria-hidden="true">
+          <svg className="canvas-connections pointer-events-none absolute left-0 top-0 overflow-visible" aria-hidden="true">
             {connections.map((link) => {
               const from = objectCenter(link.fromId);
               const to = objectCenter(link.toId);
@@ -357,7 +363,7 @@ export function CanvasPage() {
                   y1={from.y}
                   x2={to.x}
                   y2={to.y}
-                  stroke="rgba(180,180,180,0.45)"
+                  stroke="hsl(var(--muted-foreground) / 0.45)"
                   strokeWidth={2}
                 />
               );
@@ -384,7 +390,7 @@ export function CanvasPage() {
           ))}
           {selection ? (
             <div
-              className="canvas-selection"
+              className="canvas-selection absolute border border-dashed border-foreground/40 bg-foreground/5"
               style={{
                 left: selection.x,
                 top: selection.y,
@@ -395,6 +401,10 @@ export function CanvasPage() {
           ) : null}
         </div>
       </div>
-    </main>
+      <StatusBar
+        left="Canvas"
+        right={`${objects.length} objects · ${selectedIds.length} selected`}
+      />
+    </div>
   );
 }

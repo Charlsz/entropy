@@ -58,14 +58,14 @@ export function FilePreview({ file }: FilePreviewProps) {
       try {
         if (kind === "text") {
           const content = await window.entropy.fs.readText(file.path);
-          if (!cancelled) setText(content);
+          if (!cancelled) setText(content.slice(0, 20_000));
         } else if (kind !== "unsupported") {
-          const nextUrl = await window.entropy.fs.toUrl(file.path);
-          if (!cancelled) setUrl(nextUrl);
+          const next = await window.entropy.fs.toUrl(file.path);
+          if (!cancelled) setUrl(next);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load preview");
+          setError(err instanceof Error ? err.message : "Preview failed");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -79,25 +79,27 @@ export function FilePreview({ file }: FilePreviewProps) {
   }, [file.path, kind]);
 
   if (loading) {
-    return <p className="pane-empty">Loading preview…</p>;
+    return <p className="text-xs text-muted-foreground">Loading preview…</p>;
   }
 
   if (error) {
-    return <p className="inline-error">{error}</p>;
+    return <p className="text-xs text-destructive">{error}</p>;
   }
 
   if (kind === "unsupported") {
     return (
-      <div className="preview-unsupported">
-        <h3>Preview unavailable</h3>
-        <p>Entropy can still manage this file, but no in-app preview is available for this type.</p>
+      <div className="rounded-lg border border-border bg-secondary p-3">
+        <h3 className="text-sm font-medium">Preview unavailable</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Entropy can still manage this file, but no in-app preview is available for this type.
+        </p>
       </div>
     );
   }
 
   if (kind === "image" && url) {
     return (
-      <div className="preview-media">
+      <div className="file-preview">
         <img src={url} alt={file.name} />
       </div>
     );
@@ -105,7 +107,7 @@ export function FilePreview({ file }: FilePreviewProps) {
 
   if (kind === "pdf" && url) {
     return (
-      <div className="preview-frame">
+      <div className="file-preview">
         <iframe title={file.name} src={url} />
       </div>
     );
@@ -113,7 +115,7 @@ export function FilePreview({ file }: FilePreviewProps) {
 
   if (kind === "video" && url) {
     return (
-      <div className="preview-media">
+      <div className="file-preview">
         <video src={url} controls />
       </div>
     );
@@ -121,17 +123,15 @@ export function FilePreview({ file }: FilePreviewProps) {
 
   if (kind === "audio" && url) {
     return (
-      <div className="preview-audio">
-        <audio src={url} controls />
+      <div className="rounded-lg border border-border bg-secondary p-3">
+        <audio className="w-full" src={url} controls />
       </div>
     );
   }
 
   if (kind === "text" && text !== null) {
-    return (
-      <pre className="preview-text">{text}</pre>
-    );
+    return <pre className="file-preview file-preview-text">{text}</pre>;
   }
 
-  return <p className="pane-empty">Unable to preview this file.</p>;
+  return <p className="text-xs text-muted-foreground">Unable to preview this file.</p>;
 }

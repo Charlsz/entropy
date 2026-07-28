@@ -1,4 +1,4 @@
-import type { SectionId } from "../components/Sidebar";
+import type { SectionId } from "../types/section";
 
 export interface WorkspaceSettings {
   theme: "dark" | "light";
@@ -18,7 +18,7 @@ export interface WorkspaceState {
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
   theme: "dark",
   sidebarCollapsed: false,
-  filesView: "list",
+  filesView: "grid",
 };
 
 export function createWorkspaceState(workspacePath: string): WorkspaceState {

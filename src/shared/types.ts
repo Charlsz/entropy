@@ -35,10 +35,23 @@ export interface EntropyApi {
     clearRecent: () => Promise<void>;
     removeRecent: (path: string) => Promise<void>;
   };
+  session: {
+    load: () => Promise<AppSession>;
+    save: (session: AppSession) => Promise<void>;
+  };
+  app: {
+    onBeforeQuit: (callback: () => void | Promise<void>) => () => void;
+    notifyFlushed: () => void;
+  };
   fs: {
     listDir: (dirPath: string) => Promise<FileEntry[]>;
     readText: (filePath: string) => Promise<string>;
     writeText: (filePath: string, content: string) => Promise<void>;
+    writeTextSafe: (
+      filePath: string,
+      content: string,
+      expectedMtimeMs: number | null,
+    ) => Promise<WriteTextResult>;
     mkdir: (dirPath: string) => Promise<void>;
     rename: (fromPath: string, toPath: string) => Promise<void>;
     remove: (targetPath: string) => Promise<void>;
@@ -60,6 +73,18 @@ export interface EntropyApi {
   canvas: {
     load: (workspacePath: string) => Promise<CanvasDocument | null>;
     save: (doc: CanvasDocument) => Promise<void>;
+  };
+}
+
+export type WriteTextResult =
+  | { ok: true; mtimeMs: number }
+  | { ok: false; reason: "missing" | "conflict"; mtimeMs: number | null };
+
+export interface AppSession {
+  lastWorkspace: string | null;
+  settings: {
+    theme: "dark" | "light";
+    filesView: "list" | "grid";
   };
 }
 

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NoteSearchResult } from "../../shared/types";
-import type { SectionId } from "./Sidebar";
+import type { SectionId } from "../types/section";
 import { useWorkspace } from "../state/useWorkspace";
+import { Input } from "./ui/input";
+import { cn } from "../lib/utils";
 
 export type CommandAction =
   | { type: "section"; section: SectionId }
@@ -33,22 +35,14 @@ export function CommandPalette({ open, onClose, onAction }: CommandPaletteProps)
 
   const commands = useMemo<CommandItem[]>(() => {
     const base: CommandItem[] = [
-      { id: "nav-notebook", label: "Go to Notebook", hint: "g n", action: { type: "section", section: "notebook" } },
-      { id: "nav-files", label: "Go to Files", hint: "g f", action: { type: "section", section: "files" } },
-      { id: "nav-canvas", label: "Go to Canvas", hint: "g c", action: { type: "section", section: "canvas" } },
-      { id: "nav-settings", label: "Go to Settings", hint: "g ,", action: { type: "section", section: "settings" } },
-      { id: "search-notes", label: "Search notes", hint: "⌘/Ctrl K", action: { type: "search" } },
+      { id: "nav-notebook", label: "Go to Notebook", hint: "⌘1", action: { type: "section", section: "notebook" } },
+      { id: "nav-files", label: "Go to Files", hint: "⌘2", action: { type: "section", section: "files" } },
+      { id: "nav-canvas", label: "Go to Canvas", hint: "⌘3", action: { type: "section", section: "canvas" } },
+      { id: "nav-settings", label: "Go to Settings", hint: "⌘,", action: { type: "section", section: "settings" } },
+      { id: "search-notes", label: "Search notes", hint: "⌘K", action: { type: "search" } },
       { id: "switch", label: "Switch workspace", action: { type: "switch-workspace" } },
-      {
-        id: "theme-dark",
-        label: "Use dark theme",
-        action: { type: "theme", theme: "dark" },
-      },
-      {
-        id: "theme-light",
-        label: "Use light theme",
-        action: { type: "theme", theme: "light" },
-      },
+      { id: "theme-dark", label: "Use dark theme", action: { type: "theme", theme: "dark" } },
+      { id: "theme-light", label: "Use light theme", action: { type: "theme", theme: "light" } },
     ];
 
     const q = query.trim().toLowerCase();
@@ -106,13 +100,23 @@ export function CommandPalette({ open, onClose, onAction }: CommandPaletteProps)
   }
 
   return (
-    <div className="search-overlay" role="dialog" aria-modal="true" aria-label="Command palette">
-      <button type="button" className="search-backdrop" aria-label="Close commands" onClick={onClose} />
-      <div className="search-palette">
-        <input
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Command palette"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-ink/60"
+        aria-label="Close commands"
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+        <Input
           ref={inputRef}
           type="search"
-          className="search-input"
+          className="h-12 rounded-none border-0 border-b border-border bg-transparent px-4 text-base focus-visible:ring-0"
           placeholder="Type a command or search notes…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -132,20 +136,25 @@ export function CommandPalette({ open, onClose, onAction }: CommandPaletteProps)
             }
           }}
         />
-        <p className="search-status">
+        <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
           {searching ? "Searching…" : `${items.length} command${items.length === 1 ? "" : "s"}`}
         </p>
-        <ul className="search-results">
+        <ul className="max-h-[50vh] overflow-auto p-1">
           {items.map((item, index) => (
             <li key={item.id}>
               <button
                 type="button"
-                className={`search-result${index === activeIndex ? " is-active" : ""}`}
+                className={cn(
+                  "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-accent",
+                  index === activeIndex && "bg-accent",
+                )}
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => run(item)}
               >
-                <span className="search-result-name">{item.label}</span>
-                {item.hint ? <span className="search-result-excerpt">{item.hint}</span> : null}
+                <span className="text-sm text-foreground">{item.label}</span>
+                {item.hint ? (
+                  <span className="truncate text-[11px] text-muted-foreground">{item.hint}</span>
+                ) : null}
               </button>
             </li>
           ))}
