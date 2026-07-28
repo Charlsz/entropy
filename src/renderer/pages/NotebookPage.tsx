@@ -358,6 +358,20 @@ export function NotebookPage({
             }}
             onCloseTab={closeTab}
             onStatsChange={setStatusRight}
+            onOpenLocalPath={(absolutePath) => {
+              void (async () => {
+                try {
+                  const info = await window.entropy.fs.stat(absolutePath);
+                  if (info.extension.toLowerCase() === ".md") {
+                    openNote(info.path);
+                    return;
+                  }
+                  setPreviewEntry(info);
+                } catch {
+                  // Ignore missing targets.
+                }
+              })();
+            }}
           />
         }
       />

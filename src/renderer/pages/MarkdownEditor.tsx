@@ -40,6 +40,7 @@ interface MarkdownEditorProps {
   onActiveChange: (path: string) => void;
   onCloseTab: (path: string) => void;
   onStatsChange?: (stats: string) => void;
+  onOpenLocalPath?: (absolutePath: string) => void;
 }
 
 export interface MarkdownEditorHandle {
@@ -56,7 +57,7 @@ function countWords(text: string): number {
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
   function MarkdownEditor(
-    { openPaths, activePath, onActiveChange, onCloseTab, onStatsChange },
+    { openPaths, activePath, onActiveChange, onCloseTab, onStatsChange, onOpenLocalPath },
     ref,
   ) {
   const { workspace } = useWorkspace();
@@ -613,7 +614,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               ) : null}
               {mode !== "edit" ? (
                 <ScrollArea className="min-h-0 flex-1">
-                  <MarkdownPreview content={noteMeta.body} notePath={activeTab?.path} />
+                  <MarkdownPreview
+                    content={noteMeta.body}
+                    notePath={activeTab?.path}
+                    onOpenLocal={onOpenLocalPath}
+                  />
                 </ScrollArea>
               ) : null}
             </div>

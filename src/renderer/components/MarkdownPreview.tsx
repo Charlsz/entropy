@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { marked } from "marked";
 import { cn } from "../lib/utils";
 
@@ -19,12 +19,19 @@ interface MarkdownPreviewProps {
   content: string;
   notePath?: string | null;
   className?: string;
+  onOpenLocal?: (absolutePath: string) => void;
 }
 
-const SRC_RE = /\b(?:src|href)=["']([^"']+)["']/gi;
+const ATTR_RE = /\b(?:src|href)=["']([^"']+)["']/gi;
 
-export function MarkdownPreview({ content, notePath, className }: MarkdownPreviewProps) {
+export function MarkdownPreview({
+  content,
+  notePath,
+  className,
+  onOpenLocal,
+}: MarkdownPreviewProps) {
   const [html, setHtml] = useState("<p></p>");
+  const localMap = useRef(new Map<string, string>());
 
   useEffect(() => {
     let cancelled = false;
@@ -37,41 +44,94 @@ export function MarkdownPreview({ content, notePath, className }: MarkdownPrevie
         rendered = "<p>Could not render this note.</p>";
       }
 
+      const map = new Map<string, string>();
+
       if (notePath) {
         try {
           const noteDir = await window.entropy.fs.dirname(notePath);
-          const replacements = new Map<string, string>();
-          SRC_RE.lastIndex = 0;
+          ATTR_RE.lastIndex = 0;
           let match: RegExpExecArray | null;
-          while ((match = SRC_RE.exec(rendered)) !== null) {
+          const seen = new Set<string>();
+          while ((match = ATTR_RE.exec(rendered)) !== null) {
             const raw = match[1];
             if (!raw || /^(https?:|data:|entropy:|mailto:|#)/i.test(raw)) continue;
-            if (replacements.has(raw)) continue;
+            if (seen.has(raw)) continue;
+            seen.add(raw);
             try {
               const absolute = await window.entropy.fs.join(noteDir, raw);
               if (!(await window.entropy.fs.exists(absolute))) continue;
               const info = await window.entropy.fs.stat(absolute);
-              if (info.isDirectory) continue;
-              replacements.set(raw, await window.entropy.fs.toUrl(absolute));
+              map.set(raw, absolute);
+              if (!info.isDirectory) {
+                const url = await window.entropy.fs.toUrl(absolute);
+                const ext = info.extension.toLowerCase();
+                if ([".mp4", ".webm", ".mov", ".mkv", ".m4v"].includes(ext)) {
+                  const imgTag = new RegExp(
+                    `<img([^>]*?)src=["']${escapeRegExp(raw)}["']([^>]*)/?>`,
+                    "gi",
+                  );
+                  rendered = rendered.replace(
+                    imgTag,
+                    `<video$1src="${url}"$2 muted playsinline controls preload="metadata"></video>`,
+                  );
+                }
+                rendered = rendered.split(`"${raw}"`).join(`"${url}"`);
+                rendered = rendered.split(`'${raw}'`).join(`'${url}'`);
+              }
             } catch {
-              // Keep original path.
+              // Keep original.
             }
-          }
-          for (const [from, to] of replacements) {
-            rendered = rendered.split(from).join(to);
           }
         } catch {
           // Keep unmarked HTML.
         }
       }
 
-      if (!cancelled) setHtml(rendered);
+      // Neutralize remaining relative hrefs so Electron never navigates the shell.
+      rendered = rendered.replace(/<a\s+([^>]*?)href=["']([^"']+)["']([^>]*)>/gi, (_all, pre, href, post) => {
+        if (/^(https?:|mailto:|#|entropy:)/i.test(href)) {
+          return `<a ${pre}href="${href}"${post} target="_blank" rel="noreferrer">`;
+        }
+        const absolute = map.get(href);
+        const safe = absolute
+          ? `href="#" data-entropy-path="${encodeURIComponent(absolute)}"`
+          : `href="#" data-entropy-missing="1"`;
+        return `<a ${pre}${safe}${post}>`;
+      });
+
+      if (!cancelled) {
+        localMap.current = map;
+        setHtml(rendered);
+      }
     })();
 
     return () => {
       cancelled = true;
     };
   }, [content, notePath]);
+
+  function onClick(event: MouseEvent<HTMLDivElement>): void {
+    const target = event.target as HTMLElement | null;
+    const anchor = target?.closest("a");
+    if (!anchor) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const missing = anchor.getAttribute("data-entropy-missing");
+    if (missing) return;
+
+    const encoded = anchor.getAttribute("data-entropy-path");
+    if (encoded) {
+      onOpenLocal?.(decodeURIComponent(encoded));
+      return;
+    }
+
+    const href = anchor.getAttribute("href");
+    if (href && /^https?:/i.test(href)) {
+      void window.entropy.fs.openExternal(href);
+    }
+  }
 
   return (
     <div
@@ -80,6 +140,11 @@ export function MarkdownPreview({ content, notePath, className }: MarkdownPrevie
         className,
       )}
       dangerouslySetInnerHTML={{ __html: html }}
+      onClick={onClick}
     />
   );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

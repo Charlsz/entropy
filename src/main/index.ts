@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol } from "electron";
+import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
 import path from "node:path";
 import * as filesystem from "./fs";
 import { FILE_PROTOCOL, registerFileProtocol, toEntropyThumbUrl, toEntropyUrl } from "./protocol";
@@ -30,6 +30,11 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
+function isAppNavigation(url: string): boolean {
+  if (isDev) return url.startsWith("http://localhost:5173");
+  return /[/\\]renderer[/\\]index\.html(?:[?#]|$)/i.test(url);
+}
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
@@ -52,8 +57,30 @@ function createWindow(): BrowserWindow {
     if (mainWindow === win) mainWindow = null;
   });
 
-  win.webContents.on("did-fail-load", (_event, code, description, url) => {
+  // Markdown/preview links must never navigate the app shell away from index.html.
+  win.webContents.on("will-navigate", (event, url) => {
+    if (isAppNavigation(url)) return;
+    event.preventDefault();
+    if (/^https?:/i.test(url)) {
+      void shell.openExternal(url);
+    }
+  });
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) {
+      void shell.openExternal(url);
+    }
+    return { action: "deny" };
+  });
+
+  win.webContents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
+    if (!isMainFrame) return;
     console.error("Failed to load window:", { code, description, url });
+    // Recover if a bad in-app navigation slipped through.
+    if (!isAppNavigation(url)) {
+      if (isDev) void win.loadURL("http://localhost:5173");
+      else void win.loadFile(path.join(__dirname, "../renderer/index.html"));
+    }
   });
 
   if (isDev) {
