@@ -117,7 +117,7 @@ Three columns on desktop:
 Rules:
 
 - Resizable panels; persist sizes; any panel collapsible.
-- Top bar minimal: workspace name + icon actions (search, command palette, settings) + window controls. No ribbon.
+- Top bar minimal: workspace name + icon actions (search, settings) + window controls. No ribbon.
 - Icon rail may sit at the far left for section switching (Notebook / Files / Canvas / Settings).
 - Use horizontal space; avoid stacked vertical chrome that wastes the writing surface.
 

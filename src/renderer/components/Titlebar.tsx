@@ -1,6 +1,5 @@
 import {
   ArrowLeftRight,
-  Command,
   PanelLeft,
   PanelRight,
   Search,
@@ -20,7 +19,6 @@ interface TitlebarProps {
   onToggleContext?: () => void;
   onCloseWorkspace?: () => void;
   onOpenSearch?: () => void;
-  onOpenCommands?: () => void;
   onOpenSettings?: () => void;
 }
 
@@ -33,7 +31,6 @@ export function Titlebar({
   onToggleContext,
   onCloseWorkspace,
   onOpenSearch,
-  onOpenCommands,
   onOpenSettings,
 }: TitlebarProps) {
   return (
@@ -60,13 +57,8 @@ export function Titlebar({
         ) : null}
 
         {onOpenSearch ? (
-          <TitlebarIconButton label="Search" shortcut="Ctrl K" onClick={onOpenSearch}>
+          <TitlebarIconButton label="Search" onClick={onOpenSearch}>
             <Search strokeWidth={1.75} />
-          </TitlebarIconButton>
-        ) : null}
-        {onOpenCommands ? (
-          <TitlebarIconButton label="Commands" shortcut="Ctrl P" onClick={onOpenCommands}>
-            <Command strokeWidth={1.75} />
           </TitlebarIconButton>
         ) : null}
       </div>
@@ -97,7 +89,7 @@ export function Titlebar({
 
       <div className="no-drag flex shrink-0 items-center gap-0.5 pr-1">
         {onOpenSettings ? (
-          <TitlebarIconButton label="Settings" shortcut="Ctrl ," onClick={onOpenSettings}>
+          <TitlebarIconButton label="Settings" onClick={onOpenSettings}>
             <Settings strokeWidth={1.75} />
           </TitlebarIconButton>
         ) : null}
@@ -109,13 +101,11 @@ export function Titlebar({
 
 function TitlebarIconButton({
   label,
-  shortcut,
   onClick,
   pressed,
   children,
 }: {
   label: string;
-  shortcut?: string;
   onClick?: () => void;
   pressed?: boolean;
   children: React.ReactNode;
@@ -127,10 +117,7 @@ function TitlebarIconButton({
           type="button"
           variant="ghost"
           size="icon"
-          className={cn(
-            "h-7 w-7 text-muted-foreground",
-            pressed && "bg-ink-2 text-paper",
-          )}
+          className={cn("h-7 w-7 text-muted-foreground", pressed && "bg-ink-2 text-paper")}
           aria-label={label}
           aria-pressed={pressed}
           onClick={onClick}
@@ -139,10 +126,7 @@ function TitlebarIconButton({
           {children}
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="bottom">
-        {label}
-        {shortcut ? <span className="ml-2 opacity-60">{shortcut}</span> : null}
-      </TooltipContent>
+      <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
   );
 }

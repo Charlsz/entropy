@@ -9,10 +9,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "../lib/utils";
 import type { SectionId } from "../types/section";
 
-const ITEMS: { id: SectionId; label: string; icon: LucideIcon; shortcut?: string }[] = [
-  { id: "notebook", label: "Notebook", icon: BookOpen, shortcut: "⌘1" },
-  { id: "files", label: "Files", icon: Files, shortcut: "⌘2" },
-  { id: "canvas", label: "Canvas", icon: LayoutDashboard, shortcut: "⌘3" },
+const ITEMS: { id: SectionId; label: string; icon: LucideIcon }[] = [
+  { id: "notebook", label: "Notebook", icon: BookOpen },
+  { id: "files", label: "Files", icon: Files },
+  { id: "canvas", label: "Canvas", icon: LayoutDashboard },
 ];
 
 interface IconRailProps {
@@ -30,7 +30,6 @@ export function IconRail({ active, onChange }: IconRailProps) {
         <RailButton
           key={item.id}
           label={item.label}
-          shortcut={item.shortcut}
           active={active === item.id}
           onClick={() => onChange(item.id)}
           icon={item.icon}
@@ -45,13 +44,11 @@ function RailButton({
   icon: Icon,
   active,
   onClick,
-  shortcut,
 }: {
   label: string;
   icon: LucideIcon;
   active: boolean;
   onClick: () => void;
-  shortcut?: string;
 }) {
   return (
     <Tooltip>
@@ -71,10 +68,7 @@ function RailButton({
           <Icon strokeWidth={1.75} />
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="right">
-        {label}
-        {shortcut ? <span className="ml-2 opacity-60">{shortcut}</span> : null}
-      </TooltipContent>
+      <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
   );
 }

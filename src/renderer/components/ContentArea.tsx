@@ -7,7 +7,6 @@ import { Button } from "./ui/button";
 import { StatusBar } from "./StatusBar";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
-import { Kbd } from "./ui/kbd";
 import {
   Select,
   SelectContent,
@@ -15,9 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { Separator } from "./ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Eraser, RotateCcw } from "lucide-react";
+import { cn } from "../lib/utils";
 
 interface ContentAreaProps {
   section: SectionId;
@@ -32,37 +31,41 @@ export function ContentArea({
 }: ContentAreaProps) {
   return (
     <div className="relative h-full min-h-0 w-full">
-      <div
-        className="absolute inset-0"
-        hidden={section !== "notebook"}
-        aria-hidden={section !== "notebook"}
-      >
+      <SectionPane active={section === "notebook"}>
         <NotebookPage
           pendingNote={pendingNote}
           onPendingNoteHandled={onPendingNoteHandled}
         />
-      </div>
-      <div
-        className="absolute inset-0"
-        hidden={section !== "files"}
-        aria-hidden={section !== "files"}
-      >
+      </SectionPane>
+      <SectionPane active={section === "files"}>
         <FilesPage />
-      </div>
-      <div
-        className="absolute inset-0"
-        hidden={section !== "canvas"}
-        aria-hidden={section !== "canvas"}
-      >
+      </SectionPane>
+      <SectionPane active={section === "canvas"}>
         <CanvasPage />
-      </div>
-      <div
-        className="absolute inset-0"
-        hidden={section !== "settings"}
-        aria-hidden={section !== "settings"}
-      >
+      </SectionPane>
+      <SectionPane active={section === "settings"}>
         <SettingsPanel />
-      </div>
+      </SectionPane>
+    </div>
+  );
+}
+
+function SectionPane({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "absolute inset-0",
+        active ? "z-10" : "pointer-events-none invisible z-0",
+      )}
+      aria-hidden={!active}
+    >
+      {children}
     </div>
   );
 }
@@ -148,27 +151,6 @@ function SettingsPanel() {
               </TooltipTrigger>
               <TooltipContent>Reset settings</TooltipContent>
             </Tooltip>
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-border bg-ink-2 px-4 py-3 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-paper-2">Search</span>
-              <Kbd>Ctrl K</Kbd>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-paper-2">Command palette</span>
-              <Kbd>Ctrl P</Kbd>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-paper-2">Sections</span>
-              <span className="flex gap-1">
-                <Kbd>1</Kbd>
-                <Kbd>2</Kbd>
-                <Kbd>3</Kbd>
-              </span>
-            </div>
           </div>
         </div>
       </main>

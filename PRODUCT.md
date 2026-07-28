@@ -35,7 +35,7 @@ Core principle: **computers should feel like personal tools again.** Files stay 
 | **Notebook** | Primary writing. Large editor, tabs, Markdown. Occupies most of the screen. |
 | **Files** | Refern-like organization: sidebar + media grid/list, previews, breadcrumbs, native FS behaviors. |
 | **Canvas** | Spatial arrangement of references to real files/notes — not a proprietary board vault. |
-| **Settings** | Sparse preferences; shortcuts; no control-panel sprawl. |
+| **Settings** | Sparse preferences; no control-panel sprawl. |
 
 ## Layout contract
 
@@ -47,7 +47,7 @@ Core principle: **computers should feel like personal tools again.** Files stay 
 
 ## Interaction principles
 
-- Keyboard-first where it matters (search, commands, navigation).
+- Keyboard-first where it matters (search, navigation).
 - Icons over text for obvious chrome actions; text for content identity and confirmations.
 - Native scrolling; drag-and-drop and multi-select in Files; context menus.
 - Every UI element must have a purpose. Prefer whitespace over borders. Remove visual noise.
@@ -62,7 +62,7 @@ Calm · Minimal · Native · Fast · Precise · Local-first · Elegant · Profes
 |---|---|
 | **Obsidian** | Writing experience, Markdown-as-files, large editor, split panes, keyboard-first |
 | **Refern** | Sidebar calm, card design, visual hierarchy, file organization, comfortable spacing |
-| **Raycast** | Command palette speed, dense quiet chrome |
+| **Raycast** | Dense quiet chrome, fast search feel |
 | **Linear** | Restraint, density with readability, product polish |
 | **Arc** | Spatial chrome without dashboard clutter |
 
@@ -77,7 +77,7 @@ Calm · Minimal · Native · Fast · Precise · Local-first · Elegant · Profes
 
 ## Accessibility
 
-WCAG AA contrast for text · visible focus rings · keyboard shortcuts for core navigation · respect `prefers-reduced-motion`.
+WCAG AA contrast for text · visible focus rings · keyboard access for core navigation · respect `prefers-reduced-motion`.
 
 ## Non-goals
 

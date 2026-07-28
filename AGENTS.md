@@ -18,7 +18,7 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 - **Typography:** One UI font — **Geist** (or Inter only if Geist is unavailable). No display/decorative font pairing.
 - **Notebook:** Writing is primary. Editor occupies most of the screen. **Do not add a Linked / extra side panel in the notebook window.** Context lives in the optional right panel only, and that panel **hides when empty**.
 - **Layout:** Three-column desktop shell — sidebar | main | context. Panels are **resizable**, sizes are **remembered**, any panel can **collapse**. Use horizontal space; avoid wasted chrome.
-- **Icons over text** for obvious chrome actions (search, commands, settings, view toggles, inspector actions). Keep text for content identity (file names, notes, breadcrumbs, settings labels, confirmations).
+- **Icons over text** for obvious chrome actions (search, settings, view toggles, inspector actions). Keep text for content identity (file names, notes, breadcrumbs, settings labels, confirmations).
 - **Lucide only** for icons — outlined, consistent stroke. No colorful illustrations.
 - **Motion:** 150–200ms, ease-out, no bounce/elastic. Respect `prefers-reduced-motion`. Prefer no animation over decorative motion.
 - **shadcn/ui + Tailwind** for primitives when possible; restyle to Entropy tokens. Prefer whitespace over borders.
