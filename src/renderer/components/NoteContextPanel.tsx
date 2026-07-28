@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Link2 } from "lucide-react";
+import { ExternalLink, Link2, X } from "lucide-react";
 import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { FilePreview } from "../pages/FilePreview";
 import { EntryPreview } from "./EntryPreview";
@@ -103,41 +103,30 @@ export function NoteContextPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {notePath ? (
-        <>
-          <div className="px-4 py-3">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Properties
-            </h2>
-            {meta ? (
-              <>
-                <p className="mt-2 truncate text-sm text-paper">{meta.title}</p>
-                <p className="mt-1 break-all text-[11px] text-paper-2">{notePath}</p>
-                <p className="mt-3 text-xs text-paper-2">
-                  {meta.words} words · {meta.chars} characters
-                </p>
-              </>
-            ) : (
-              <p className="mt-2 text-xs text-muted-foreground">Loading…</p>
-            )}
-          </div>
-          <Separator />
-        </>
-      ) : (
-        <div className="px-4 py-3">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            Reference
-          </h2>
-        </div>
-      )}
+      <div className="px-4 py-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          {preview && !notePath ? "Selection" : "Context"}
+        </h2>
+        {notePath && meta ? (
+          <>
+            <p className="mt-2 truncate text-sm text-paper">{meta.title}</p>
+            <p className="mt-1 text-xs text-paper-2">
+              {meta.words} words · {meta.chars} characters
+            </p>
+          </>
+        ) : null}
+        {notePath && !meta ? <p className="mt-2 text-xs text-muted-foreground">Loading…</p> : null}
+      </div>
+
+      <Separator />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-4 p-4">
+        <div className="space-y-5 p-4">
           {preview ? (
             <section>
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  Preview
+                  Media
                 </h3>
                 <div className="flex items-center gap-0.5">
                   {onReference ? (
@@ -157,34 +146,50 @@ export function NoteContextPanel({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    aria-label="Open file"
+                    aria-label="Open externally"
                     onClick={() => void window.entropy.fs.openExternal(preview.path)}
                   >
                     <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
                   </Button>
+                  {onClearPreview && previewEntry ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      aria-label="Clear selection"
+                      onClick={onClearPreview}
+                    >
+                      <X className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </Button>
+                  ) : null}
                 </div>
               </div>
               <p className="mb-2 truncate text-sm text-foreground">{preview.name}</p>
               {preview.isDirectory ? (
-                <div className="overflow-hidden rounded-xl">
+                <div className="mx-auto w-full max-w-[180px] overflow-hidden rounded-lg">
                   <EntryPreview entry={preview} size="lg" />
                 </div>
-              ) : isMediaEntry(preview) || preview.extension.toLowerCase() === ".gif" ? (
-                <FilePreview file={preview} />
+              ) : isMediaEntry(preview) ? (
+                <FilePreview file={preview} compact />
               ) : (
-                <FilePreview file={preview} />
+                <FilePreview file={preview} compact />
               )}
             </section>
+          ) : notePath ? (
+            <p className="text-xs text-muted-foreground">
+              Select a file in the library to preview it here, or click a link in the note.
+            </p>
           ) : null}
 
           {notePath ? (
             <>
               <section>
                 <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  Links
+                  In this note
                 </h3>
                 {links.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No outbound links in this note.</p>
+                  <p className="text-xs text-muted-foreground">No links yet.</p>
                 ) : (
                   <ul className="space-y-1">
                     {links.map((link) => (
@@ -205,10 +210,10 @@ export function NoteContextPanel({
 
               <section>
                 <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  Backlinks
+                  Linked from
                 </h3>
                 {backlinks.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No notes link here yet.</p>
+                  <p className="text-xs text-muted-foreground">Nothing links here yet.</p>
                 ) : (
                   <ul className="space-y-1">
                     {backlinks.map((item) => (
