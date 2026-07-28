@@ -46,7 +46,7 @@ export const EntryPreview = memo(function EntryPreview({
 }: EntryPreviewProps) {
   const { ref, inView } = useInView<HTMLDivElement>();
   const shell = cn(
-    "relative overflow-hidden bg-[#1a1a1a]",
+    "relative overflow-hidden bg-ink-2",
     size === "sm" ? "h-8 w-8 shrink-0 rounded" : "aspect-square w-full rounded-xl",
     className,
   );
@@ -88,12 +88,12 @@ export const EntryPreview = memo(function EntryPreview({
 });
 
 function QuietFace() {
-  return <div className="h-full w-full bg-[#1a1a1a]" />;
+  return <div className="h-full w-full bg-ink-2" />;
 }
 
 function FolderFallback() {
   return (
-    <div className="flex h-full w-full items-center justify-center bg-[#1a1a1a]">
+    <div className="flex h-full w-full items-center justify-center bg-ink-2">
       <Folder className="h-7 w-7 text-muted-foreground/60" strokeWidth={1.25} />
     </div>
   );
@@ -125,14 +125,14 @@ function FolderCollage({ path, size }: { path: string; size: "sm" | "lg" }) {
   }
 
   return (
-    <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-[1px] bg-[#121212]">
+    <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-[1px] bg-ink">
       {Array.from({ length: 4 }).map((_, index) => {
         const item = data.media[index];
         if (!item) {
-          return <div key={index} className="bg-[#1a1a1a]" />;
+          return <div key={index} className="bg-ink-2" />;
         }
         return (
-          <div key={item.path} className="relative overflow-hidden bg-[#1a1a1a]">
+          <div key={item.path} className="relative overflow-hidden bg-ink-2">
             {mediaKind(item.extension) === "video" ? (
               <VideoThumb path={item.path} size="sm" />
             ) : (

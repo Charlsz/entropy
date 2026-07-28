@@ -10,6 +10,9 @@ import { ScrollArea } from "../components/ui/scroll-area";
 import { Separator } from "../components/ui/separator";
 import { StatusBar } from "../components/StatusBar";
 import { ItemActionsMenu } from "../components/ItemActionsMenu";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
+import { Skeleton } from "../components/ui/skeleton";
 import { cn } from "../lib/utils";
 
 export function NotebookPage({
@@ -31,6 +34,7 @@ export function NotebookPage({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusRight, setStatusRight] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -98,9 +102,14 @@ export function NotebookPage({
     }
   }
 
-  async function handleDelete(notePath: string): Promise<void> {
-    const name = notePath.split(/[/\\]/).pop() ?? "note";
-    if (!window.confirm(`Move "${name}" to the system trash?`)) return;
+  function requestDelete(notePath: string): void {
+    setPendingDelete(notePath);
+  }
+
+  async function confirmDelete(): Promise<void> {
+    const notePath = pendingDelete;
+    if (!notePath) return;
+    setPendingDelete(null);
     try {
       await window.entropy.fs.remove(notePath);
       closeTab(notePath);
@@ -151,7 +160,7 @@ export function NotebookPage({
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-[280px] shrink-0 flex-col border-r border-border bg-[hsl(var(--panel))]">
+        <aside className="flex w-[280px] shrink-0 flex-col border-r border-border bg-ink-2">
           <div className="flex items-center justify-between px-3 py-2">
             <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               Explorer
@@ -202,10 +211,19 @@ export function NotebookPage({
               Notes
             </p>
 
-            {error ? <p className="px-2 text-xs text-destructive">{error}</p> : null}
-            {loading ? <p className="px-2 text-xs text-muted-foreground">Loading…</p> : null}
+            {error ? <p className="px-2 text-xs text-paper-2">{error}</p> : null}
+            {loading ? (
+              <div className="space-y-2 px-2">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-5/6" />
+                <Skeleton className="h-8 w-4/5" />
+              </div>
+            ) : null}
             {!loading && visibleNotes.length === 0 ? (
-              <p className="px-2 text-xs text-muted-foreground">No markdown notes here.</p>
+              <Empty className="py-8">
+                <EmptyTitle>No notes here</EmptyTitle>
+                <EmptyDescription>Create a markdown note to get started.</EmptyDescription>
+              </Empty>
             ) : null}
 
             <ul className="space-y-0.5 pb-4">
@@ -266,7 +284,7 @@ export function NotebookPage({
                           {
                             label: "Delete",
                             destructive: true,
-                            onSelect: () => void handleDelete(note.path),
+                            onSelect: () => requestDelete(note.path),
                           },
                         ]}
                       />
@@ -304,6 +322,20 @@ export function NotebookPage({
         </section>
       </div>
       <StatusBar left={activePath ?? workspace.path} right={statusRight} />
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Move to trash?"
+        description={
+          pendingDelete
+            ? `Move "${pendingDelete.split(/[/\\]/).pop() ?? "note"}" to the system trash?`
+            : "Move this note to the system trash?"
+        }
+        confirmLabel="Delete"
+        onConfirm={() => void confirmDelete()}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      />
     </div>
   );
 }

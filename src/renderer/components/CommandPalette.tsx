@@ -3,6 +3,7 @@ import type { NoteSearchResult } from "../../shared/types";
 import type { SectionId } from "../types/section";
 import { useWorkspace } from "../state/useWorkspace";
 import { Input } from "./ui/input";
+import { Kbd } from "./ui/kbd";
 import { cn } from "../lib/utils";
 
 export type CommandAction =
@@ -112,7 +113,7 @@ export function CommandPalette({ open, onClose, onAction }: CommandPaletteProps)
         aria-label="Close commands"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl border border-border bg-ink-2">
         <Input
           ref={inputRef}
           type="search"
@@ -152,9 +153,7 @@ export function CommandPalette({ open, onClose, onAction }: CommandPaletteProps)
                 onClick={() => run(item)}
               >
                 <span className="text-sm text-foreground">{item.label}</span>
-                {item.hint ? (
-                  <span className="truncate text-[11px] text-muted-foreground">{item.hint}</span>
-                ) : null}
+                {item.hint ? <Kbd>{item.hint}</Kbd> : null}
               </button>
             </li>
           ))}

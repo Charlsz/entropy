@@ -2,6 +2,8 @@ import { useEffect, useState, type MouseEvent } from "react";
 import type { RecentWorkspace } from "../../shared/types";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
+import { Empty, EmptyDescription, EmptyTitle } from "./ui/empty";
+import { Skeleton } from "./ui/skeleton";
 
 interface WorkspaceSelectorProps {
   onSelect: (workspacePath: string) => void;
@@ -94,7 +96,7 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
         </div>
 
         <section
-          className="overflow-hidden rounded-xl border border-border bg-[hsl(var(--panel))]"
+          className="overflow-hidden rounded-xl border border-border bg-ink-2"
           aria-label="Recent workspaces"
         >
           <div className="border-b border-border px-4 py-3">
@@ -105,9 +107,15 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
 
           <ScrollArea className="max-h-64">
             {loading ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
+              <div className="space-y-2 p-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
             ) : recent.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground">No recent workspaces yet.</p>
+              <Empty className="py-8">
+                <EmptyTitle>No recent workspaces</EmptyTitle>
+                <EmptyDescription>Open or create a folder to get started.</EmptyDescription>
+              </Empty>
             ) : (
               <ul className="p-1">
                 {recent.map((item) => (

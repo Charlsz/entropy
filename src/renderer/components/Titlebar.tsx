@@ -14,7 +14,7 @@ export function Titlebar({
   onOpenCommands,
 }: TitlebarProps) {
   return (
-    <header className="drag-region flex h-10 shrink-0 items-center justify-between border-b border-border bg-[hsl(var(--rail))] px-3">
+    <header className="drag-region flex h-10 shrink-0 items-center justify-between border-b border-border bg-ink px-3">
       <div className="flex min-w-0 items-center gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           Entropy

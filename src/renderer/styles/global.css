@@ -5,48 +5,56 @@
 @layer base {
   :root,
   [data-theme="dark"] {
-    --background: 0 0% 13%;
-    --foreground: 240 100% 99%;
-    --card: 0 0% 15%;
-    --card-foreground: 240 100% 99%;
-    --primary: 240 100% 99%;
-    --primary-foreground: 0 0% 13%;
-    --secondary: 0 0% 18%;
-    --secondary-foreground: 240 100% 99%;
-    --muted: 0 0% 18%;
-    --muted-foreground: 240 20% 72%;
-    --accent: 0 0% 20%;
-    --accent-foreground: 240 100% 99%;
-    --destructive: 0 62% 55%;
-    --destructive-foreground: 240 100% 99%;
-    --border: 0 0% 22%;
-    --input: 0 0% 22%;
-    --ring: 240 30% 80%;
+    --ink: #212121;
+    --ink-2: #242424;
+    --paper: #f8f8ff;
+    --paper-2: #f4f4ff;
+    --background: #212121;
+    --foreground: #f8f8ff;
+    --card: #242424;
+    --card-foreground: #f8f8ff;
+    --primary: #f8f8ff;
+    --primary-foreground: #212121;
+    --secondary: #242424;
+    --secondary-foreground: #f8f8ff;
+    --muted: #242424;
+    --muted-foreground: #f4f4ff;
+    --accent: #242424;
+    --accent-foreground: #f8f8ff;
+    --destructive: #f4f4ff;
+    --destructive-foreground: #212121;
+    --border: #242424;
+    --input: #242424;
+    --ring: #f4f4ff;
+    --rail: #212121;
+    --panel: #242424;
     --radius: 0.625rem;
-    --rail: 0 0% 11%;
-    --panel: 0 0% 15%;
   }
 
   [data-theme="light"] {
-    --background: 240 100% 99%;
-    --foreground: 0 0% 13%;
-    --card: 240 30% 96%;
-    --card-foreground: 0 0% 13%;
-    --primary: 0 0% 13%;
-    --primary-foreground: 240 100% 99%;
-    --secondary: 240 25% 94%;
-    --secondary-foreground: 0 0% 13%;
-    --muted: 240 20% 93%;
-    --muted-foreground: 0 0% 38%;
-    --accent: 240 20% 92%;
-    --accent-foreground: 0 0% 13%;
-    --destructive: 0 65% 42%;
-    --destructive-foreground: 240 100% 99%;
-    --border: 240 12% 86%;
-    --input: 240 12% 86%;
-    --ring: 0 0% 30%;
-    --rail: 240 25% 95%;
-    --panel: 240 30% 96%;
+    --ink: #212121;
+    --ink-2: #242424;
+    --paper: #f8f8ff;
+    --paper-2: #f4f4ff;
+    --background: #f8f8ff;
+    --foreground: #212121;
+    --card: #f4f4ff;
+    --card-foreground: #212121;
+    --primary: #212121;
+    --primary-foreground: #f8f8ff;
+    --secondary: #f4f4ff;
+    --secondary-foreground: #212121;
+    --muted: #f4f4ff;
+    --muted-foreground: #242424;
+    --accent: #f4f4ff;
+    --accent-foreground: #212121;
+    --destructive: #242424;
+    --destructive-foreground: #f8f8ff;
+    --border: #f4f4ff;
+    --input: #f4f4ff;
+    --ring: #242424;
+    --rail: #f8f8ff;
+    --panel: #f4f4ff;
   }
 
   * {
@@ -66,12 +74,13 @@
 
   button,
   input,
-  textarea {
+  textarea,
+  select {
     font: inherit;
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-ring ring-offset-0;
+    @apply outline-none ring-1 ring-ring;
   }
 }
 
@@ -131,21 +140,21 @@
     color: inherit;
     text-decoration: underline;
     text-underline-offset: 2px;
-    text-decoration-color: hsl(var(--muted-foreground) / 0.55);
+    text-decoration-color: var(--paper-2);
   }
 
   .markdown-preview code {
     font-family: theme("fontFamily.mono");
     font-size: 0.86em;
-    background: hsl(var(--secondary));
+    background: var(--ink-2);
     padding: 0.1em 0.35em;
     border-radius: 0.25rem;
   }
 
   .markdown-preview pre {
     overflow-x: auto;
-    background: hsl(var(--secondary));
-    border: 1px solid hsl(var(--border));
+    background: var(--ink-2);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.85rem 1rem;
   }
@@ -156,9 +165,9 @@
   }
 
   .markdown-preview blockquote {
-    border-left: 2px solid hsl(var(--border));
+    border-left: 2px solid var(--paper-2);
     padding-left: 0.9em;
-    color: hsl(var(--muted-foreground));
+    color: var(--paper-2);
   }
 
   .markdown-preview img {
@@ -169,7 +178,7 @@
 
   .markdown-preview hr {
     border: 0;
-    border-top: 1px solid hsl(var(--border));
+    border-top: 1px solid var(--border);
     margin: 1.5em 0;
   }
 
@@ -179,8 +188,8 @@
     width: 8000px;
     height: 8000px;
     background-image:
-      linear-gradient(hsl(var(--border) / 0.55) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--border) / 0.55) 1px, transparent 1px);
+      linear-gradient(var(--ink-2) 1px, transparent 1px),
+      linear-gradient(90deg, var(--ink-2) 1px, transparent 1px);
     background-size: 32px 32px;
     pointer-events: none;
   }
@@ -190,25 +199,23 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid hsl(var(--border));
+    border: 1px solid var(--border);
     border-radius: var(--radius);
-    background: hsl(var(--card));
-    color: hsl(var(--card-foreground));
-    box-shadow: 0 8px 24px hsl(0 0% 0% / 0.18);
+    background: var(--card);
+    color: var(--card-foreground);
     cursor: grab;
   }
 
   .canvas-object.is-selected {
-    border-color: hsl(var(--ring));
-    box-shadow: 0 0 0 1px hsl(var(--ring));
+    border-color: var(--paper-2);
   }
 
   .canvas-object-title {
     flex-shrink: 0;
     padding: 0.4rem 0.65rem;
-    border-bottom: 1px solid hsl(var(--border));
+    border-bottom: 1px solid var(--border);
     font-size: 0.7rem;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -221,7 +228,7 @@
     width: 100%;
     min-height: 0;
     object-fit: contain;
-    background: hsl(var(--secondary));
+    background: var(--ink-2);
     border: 0;
   }
 
@@ -229,7 +236,7 @@
     margin: 0;
     padding: 0.75rem;
     font-size: 0.8rem;
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
   }
 
   .canvas-object-text {
@@ -248,8 +255,8 @@
   .file-preview {
     overflow: hidden;
     border-radius: calc(var(--radius) - 2px);
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--secondary));
+    border: 1px solid var(--border);
+    background: var(--ink-2);
   }
 
   .file-preview img,
@@ -259,7 +266,7 @@
     width: 100%;
     max-height: 220px;
     object-fit: contain;
-    background: hsl(var(--background));
+    background: var(--background);
   }
 
   .file-preview pre,
@@ -273,13 +280,6 @@
     line-height: 1.45;
     white-space: pre-wrap;
     user-select: text;
-  }
-
-  .file-preview-empty,
-  .file-preview-error {
-    padding: 0.75rem;
-    font-size: 0.75rem;
-    color: hsl(var(--muted-foreground));
   }
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent, Fragment } from "react";
 import { Folder, LayoutGrid, List, FolderOpen } from "lucide-react";
 import type { FileEntry, TreeNode } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
@@ -11,6 +11,25 @@ import { Separator } from "../components/ui/separator";
 import { StatusBar } from "../components/StatusBar";
 import { ItemActionsMenu } from "../components/ItemActionsMenu";
 import { EntryPreview, useFolderCount } from "../components/EntryPreview";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
+import { Skeleton } from "../components/ui/skeleton";
+import { Badge } from "../components/ui/badge";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "../components/ui/breadcrumb";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import { cn } from "../lib/utils";
 
 type SortKey = "name" | "modified" | "size" | "type";
@@ -42,6 +61,7 @@ export function FilesPage() {
   const [renameValue, setRenameValue] = useState("");
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<FileEntry | null>(null);
 
   const view = workspace.settings.filesView;
 
@@ -175,8 +195,14 @@ export function FilesPage() {
     }
   }
 
-  async function handleDelete(entry: FileEntry): Promise<void> {
-    if (!window.confirm(`Move "${entry.name}" to the system trash?`)) return;
+  function requestDelete(entry: FileEntry): void {
+    setPendingDelete(entry);
+  }
+
+  async function confirmDelete(): Promise<void> {
+    const entry = pendingDelete;
+    if (!entry) return;
+    setPendingDelete(null);
     try {
       await window.entropy.fs.remove(entry.path);
       if (selected?.path === entry.path) setSelected(null);
@@ -236,7 +262,7 @@ export function FilesPage() {
   return (
     <div className="flex h-full min-h-0 w-full flex-col" aria-label="Files">
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-[240px] shrink-0 flex-col border-r border-border bg-[hsl(var(--panel))]">
+        <aside className="flex w-[240px] shrink-0 flex-col border-r border-border bg-ink-2">
           <div className="px-3 py-2">
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               Library
@@ -281,27 +307,45 @@ export function FilesPage() {
           onDrop={(event) => void onDrop(event, workspace.currentFolder)}
         >
           <div className="flex items-center gap-2 px-4 py-3">
-            <nav className="flex min-w-0 flex-1 items-center gap-1.5 text-sm" aria-label="Breadcrumb">
-              <button
-                type="button"
-                className="truncate text-foreground"
-                onClick={() => void goToCrumb(-1)}
-              >
-                {workspace.name}
-              </button>
-              {crumbs.map((part, index) => (
-                <span key={`${part}-${index}`} className="flex min-w-0 items-center gap-1.5">
-                  <span className="text-muted-foreground/35">/</span>
-                  <button
-                    type="button"
-                    className="truncate text-muted-foreground hover:text-foreground"
-                    onClick={() => void goToCrumb(index)}
-                  >
-                    {part}
-                  </button>
-                </span>
-              ))}
-            </nav>
+            <Breadcrumb className="min-w-0 flex-1">
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  {crumbs.length === 0 ? (
+                    <BreadcrumbPage className="truncate">{workspace.name}</BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink asChild>
+                      <button
+                        type="button"
+                        className="truncate"
+                        onClick={() => void goToCrumb(-1)}
+                      >
+                        {workspace.name}
+                      </button>
+                    </BreadcrumbLink>
+                  )}
+                </BreadcrumbItem>
+                {crumbs.map((part, index) => (
+                  <Fragment key={`${part}-${index}`}>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      {index === crumbs.length - 1 ? (
+                        <BreadcrumbPage className="truncate">{part}</BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink asChild>
+                          <button
+                            type="button"
+                            className="truncate"
+                            onClick={() => void goToCrumb(index)}
+                          >
+                            {part}
+                          </button>
+                        </BreadcrumbLink>
+                      )}
+                    </BreadcrumbItem>
+                  </Fragment>
+                ))}
+              </BreadcrumbList>
+            </Breadcrumb>
 
             <Input
               type="search"
@@ -309,26 +353,27 @@ export function FilesPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               aria-label="Filter files"
-              className="h-8 w-36 border-border/60 bg-transparent"
+              className="h-8 w-36 border-border bg-transparent"
             />
-            <select
-              value={sortKey}
-              onChange={(event) => setSortKey(event.target.value as SortKey)}
-              aria-label="Sort by"
-              className="h-8 rounded-md border border-border/60 bg-transparent px-2 text-xs text-muted-foreground"
-            >
-              <option value="name">Name</option>
-              <option value="modified">Modified</option>
-              <option value="size">Size</option>
-              <option value="type">Type</option>
-            </select>
-            <button
+            <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
+              <SelectTrigger className="h-8 w-[110px]" aria-label="Sort by">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="modified">Modified</SelectItem>
+                <SelectItem value="size">Size</SelectItem>
+                <SelectItem value="type">Type</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
               type="button"
-              className="h-8 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+              variant="ghost"
+              size="sm"
               onClick={() => setSortAsc((v) => !v)}
             >
               {sortAsc ? "Asc" : "Desc"}
-            </button>
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -342,7 +387,7 @@ export function FilesPage() {
 
           <ScrollArea className="min-h-0 flex-1">
             <div className="px-4 pb-6">
-              {error ? <p className="mb-3 text-xs text-destructive">{error}</p> : null}
+              {error ? <p className="mb-3 text-xs text-paper-2">{error}</p> : null}
 
               {recentEntries.length > 0 ? (
                 <section className="mb-6" aria-label="Recent files">
@@ -364,16 +409,27 @@ export function FilesPage() {
                         onOpen={() => void openEntry(entry)}
                         onDragStart={(event) => onDragStart(event, entry)}
                         onRename={() => startRename(entry)}
-                        onDelete={() => void handleDelete(entry)}
+                        onDelete={() => requestDelete(entry)}
                       />
                     ))}
                   </div>
                 </section>
               ) : null}
 
-              {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
+              {loading ? (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-4">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <Skeleton key={index} className="aspect-[4/3] w-full rounded-xl" />
+                  ))}
+                </div>
+              ) : null}
               {!loading && visible.length === 0 ? (
-                <p className="text-sm text-muted-foreground">This folder is empty.</p>
+                <Empty className="py-16">
+                  <EmptyTitle>This folder is empty</EmptyTitle>
+                  <EmptyDescription>
+                    Drop files here or open a different folder from the library.
+                  </EmptyDescription>
+                </Empty>
               ) : null}
 
               {!loading && visible.length > 0 ? (
@@ -435,7 +491,7 @@ export function FilesPage() {
                           {
                             label: "Delete",
                             destructive: true,
-                            onSelect: () => void handleDelete(entry),
+                            onSelect: () => requestDelete(entry),
                           },
                         ]}
                       />
@@ -459,7 +515,7 @@ export function FilesPage() {
                         entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
                       }
                       onRename={() => startRename(entry)}
-                      onDelete={() => void handleDelete(entry)}
+                      onDelete={() => requestDelete(entry)}
                     />
                   ))}
                 </div>
@@ -468,7 +524,7 @@ export function FilesPage() {
           </ScrollArea>
         </section>
 
-        <aside className="flex w-[260px] shrink-0 flex-col border-l border-border bg-[hsl(var(--panel))]">
+        <aside className="flex w-[260px] shrink-0 flex-col border-l border-border bg-ink-2">
           {selected ? (
             <ScrollArea className="min-h-0 flex-1">
               <div className="space-y-3 p-3">
@@ -491,6 +547,15 @@ export function FilesPage() {
                   <p className="break-all text-sm font-medium text-foreground">{selected.name}</p>
                 )}
 
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">
+                    {selected.isDirectory ? "Folder" : selected.extension || "File"}
+                  </Badge>
+                  {!selected.isDirectory ? (
+                    <Badge variant="secondary">{formatBytes(selected.size)}</Badge>
+                  ) : null}
+                </div>
+
                 <div className="flex flex-wrap gap-1">
                   <Button type="button" variant="secondary" size="sm" onClick={() => startRename(selected)}>
                     Rename
@@ -507,7 +572,7 @@ export function FilesPage() {
                     type="button"
                     variant="secondary"
                     size="sm"
-                    onClick={() => void handleDelete(selected)}
+                    onClick={() => requestDelete(selected)}
                   >
                     Delete
                   </Button>
@@ -558,18 +623,30 @@ export function FilesPage() {
               </div>
             </ScrollArea>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-              <h2 className="text-sm font-medium text-foreground">Inspector</h2>
-              <p className="text-xs text-muted-foreground">
-                Select a file to preview and manage it.
-              </p>
-            </div>
+            <Empty>
+              <EmptyTitle>Inspector</EmptyTitle>
+              <EmptyDescription>Select a file to preview and manage it.</EmptyDescription>
+            </Empty>
           )}
         </aside>
       </div>
       <StatusBar
         left={workspace.currentFolder}
         right={`${visible.length} items${selected ? ` · ${selected.name}` : ""}`}
+      />
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Move to trash?"
+        description={
+          pendingDelete
+            ? `Move "${pendingDelete.name}" to the system trash?`
+            : "Move this item to the system trash?"
+        }
+        confirmLabel="Delete"
+        onConfirm={() => void confirmDelete()}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
       />
     </div>
   );
@@ -610,7 +687,7 @@ function FileGridCard({
       <div
         className={cn(
           "overflow-hidden rounded-xl",
-          selected && "outline outline-1 outline-offset-2 outline-paper/30",
+          selected && "outline outline-1 outline-offset-2 outline-paper-2",
         )}
       >
         <EntryPreview entry={entry} size="lg" />

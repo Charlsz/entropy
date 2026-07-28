@@ -73,7 +73,7 @@ export function SearchPalette({ open, onClose, onOpenNote }: SearchPaletteProps)
         aria-label="Close search"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl border border-border bg-ink-2">
         <Input
           ref={inputRef}
           type="search"

@@ -13,6 +13,9 @@ import { FilePreview } from "./FilePreview";
 import { registerFlush } from "../state/flushRegistry";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { Textarea } from "../components/ui/textarea";
+import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { MarkdownPreview } from "../components/MarkdownPreview";
 import { NoteCover } from "../components/NoteCover";
 import { cn } from "../lib/utils";
@@ -413,12 +416,10 @@ export function MarkdownEditor({
 
   if (openPaths.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
-        <h1 className="text-lg font-medium text-foreground">Notebook</h1>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Select a note or create a new markdown file.
-        </p>
-      </div>
+      <Empty>
+        <EmptyTitle>Notebook</EmptyTitle>
+        <EmptyDescription>Select a note or create a new markdown file.</EmptyDescription>
+      </Empty>
     );
   }
 
@@ -426,7 +427,7 @@ export function MarkdownEditor({
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
         <div
-          className="flex h-9 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-border bg-[hsl(var(--rail))] px-1"
+          className="flex h-9 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-border bg-ink px-1"
           role="tablist"
           aria-label="Open notes"
         >
@@ -465,26 +466,14 @@ export function MarkdownEditor({
               </div>
             );
           })}
-          <div className="ml-auto flex items-center gap-0.5 px-1 pb-1">
-            {(
-              [
-                ["edit", "Edit"],
-                ["split", "Split"],
-                ["preview", "Preview"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                className={cn(
-                  "rounded px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground",
-                  mode === value && "bg-accent text-foreground",
-                )}
-                onClick={() => setMode(value)}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="ml-auto flex items-center px-1 pb-1">
+            <Tabs value={mode} onValueChange={(value) => setMode(value as EditorMode)}>
+              <TabsList>
+                <TabsTrigger value="edit">Edit</TabsTrigger>
+                <TabsTrigger value="split">Split</TabsTrigger>
+                <TabsTrigger value="preview">Preview</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
         </div>
 
@@ -557,13 +546,11 @@ export function MarkdownEditor({
               )}
             >
               {mode !== "preview" ? (
-                <textarea
+                <Textarea
                   ref={textareaRef}
                   className={cn(
-                    "select-text mb-8 min-h-0 w-full flex-1 resize-none bg-transparent px-8 pb-16 font-sans text-[15px] leading-7 text-foreground outline-none placeholder:text-muted-foreground",
-                    mode === "split"
-                      ? "border-r border-border"
-                      : "mx-auto max-w-[720px]",
+                    "select-text mb-8 min-h-0 w-full flex-1 resize-none rounded-none border-0 bg-transparent px-8 pb-16 font-sans text-[15px] leading-7 shadow-none focus-visible:ring-0",
+                    mode === "split" ? "border-r border-border" : "mx-auto max-w-[720px]",
                   )}
                   value={activeTab?.content ?? ""}
                   onChange={(event) => handleChange(event.target.value)}
@@ -585,7 +572,7 @@ export function MarkdownEditor({
         )}
       </div>
 
-      <aside className="flex w-[220px] shrink-0 flex-col border-l border-border bg-[hsl(var(--panel))]">
+      <aside className="flex w-[220px] shrink-0 flex-col border-l border-border bg-ink-2">
         <div className="border-b border-border px-3 py-2">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Linked

@@ -83,7 +83,7 @@ export function FilePreview({ file }: FilePreviewProps) {
   }
 
   if (error) {
-    return <p className="text-xs text-destructive">{error}</p>;
+    return <p className="text-xs text-paper-2">{error}</p>;
   }
 
   if (kind === "unsupported") {

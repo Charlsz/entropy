@@ -304,7 +304,7 @@ export function CanvasPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col" aria-label="Canvas">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-[hsl(var(--rail))] px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-ink px-3 py-2">
         <span className="text-xs text-muted-foreground">
           Zoom {Math.round(camera.scale * 100)}%
         </span>
@@ -363,7 +363,7 @@ export function CanvasPage() {
                   y1={from.y}
                   x2={to.x}
                   y2={to.y}
-                  stroke="hsl(var(--muted-foreground) / 0.45)"
+                  stroke="var(--paper-2)"
                   strokeWidth={2}
                 />
               );

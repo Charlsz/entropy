@@ -27,7 +27,7 @@ interface IconRailProps {
 export function IconRail({ active, onChange, onSearch }: IconRailProps) {
   return (
     <aside
-      className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-[hsl(var(--rail))] py-2"
+      className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-ink py-2"
       aria-label="Primary navigation"
     >
       {ITEMS.slice(0, 3).map((item) => (
