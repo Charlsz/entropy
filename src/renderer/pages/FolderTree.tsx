@@ -5,7 +5,6 @@ import { cn } from "../lib/utils";
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "../components/ui/collapsible";
 
 interface FolderTreeProps {
@@ -46,40 +45,45 @@ function FolderTreeItem({
   const hasChildren = (node.children?.length ?? 0) > 0;
   const active = activePath === node.path;
 
+  function toggle(): void {
+    if (!hasChildren) {
+      onSelect(node.path);
+      return;
+    }
+    if (open && active) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    onSelect(node.path);
+  }
+
   return (
     <li>
       <Collapsible open={open} onOpenChange={setOpen} disabled={!hasChildren}>
-        <div className="flex items-center gap-2">
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
-              aria-label={open ? "Collapse" : "Expand"}
-              disabled={!hasChildren}
-            >
-              {hasChildren ? (
-                open ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )
+        <button
+          type="button"
+          className={cn(
+            "flex w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
+            active && "bg-accent text-foreground",
+          )}
+          onClick={toggle}
+          title={hasChildren ? (open ? "Collapse folder" : "Expand folder") : node.name}
+        >
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground">
+            {hasChildren ? (
+              open ? (
+                <ChevronDown className="h-4 w-4" />
               ) : (
-                <span className="h-1 w-1 rounded-full bg-paper-2/40" />
-              )}
-            </button>
-          </CollapsibleTrigger>
-          <button
-            type="button"
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
-              active && "bg-accent text-foreground",
+                <ChevronRight className="h-4 w-4" />
+              )
+            ) : (
+              <span className="h-1 w-1 rounded-full bg-paper-2/40" />
             )}
-            onClick={() => onSelect(node.path)}
-          >
-            <Folder className="h-4 w-4 shrink-0 opacity-70" />
-            <span className="truncate">{node.name}</span>
-          </button>
-        </div>
+          </span>
+          <Folder className="h-4 w-4 shrink-0 opacity-70" />
+          <span className="truncate">{node.name}</span>
+        </button>
         {hasChildren ? (
           <CollapsibleContent>
             <FolderTree
