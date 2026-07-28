@@ -12,11 +12,11 @@ import type { NoteSearchResult } from "../../shared/types";
 import { registerFlush } from "../state/flushRegistry";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { MarkdownPreview } from "../components/MarkdownPreview";
 import { NoteCover } from "../components/NoteCover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { cn } from "../lib/utils";
 import { parseNoteFrontmatter } from "../lib/noteMeta";
 import { useWorkspace } from "../state/useWorkspace";
@@ -40,7 +40,7 @@ interface MarkdownEditorProps {
   onStatsChange?: (stats: string) => void;
 }
 
-type EditorMode = "edit" | "preview" | "split";
+type SurfaceMode = "edit" | "preview";
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -58,8 +58,10 @@ export function MarkdownEditor({
   const { workspace } = useWorkspace();
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [mode, setMode] = useState<EditorMode>("edit");
+  const [surface, setSurface] = useState<SurfaceMode>("edit");
+  const [split, setSplit] = useState(false);
   const [backlinks, setBacklinks] = useState<NoteSearchResult[]>([]);
+  const mode = split ? "split" : surface;
   const saveTimers = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -423,20 +425,51 @@ export function MarkdownEditor({
               </div>
             );
           })}
-          <div className="ml-auto flex items-center px-1 pb-1">
-            <Tabs value={mode} onValueChange={(value) => setMode(value as EditorMode)}>
-              <TabsList>
-                <TabsTrigger value="edit" aria-label="Edit" title="Edit" className="px-2">
-                  <PenLine className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </TabsTrigger>
-                <TabsTrigger value="split" aria-label="Split" title="Split" className="px-2">
+          <div className="ml-auto flex items-center gap-0.5 px-1 pb-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-7 w-7 text-muted-foreground",
+                    !split && surface === "preview" && "bg-ink-2 text-paper",
+                  )}
+                  aria-label={surface === "edit" ? "Show preview" : "Show editor"}
+                  aria-pressed={!split && surface === "preview"}
+                  onClick={() => {
+                    setSplit(false);
+                    setSurface((prev) => (prev === "edit" ? "preview" : "edit"));
+                  }}
+                >
+                  {surface === "edit" ? (
+                    <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  ) : (
+                    <PenLine className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {surface === "edit" ? "Preview" : "Editor"}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn("h-7 w-7 text-muted-foreground", split && "bg-ink-2 text-paper")}
+                  aria-label="Toggle split view"
+                  aria-pressed={split}
+                  onClick={() => setSplit((prev) => !prev)}
+                >
                   <Columns2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </TabsTrigger>
-                <TabsTrigger value="preview" aria-label="Preview" title="Preview" className="px-2">
-                  <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Split</TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
