@@ -10,11 +10,13 @@ import { Separator } from "../components/ui/separator";
 import { StatusBar } from "../components/StatusBar";
 import { ItemActionsMenu } from "../components/ItemActionsMenu";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { MoveToDialog } from "../components/MoveToDialog";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { NoteContextPanel } from "../components/NoteContextPanel";
 import { NotebookLibrary } from "../components/NotebookLibrary";
+import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { cn } from "../lib/utils";
 
 export function NotebookPage({
@@ -37,6 +39,7 @@ export function NotebookPage({
   const [loading, setLoading] = useState(true);
   const [statusRight, setStatusRight] = useState("");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [movingPath, setMovingPath] = useState<string | null>(null);
   const editorRef = useRef<MarkdownEditorHandle>(null);
 
   const refreshNotes = useCallback(async () => {
@@ -128,27 +131,41 @@ export function NotebookPage({
 
   function startRename(note: FileEntry): void {
     setRenaming(note.path);
-    setRenameValue(note.name.replace(/\.md$/i, ""));
+    setRenameValue(
+      note.isDirectory || note.extension.toLowerCase() === ".md"
+        ? note.name.replace(/\.md$/i, "")
+        : note.name,
+    );
   }
 
   async function commitRename(notePath: string): Promise<void> {
-    const nextName = renameValue.trim().replace(/\.md$/i, "");
+    const entry = notes.find((item) => item.path === notePath) ?? previewEntry;
+    const isMarkdown = (entry?.extension ?? ".md").toLowerCase() === ".md" && !entry?.isDirectory;
+    const nextName = isMarkdown
+      ? renameValue.trim().replace(/\.md$/i, "")
+      : renameValue.trim();
     setRenaming(null);
     if (!nextName) return;
     try {
       const dir = await window.entropy.fs.dirname(notePath);
-      const target = await window.entropy.fs.join(dir, `${nextName}.md`);
+      const target = await window.entropy.fs.join(
+        dir,
+        isMarkdown ? `${nextName}.md` : nextName,
+      );
       if (target === notePath) return;
       if (await window.entropy.fs.exists(target)) {
-        setError("A note with that name already exists.");
+        setError("An item with that name already exists.");
         return;
       }
       await window.entropy.fs.rename(notePath, target);
       setOpenPaths((prev) => prev.map((path) => (path === notePath ? target : path)));
       if (activePath === notePath) setActivePath(target);
+      if (previewEntry?.path === notePath) {
+        setPreviewEntry(await window.entropy.fs.stat(target));
+      }
       await refreshNotes();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to rename note");
+      setError(err instanceof Error ? err.message : "Failed to rename");
     }
   }
 
@@ -156,6 +173,10 @@ export function NotebookPage({
     if (!activePath) {
       setError("Open a note before referencing a file.");
       setPreviewEntry(entry);
+      return;
+    }
+    if (entry.path === activePath) {
+      setError("Pick another note or file to reference.");
       return;
     }
 
@@ -171,6 +192,51 @@ export function NotebookPage({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reference file");
     }
+  }
+
+  async function handleMove(destinationFolder: string): Promise<void> {
+    const source = movingPath;
+    setMovingPath(null);
+    if (!source) return;
+    try {
+      const target = await moveEntryToFolder(source, destinationFolder);
+      setOpenPaths((prev) => prev.map((path) => (path === source ? target : path)));
+      if (activePath === source) setActivePath(target);
+      if (previewEntry?.path === source) {
+        setPreviewEntry(await window.entropy.fs.stat(target));
+      }
+      await refreshNotes();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to move item");
+    }
+  }
+
+  function noteActions(note: { path: string; name: string }) {
+    return buildEntryActions({
+      canReference: true,
+      onRename: () =>
+        startRename({
+          name: note.name,
+          path: note.path,
+          isDirectory: false,
+          size: 0,
+          modifiedAt: 0,
+          extension: ".md",
+        }),
+      onReference: () =>
+        void referenceEntry({
+          name: note.name,
+          path: note.path,
+          isDirectory: false,
+          size: 0,
+          modifiedAt: 0,
+          extension: ".md",
+        }),
+      onCopyPath: () => void copyPath(note.path),
+      onReveal: () => void revealPath(note.path),
+      onMoveTo: () => setMovingPath(note.path),
+      onDelete: () => requestDelete(note.path),
+    });
   }
 
   const visibleNotes = searchResults
@@ -255,13 +321,13 @@ export function NotebookPage({
                   <li
                     key={note.path}
                     className={cn(
-                      "flex items-center gap-1 rounded-md pr-1",
+                      "group flex min-w-0 items-center gap-1 rounded-md pr-1",
                       activePath === note.path && "bg-accent",
                     )}
                   >
                     {renaming === note.path ? (
                       <Input
-                        className="h-9"
+                        className="h-9 min-w-0"
                         value={renameValue}
                         autoFocus
                         onChange={(event) => setRenameValue(event.target.value)}
@@ -287,30 +353,13 @@ export function NotebookPage({
                               extension: ".md",
                             })
                           }
+                          title={note.name.replace(/\.md$/i, "")}
                         >
                           {note.name.replace(/\.md$/i, "")}
                         </button>
                         <ItemActionsMenu
                           label={note.name.replace(/\.md$/i, "")}
-                          actions={[
-                            {
-                              label: "Rename",
-                              onSelect: () =>
-                                startRename({
-                                  name: note.name,
-                                  path: note.path,
-                                  isDirectory: false,
-                                  size: 0,
-                                  modifiedAt: 0,
-                                  extension: ".md",
-                                }),
-                            },
-                            {
-                              label: "Delete",
-                              destructive: true,
-                              onSelect: () => requestDelete(note.path),
-                            },
-                          ]}
+                          actions={noteActions(note)}
                         />
                       </>
                     )}
@@ -327,9 +376,33 @@ export function NotebookPage({
                 rootPath={workspace.path}
                 rootName={workspace.name}
                 selectedPath={previewEntry?.path ?? null}
+                renamingPath={renaming}
+                renameValue={renameValue}
+                onRenameValueChange={setRenameValue}
+                onCommitRename={(path) => void commitRename(path)}
+                onCancelRename={() => setRenaming(null)}
                 onSelect={setPreviewEntry}
                 onReference={(entry) => void referenceEntry(entry)}
                 onOpenNote={openNote}
+                onRename={(entry) => startRename(entry)}
+                onCopyPath={(entry) => void copyPath(entry.path)}
+                onReveal={(entry) => void revealPath(entry.path)}
+                onMoveTo={(entry) => setMovingPath(entry.path)}
+                onDelete={(entry) => {
+                  if (entry.extension.toLowerCase() === ".md" && !entry.isDirectory) {
+                    requestDelete(entry.path);
+                    return;
+                  }
+                  void (async () => {
+                    try {
+                      await window.entropy.fs.remove(entry.path);
+                      if (previewEntry?.path === entry.path) setPreviewEntry(null);
+                      await refreshNotes();
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Failed to delete");
+                    }
+                  })();
+                }}
               />
             </ScrollArea>
 
@@ -389,6 +462,14 @@ export function NotebookPage({
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null);
         }}
+      />
+      <MoveToDialog
+        open={movingPath !== null}
+        rootPath={workspace.path}
+        rootName={workspace.name}
+        excludePath={movingPath ?? workspace.path}
+        onClose={() => setMovingPath(null)}
+        onMove={(folder) => void handleMove(folder)}
       />
     </div>
   );

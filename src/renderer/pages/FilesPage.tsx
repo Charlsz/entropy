@@ -15,9 +15,10 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { StatusBar } from "../components/StatusBar";
-import { ItemActionsMenu } from "../components/ItemActionsMenu";
+import { ItemActionsMenu, type ItemAction } from "../components/ItemActionsMenu";
 import { EntryPreview, useFolderCount } from "../components/EntryPreview";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { MoveToDialog } from "../components/MoveToDialog";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
@@ -38,6 +39,7 @@ import {
 } from "../components/ui/select";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { FileContextPanel } from "../components/FileContextPanel";
+import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { cn } from "../lib/utils";
 
 type SortKey = "name" | "modified" | "size" | "type";
@@ -70,6 +72,7 @@ export function FilesPage() {
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
   const [pendingDelete, setPendingDelete] = useState<FileEntry | null>(null);
+  const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
   const [renderedCount, setRenderedCount] = useState(60);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
@@ -271,21 +274,28 @@ export function FilesPage() {
     }
   }
 
-  async function moveToFolder(sourcePath: string, folderPath: string): Promise<void> {
-    if (sourcePath === folderPath) return;
-    const name = sourcePath.split(/[/\\]/).pop();
-    if (!name) return;
+  async function handleMoveDialog(destinationFolder: string): Promise<void> {
+    const entry = movingEntry;
+    setMovingEntry(null);
+    if (!entry) return;
     try {
-      const target = await window.entropy.fs.join(folderPath, name);
-      if (await window.entropy.fs.exists(target)) {
-        setError("An item with that name already exists in the destination.");
-        return;
-      }
-      await window.entropy.fs.rename(sourcePath, target);
+      const target = await moveEntryToFolder(entry.path, destinationFolder);
       await refresh();
+      setSelected(await window.entropy.fs.stat(target));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to move");
     }
+  }
+
+  function fileActions(entry: FileEntry) {
+    return buildEntryActions({
+      canReference: false,
+      onRename: () => startRename(entry),
+      onCopyPath: () => void copyPath(entry.path),
+      onReveal: () => void revealPath(entry.path),
+      onMoveTo: () => setMovingEntry(entry),
+      onDelete: () => requestDelete(entry),
+    });
   }
 
   function onDragStart(event: DragEvent, entry: FileEntry): void {
@@ -304,7 +314,12 @@ export function FilesPage() {
     setDragOverPath(null);
     const source = event.dataTransfer.getData("application/x-entropy-path");
     if (!source || source === folderPath) return;
-    await moveToFolder(source, folderPath);
+    try {
+      await moveEntryToFolder(source, folderPath);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to move");
+    }
   }
 
   const context = selected ? (
@@ -508,8 +523,7 @@ export function FilesPage() {
                           dropTarget={false}
                           onOpen={() => void openEntry(entry)}
                           onDragStart={(event) => onDragStart(event, entry)}
-                          onRename={() => startRename(entry)}
-                          onDelete={() => requestDelete(entry)}
+                          actions={fileActions(entry)}
                         />
                       ))}
                     </div>
@@ -584,17 +598,7 @@ export function FilesPage() {
                         <span className="text-xs text-muted-foreground">
                           {entry.isDirectory ? "Folder" : entry.extension || "File"}
                         </span>
-                        <ItemActionsMenu
-                          label={entry.name}
-                          actions={[
-                            { label: "Rename", onSelect: () => startRename(entry) },
-                            {
-                              label: "Delete",
-                              destructive: true,
-                              onSelect: () => requestDelete(entry),
-                            },
-                          ]}
-                        />
+                        <ItemActionsMenu label={entry.name} actions={fileActions(entry)} />
                       </div>
                     ))}
                     {rendered.length < visible.length ? (
@@ -617,8 +621,7 @@ export function FilesPage() {
                         onDrop={
                           entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
                         }
-                        onRename={() => startRename(entry)}
-                        onDelete={() => requestDelete(entry)}
+                        actions={fileActions(entry)}
                       />
                     ))}
                     {rendered.length < visible.length ? (
@@ -649,6 +652,14 @@ export function FilesPage() {
           if (!open) setPendingDelete(null);
         }}
       />
+      <MoveToDialog
+        open={movingEntry !== null}
+        rootPath={workspace.path}
+        rootName={workspace.name}
+        excludePath={movingEntry?.path ?? workspace.path}
+        onClose={() => setMovingEntry(null)}
+        onMove={(folder) => void handleMoveDialog(folder)}
+      />
     </div>
   );
 }
@@ -661,8 +672,7 @@ const FileGridCard = memo(function FileGridCard({
   onDragStart,
   onDragOver,
   onDrop,
-  onRename,
-  onDelete,
+  actions,
 }: {
   entry: FileEntry;
   selected: boolean;
@@ -671,15 +681,14 @@ const FileGridCard = memo(function FileGridCard({
   onDragStart: (event: DragEvent) => void;
   onDragOver?: (event: DragEvent) => void;
   onDrop?: (event: DragEvent) => void;
-  onRename: () => void;
-  onDelete: () => void;
+  actions: ItemAction[];
 }) {
   const count = useFolderCount(entry.path, entry.isDirectory);
 
   return (
     <div
       draggable
-      className={cn("flex cursor-pointer flex-col gap-2", dropTarget && "opacity-70")}
+      className={cn("group flex min-w-0 cursor-pointer flex-col gap-2", dropTarget && "opacity-70")}
       onClick={onOpen}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
@@ -695,7 +704,7 @@ const FileGridCard = memo(function FileGridCard({
       </div>
 
       <div className="flex min-w-0 items-center gap-1">
-        <p className="min-w-0 flex-1 truncate text-[13px] text-foreground">
+        <p className="min-w-0 flex-1 truncate text-[13px] text-foreground" title={entry.name}>
           {entry.name}
           {entry.isDirectory ? (
             <span className="ml-1.5 inline-flex items-center gap-1 align-middle text-[11px] text-muted-foreground">
@@ -704,13 +713,9 @@ const FileGridCard = memo(function FileGridCard({
             </span>
           ) : null}
         </p>
-        <ItemActionsMenu
-          label={entry.name}
-          actions={[
-            { label: "Rename", onSelect: onRename },
-            { label: "Delete", destructive: true, onSelect: onDelete },
-          ]}
-        />
+        <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+          <ItemActionsMenu label={entry.name} actions={actions} />
+        </div>
       </div>
     </div>
   );
