@@ -56,11 +56,19 @@ export function WorkspaceShell() {
         event.preventDefault();
         setSection("settings");
       }
+      if (mod && key === "\\") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          updateSettings({ contextCollapsed: !workspace.settings.contextCollapsed });
+        } else {
+          updateSettings({ sidebarCollapsed: !workspace.settings.sidebarCollapsed });
+        }
+      }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [setSection]);
+  }, [setSection, updateSettings, workspace.settings.sidebarCollapsed, workspace.settings.contextCollapsed]);
 
   const handleCommand = useCallback(
     (action: CommandAction) => {
@@ -83,17 +91,22 @@ export function WorkspaceShell() {
     <div className="flex h-full flex-col bg-background" data-theme={workspace.settings.theme}>
       <Titlebar
         workspaceName={workspace.name}
+        showPanelToggles
+        sidebarCollapsed={workspace.settings.sidebarCollapsed}
+        contextCollapsed={workspace.settings.contextCollapsed}
+        onToggleSidebar={() =>
+          updateSettings({ sidebarCollapsed: !workspace.settings.sidebarCollapsed })
+        }
+        onToggleContext={() =>
+          updateSettings({ contextCollapsed: !workspace.settings.contextCollapsed })
+        }
         onCloseWorkspace={closeWorkspace}
         onOpenSearch={() => setSearchOpen(true)}
         onOpenCommands={() => setCommandOpen(true)}
         onOpenSettings={() => setSection("settings")}
       />
       <div className="flex min-h-0 flex-1">
-        <IconRail
-          active={workspace.currentSection}
-          onChange={setSection}
-          onSearch={() => setSearchOpen(true)}
-        />
+        <IconRail active={workspace.currentSection} onChange={setSection} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <ContentArea
             section={workspace.currentSection}

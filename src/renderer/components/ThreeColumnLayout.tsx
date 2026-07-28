@@ -6,11 +6,8 @@ import {
   usePanelRef,
   type Layout,
 } from "react-resizable-panels";
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useWorkspace } from "../state/useWorkspace";
 import { layoutFromGroup } from "../state/workspace";
-import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "../lib/utils";
 
 interface ThreeColumnLayoutProps {
@@ -63,106 +60,54 @@ export function ThreeColumnLayout({
   }, [contextCollapsed, contextRef, hasContext]);
 
   return (
-    <div className={cn("flex h-full min-h-0 w-full flex-col", className)}>
-      <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border bg-ink px-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              onClick={() => updateSettings({ sidebarCollapsed: !sidebarCollapsed })}
-            >
-              {sidebarCollapsed ? (
-                <PanelLeftOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
-              ) : (
-                <PanelLeftClose className="h-3.5 w-3.5" strokeWidth={1.75} />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}</TooltipContent>
-        </Tooltip>
-        <div className="flex-1" />
-        {hasContext ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                aria-label={
-                  workspace.settings.contextCollapsed ? "Expand context" : "Collapse context"
-                }
-                onClick={() =>
-                  updateSettings({ contextCollapsed: !workspace.settings.contextCollapsed })
-                }
-              >
-                {workspace.settings.contextCollapsed ? (
-                  <PanelRightOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
-                ) : (
-                  <PanelRightClose className="h-3.5 w-3.5" strokeWidth={1.75} />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {workspace.settings.contextCollapsed ? "Expand context" : "Collapse context"}
-            </TooltipContent>
-          </Tooltip>
-        ) : null}
-      </div>
-
-      <Group
-        id={id}
-        orientation="horizontal"
-        className="min-h-0 flex-1"
-        defaultLayout={defaultLayout}
-        onLayoutChanged={(layout) => {
-          updateSettings({ panelLayout: layoutFromGroup(layout, hasContext) });
-        }}
+    <Group
+      id={id}
+      orientation="horizontal"
+      className={cn("h-full min-h-0 w-full", className)}
+      defaultLayout={defaultLayout}
+      onLayoutChanged={(layout) => {
+        updateSettings({ panelLayout: layoutFromGroup(layout, hasContext) });
+      }}
+    >
+      <Panel
+        id="sidebar"
+        panelRef={sidebarRef}
+        className="min-h-0 bg-ink-2"
+        minSize="180px"
+        collapsible
+        collapsedSize={0}
+        defaultSize={`${defaultLayout.sidebar}%`}
       >
-        <Panel
-          id="sidebar"
-          panelRef={sidebarRef}
-          className="min-h-0 bg-ink-2"
-          minSize="180px"
-          collapsible
-          collapsedSize={0}
-          defaultSize={`${defaultLayout.sidebar}%`}
-        >
-          <div className="flex h-full min-h-0 flex-col overflow-hidden">{sidebar}</div>
-        </Panel>
+        <div className="flex h-full min-h-0 flex-col overflow-hidden">{sidebar}</div>
+      </Panel>
 
-        <Separator className="entropy-resize-handle" />
+      <Separator className="entropy-resize-handle" />
 
-        <Panel
-          id="main"
-          className="min-h-0 bg-background"
-          minSize="320px"
-          defaultSize={`${defaultLayout.main}%`}
-        >
-          <div className="flex h-full min-h-0 flex-col overflow-hidden">{main}</div>
-        </Panel>
+      <Panel
+        id="main"
+        className="min-h-0 bg-background"
+        minSize="320px"
+        defaultSize={`${defaultLayout.main}%`}
+      >
+        <div className="flex h-full min-h-0 flex-col overflow-hidden">{main}</div>
+      </Panel>
 
-        {hasContext ? (
-          <>
-            <Separator className="entropy-resize-handle" />
-            <Panel
-              id="context"
-              panelRef={contextRef}
-              className="min-h-0 bg-ink-2"
-              minSize="200px"
-              collapsible
-              collapsedSize={0}
-              defaultSize={`${defaultLayout.context}%`}
-            >
-              <div className="flex h-full min-h-0 flex-col overflow-hidden">{context}</div>
-            </Panel>
-          </>
-        ) : null}
-      </Group>
-    </div>
+      {hasContext ? (
+        <>
+          <Separator className="entropy-resize-handle" />
+          <Panel
+            id="context"
+            panelRef={contextRef}
+            className="min-h-0 bg-ink-2"
+            minSize="200px"
+            collapsible
+            collapsedSize={0}
+            defaultSize={`${defaultLayout.context}%`}
+          >
+            <div className="flex h-full min-h-0 flex-col overflow-hidden">{context}</div>
+          </Panel>
+        </>
+      ) : null}
+    </Group>
   );
 }

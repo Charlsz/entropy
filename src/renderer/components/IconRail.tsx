@@ -2,8 +2,6 @@ import {
   BookOpen,
   Files,
   LayoutDashboard,
-  Search,
-  Settings,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "./ui/button";
@@ -15,22 +13,20 @@ const ITEMS: { id: SectionId; label: string; icon: LucideIcon; shortcut?: string
   { id: "notebook", label: "Notebook", icon: BookOpen, shortcut: "⌘1" },
   { id: "files", label: "Files", icon: Files, shortcut: "⌘2" },
   { id: "canvas", label: "Canvas", icon: LayoutDashboard, shortcut: "⌘3" },
-  { id: "settings", label: "Settings", icon: Settings, shortcut: "⌘," },
 ];
 
 interface IconRailProps {
   active: SectionId;
   onChange: (section: SectionId) => void;
-  onSearch: () => void;
 }
 
-export function IconRail({ active, onChange, onSearch }: IconRailProps) {
+export function IconRail({ active, onChange }: IconRailProps) {
   return (
     <aside
       className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-ink py-2"
       aria-label="Primary navigation"
     >
-      {ITEMS.slice(0, 3).map((item) => (
+      {ITEMS.map((item) => (
         <RailButton
           key={item.id}
           label={item.label}
@@ -40,20 +36,6 @@ export function IconRail({ active, onChange, onSearch }: IconRailProps) {
           icon={item.icon}
         />
       ))}
-
-      <div className="mt-2 flex flex-col gap-1">
-        <RailButton label="Search" shortcut="⌘K" active={false} onClick={onSearch} icon={Search} />
-      </div>
-
-      <div className="mt-auto flex flex-col gap-1">
-        <RailButton
-          label="Settings"
-          shortcut="⌘,"
-          active={active === "settings"}
-          onClick={() => onChange("settings")}
-          icon={Settings}
-        />
-      </div>
     </aside>
   );
 }
@@ -82,8 +64,8 @@ function RailButton({
           aria-current={active ? "page" : undefined}
           onClick={onClick}
           className={cn(
-            "rounded-lg text-muted-foreground",
-            active && "bg-accent text-foreground",
+            "rounded-md text-muted-foreground",
+            active && "bg-ink-2 text-paper",
           )}
         >
           <Icon strokeWidth={1.75} />
