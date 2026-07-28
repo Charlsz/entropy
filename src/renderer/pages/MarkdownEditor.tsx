@@ -7,7 +7,7 @@ import {
   type DragEvent,
   type KeyboardEvent,
 } from "react";
-import { X } from "lucide-react";
+import { X, PenLine, Columns2, Eye, ExternalLink } from "lucide-react";
 import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { FilePreview } from "./FilePreview";
 import { registerFlush } from "../state/flushRegistry";
@@ -469,9 +469,15 @@ export function MarkdownEditor({
           <div className="ml-auto flex items-center px-1 pb-1">
             <Tabs value={mode} onValueChange={(value) => setMode(value as EditorMode)}>
               <TabsList>
-                <TabsTrigger value="edit">Edit</TabsTrigger>
-                <TabsTrigger value="split">Split</TabsTrigger>
-                <TabsTrigger value="preview">Preview</TabsTrigger>
+                <TabsTrigger value="edit" aria-label="Edit" title="Edit" className="px-2">
+                  <PenLine className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </TabsTrigger>
+                <TabsTrigger value="split" aria-label="Split" title="Split" className="px-2">
+                  <Columns2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </TabsTrigger>
+                <TabsTrigger value="preview" aria-label="Preview" title="Preview" className="px-2">
+                  <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -638,11 +644,14 @@ export function MarkdownEditor({
                 </h3>
                 <Button
                   type="button"
-                  variant="secondary"
-                  size="sm"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  aria-label="Open linked file"
+                  title="Open"
                   onClick={() => void window.entropy.fs.openExternal(linkedFile.path)}
                 >
-                  Open
+                  <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
                 </Button>
               </div>
               <FilePreview file={linkedFile} />

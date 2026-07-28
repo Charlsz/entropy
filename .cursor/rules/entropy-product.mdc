@@ -1,0 +1,24 @@
+---
+description: Entropy product & design — read AGENTS.md, PRODUCT.md, DESIGN.md before implementing
+alwaysApply: true
+---
+
+# Entropy agent contract
+
+Before any product or UI change:
+
+1. Read `AGENTS.md`
+2. Read `PRODUCT.md`
+3. Read `DESIGN.md`
+
+Follow those documents over habit or generic SaaS patterns.
+
+## Non-negotiables (summary)
+
+- Local-first: never own/import user files; workspace = folder; notes = Markdown on disk
+- Palette only: `#212121` `#242424` `#F8F8FF` `#F4F4FF`
+- Font: Geist only (Inter solely if Geist unavailable)
+- Notebook: no Linked/extra side panels; context panel hides when empty
+- Layout: three columns, resizable, remembered, collapsible
+- Icons (Lucide) for obvious chrome; calm 150–200ms motion; whitespace over borders
+- Obsidian writing × Refern organization — do not clone either

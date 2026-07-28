@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { FilePlus2, FolderOpen } from "lucide-react";
+import { ArrowLeftRight, FilePlus2, FolderOpen } from "lucide-react";
 import type { FileEntry, NoteSearchResult, TreeNode } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { FolderTree } from "../pages/FolderTree";
@@ -302,6 +302,7 @@ export function NotebookPage({
               onClick={closeWorkspace}
               title="Switch workspace"
             >
+              <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
               <span className="truncate">{workspace.name}</span>
             </button>
           </div>

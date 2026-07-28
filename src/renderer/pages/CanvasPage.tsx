@@ -18,6 +18,8 @@ import { CanvasObjectView } from "../canvas/CanvasObjectView";
 import { useWorkspace } from "../state/useWorkspace";
 import { Button } from "../components/ui/button";
 import { StatusBar } from "../components/StatusBar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
+import { Link2, LocateFixed, StickyNote } from "lucide-react";
 
 interface Camera {
   x: number;
@@ -304,31 +306,59 @@ export function CanvasPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col" aria-label="Canvas">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-ink px-3 py-2">
-        <span className="text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-ink px-3 py-2">
+        <span className="mr-1 text-xs text-muted-foreground">
           Zoom {Math.round(camera.scale * 100)}%
         </span>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => setCamera({ x: 0, y: 0, scale: 1 })}
-        >
-          Reset view
-        </Button>
-        <Button type="button" variant="secondary" size="sm" onClick={addTextCard}>
-          Add text card
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => setLinkFromId(selectedIds[0] ?? null)}
-          disabled={selectedIds.length !== 1}
-        >
-          {linkFromId ? "Click target to connect" : "Connect"}
-        </Button>
-        <span className="text-[11px] text-muted-foreground">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="h-8 w-8"
+              aria-label="Reset view"
+              onClick={() => setCamera({ x: 0, y: 0, scale: 1 })}
+            >
+              <LocateFixed className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Reset view</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="h-8 w-8"
+              aria-label="Add text card"
+              onClick={addTextCard}
+            >
+              <StickyNote className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Add text card</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant={linkFromId ? "default" : "secondary"}
+              size="icon"
+              className="h-8 w-8"
+              aria-label={linkFromId ? "Click target to connect" : "Connect"}
+              onClick={() => setLinkFromId(selectedIds[0] ?? null)}
+              disabled={selectedIds.length !== 1}
+            >
+              <Link2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {linkFromId ? "Click target to connect" : "Connect"}
+          </TooltipContent>
+        </Tooltip>
+        <span className="ml-2 text-[11px] text-muted-foreground">
           Double-click a card to open it · Press L then another card to connect
         </span>
       </div>

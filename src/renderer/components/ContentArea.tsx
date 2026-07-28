@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Separator } from "./ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { Eraser, RotateCcw } from "lucide-react";
 
 interface ContentAreaProps {
   section: SectionId;
@@ -108,17 +110,44 @@ function SettingsPanel() {
           </div>
 
           <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-ink-2 px-4 py-3">
-            <span className="text-sm text-paper">Recent files</span>
-            <Button type="button" variant="secondary" size="sm" onClick={clearRecentFiles}>
-              Clear ({workspace.recentFiles.length})
-            </Button>
+            <span className="text-sm text-paper">
+              Recent files
+              <span className="ml-2 text-xs text-paper-2">({workspace.recentFiles.length})</span>
+            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label="Clear recent files"
+                  onClick={clearRecentFiles}
+                >
+                  <Eraser className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear recent files</TooltipContent>
+            </Tooltip>
           </div>
 
           <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-ink-2 px-4 py-3">
             <span className="text-sm text-paper">Defaults</span>
-            <Button type="button" variant="secondary" size="sm" onClick={resetSettings}>
-              Reset settings
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label="Reset settings"
+                  onClick={resetSettings}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Reset settings</TooltipContent>
+            </Tooltip>
           </div>
 
           <div className="space-y-3 rounded-xl border border-border bg-ink-2 px-4 py-3 text-sm">

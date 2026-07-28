@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useState, type DragEvent, Fragment } from "react";
-import { Folder, LayoutGrid, List, FolderOpen } from "lucide-react";
+import {
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
+  Copy,
+  ExternalLink,
+  Folder,
+  FolderOpen,
+  LayoutGrid,
+  List,
+  Pencil,
+  Trash2,
+  ArrowLeftRight,
+} from "lucide-react";
 import type { FileEntry, TreeNode } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { FolderTree } from "./FolderTree";
@@ -15,6 +27,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
 import { Badge } from "../components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -295,7 +308,9 @@ export function FilesPage() {
               type="button"
               className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={closeWorkspace}
+              title="Switch workspace"
             >
+              <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
               <span className="truncate">{workspace.name}</span>
             </button>
           </div>
@@ -366,23 +381,46 @@ export function FilesPage() {
                 <SelectItem value="type">Type</SelectItem>
               </SelectContent>
             </Select>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setSortAsc((v) => !v)}
-            >
-              {sortAsc ? "Asc" : "Desc"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              title={view === "list" ? "Grid view" : "List view"}
-              onClick={() => updateSettings({ filesView: view === "list" ? "grid" : "list" })}
-            >
-              {view === "list" ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={sortAsc ? "Sort ascending" : "Sort descending"}
+                  onClick={() => setSortAsc((v) => !v)}
+                >
+                  {sortAsc ? (
+                    <ArrowUpNarrowWide className="h-4 w-4" strokeWidth={1.75} />
+                  ) : (
+                    <ArrowDownWideNarrow className="h-4 w-4" strokeWidth={1.75} />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{sortAsc ? "Ascending" : "Descending"}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={view === "list" ? "Grid view" : "List view"}
+                  onClick={() => updateSettings({ filesView: view === "list" ? "grid" : "list" })}
+                >
+                  {view === "list" ? (
+                    <LayoutGrid className="h-4 w-4" strokeWidth={1.75} />
+                  ) : (
+                    <List className="h-4 w-4" strokeWidth={1.75} />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {view === "list" ? "Grid view" : "List view"}
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           <ScrollArea className="min-h-0 flex-1">
@@ -557,42 +595,82 @@ export function FilesPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-1">
-                  <Button type="button" variant="secondary" size="sm" onClick={() => startRename(selected)}>
-                    Rename
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => void handleDuplicate(selected)}
-                  >
-                    Duplicate
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => requestDelete(selected)}
-                  >
-                    Delete
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void window.entropy.fs.reveal(selected.path)}
-                  >
-                    Reveal
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label="Rename"
+                        onClick={() => startRename(selected)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Rename</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label="Duplicate"
+                        onClick={() => void handleDuplicate(selected)}
+                      >
+                        <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Duplicate</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label="Delete"
+                        onClick={() => requestDelete(selected)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label="Reveal in folder"
+                        onClick={() => void window.entropy.fs.reveal(selected.path)}
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Reveal</TooltipContent>
+                  </Tooltip>
                   {!selected.isDirectory ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void window.entropy.fs.openExternal(selected.path)}
-                    >
-                      Open
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label="Open externally"
+                          onClick={() => void window.entropy.fs.openExternal(selected.path)}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Open</TooltipContent>
+                    </Tooltip>
                   ) : null}
                 </div>
 
