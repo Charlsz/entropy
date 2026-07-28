@@ -40,7 +40,7 @@ function uid(): string {
 }
 
 export function CanvasPage() {
-  const { workspace } = useWorkspace();
+  const { workspace, openNote, openFolder, openFileLocation } = useWorkspace();
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, scale: 1 });
   const [objects, setObjects] = useState<CanvasObject[]>([]);
   const [connections, setConnections] = useState<CanvasConnection[]>([]);
@@ -329,7 +329,7 @@ export function CanvasPage() {
           {linkFromId ? "Click target to connect" : "Connect"}
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          Layout autosaves · Press L then another card to connect
+          Double-click a card to open it · Press L then another card to connect
         </span>
       </div>
 
@@ -386,6 +386,18 @@ export function CanvasPage() {
                   prev.map((item) => (item.id === id ? { ...item, text } : item)),
                 )
               }
+              onOpen={(item) => {
+                if (!item.path) return;
+                if (item.type === "note") {
+                  openNote(item.path);
+                  return;
+                }
+                if (item.type === "folder") {
+                  openFolder(item.path);
+                  return;
+                }
+                void openFileLocation(item.path);
+              }}
             />
           ))}
           {selection ? (

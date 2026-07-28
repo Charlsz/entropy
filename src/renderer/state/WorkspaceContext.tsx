@@ -16,6 +16,8 @@ import {
 
 interface WorkspaceContextValue {
   workspace: WorkspaceState;
+  pendingNote: string | null;
+  clearPendingNote: () => void;
   setSection: (section: SectionId) => void;
   setCurrentFolder: (folderPath: string) => void;
   addRecentFile: (filePath: string) => void;
@@ -23,6 +25,9 @@ interface WorkspaceContextValue {
   updateSettings: (patch: Partial<WorkspaceSettings>) => void;
   resetSettings: () => void;
   closeWorkspace: () => void;
+  openNote: (notePath: string) => void;
+  openFolder: (folderPath: string) => void;
+  openFileLocation: (filePath: string) => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -50,6 +55,8 @@ export function WorkspaceProvider({
     };
   });
 
+  const [pendingNote, setPendingNote] = useState<string | null>(null);
+
   useEffect(() => {
     document.documentElement.dataset.theme = workspace.settings.theme;
   }, [workspace.settings.theme]);
@@ -76,6 +83,39 @@ export function WorkspaceProvider({
     setWorkspace((prev) => ({ ...prev, recentFiles: [] }));
   }, []);
 
+  const clearPendingNote = useCallback(() => setPendingNote(null), []);
+
+  const openNote = useCallback(
+    (notePath: string) => {
+      addRecentFile(notePath);
+      setSection("notebook");
+      setPendingNote(notePath);
+    },
+    [addRecentFile, setSection],
+  );
+
+  const openFolder = useCallback(
+    (folderPath: string) => {
+      setCurrentFolder(folderPath);
+      setSection("files");
+    },
+    [setCurrentFolder, setSection],
+  );
+
+  const openFileLocation = useCallback(
+    async (filePath: string) => {
+      addRecentFile(filePath);
+      try {
+        const dir = await window.entropy.fs.dirname(filePath);
+        setCurrentFolder(dir);
+      } catch {
+        // Keep current folder if dirname fails.
+      }
+      setSection("files");
+    },
+    [addRecentFile, setCurrentFolder, setSection],
+  );
+
   const updateSettings = useCallback(
     (patch: Partial<WorkspaceSettings>) => {
       setWorkspace((prev) => {
@@ -98,6 +138,8 @@ export function WorkspaceProvider({
   const value = useMemo(
     () => ({
       workspace,
+      pendingNote,
+      clearPendingNote,
       setSection,
       setCurrentFolder,
       addRecentFile,
@@ -105,9 +147,14 @@ export function WorkspaceProvider({
       updateSettings,
       resetSettings,
       closeWorkspace: onClose,
+      openNote,
+      openFolder,
+      openFileLocation,
     }),
     [
       workspace,
+      pendingNote,
+      clearPendingNote,
       setSection,
       setCurrentFolder,
       addRecentFile,
@@ -115,6 +162,9 @@ export function WorkspaceProvider({
       updateSettings,
       resetSettings,
       onClose,
+      openNote,
+      openFolder,
+      openFileLocation,
     ],
   );
 

@@ -8,10 +8,17 @@ import { TooltipProvider } from "./ui/tooltip";
 import { useWorkspace } from "../state/useWorkspace";
 
 export function WorkspaceShell() {
-  const { workspace, setSection, closeWorkspace, addRecentFile, updateSettings } = useWorkspace();
+  const {
+    workspace,
+    pendingNote,
+    clearPendingNote,
+    setSection,
+    closeWorkspace,
+    openNote,
+    updateSettings,
+  } = useWorkspace();
   const [searchOpen, setSearchOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
-  const [pendingNote, setPendingNote] = useState<string | null>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = workspace.settings.theme;
@@ -56,21 +63,12 @@ export function WorkspaceShell() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [setSection]);
 
-  const handleOpenNote = useCallback(
-    (path: string) => {
-      addRecentFile(path);
-      setSection("notebook");
-      setPendingNote(path);
-    },
-    [addRecentFile, setSection],
-  );
-
   const handleCommand = useCallback(
     (action: CommandAction) => {
       if (action.type === "section") {
         setSection(action.section);
       } else if (action.type === "note") {
-        handleOpenNote(action.path);
+        openNote(action.path);
       } else if (action.type === "search") {
         setSearchOpen(true);
       } else if (action.type === "switch-workspace") {
@@ -79,7 +77,7 @@ export function WorkspaceShell() {
         updateSettings({ theme: action.theme });
       }
     },
-    [setSection, handleOpenNote, closeWorkspace, updateSettings],
+    [setSection, openNote, closeWorkspace, updateSettings],
   );
 
   return (
@@ -101,14 +99,14 @@ export function WorkspaceShell() {
             <ContentArea
               section={workspace.currentSection}
               pendingNote={pendingNote}
-              onPendingNoteHandled={() => setPendingNote(null)}
+              onPendingNoteHandled={clearPendingNote}
             />
           </div>
         </div>
         <SearchPalette
           open={searchOpen}
           onClose={() => setSearchOpen(false)}
-          onOpenNote={handleOpenNote}
+          onOpenNote={openNote}
         />
         <CommandPalette
           open={commandOpen}

@@ -8,6 +8,7 @@ interface CanvasObjectViewProps {
   onSelect: (id: string) => void;
   onMove: (id: string, x: number, y: number) => void;
   onChangeText?: (id: string, text: string) => void;
+  onOpen?: (object: CanvasObject) => void;
 }
 
 export function CanvasObjectView({
@@ -17,8 +18,10 @@ export function CanvasObjectView({
   onSelect,
   onMove,
   onChangeText,
+  onOpen,
 }: CanvasObjectViewProps) {
   const [url, setUrl] = useState<string | null>(null);
+  const [noteExcerpt, setNoteExcerpt] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,6 +32,27 @@ export function CanvasObjectView({
     void window.entropy.fs.toUrl(object.path).then((next) => {
       if (!cancelled) setUrl(next);
     });
+    return () => {
+      cancelled = true;
+    };
+  }, [object.path, object.type]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (object.type !== "note" || !object.path) {
+      setNoteExcerpt(null);
+      return;
+    }
+    void window.entropy.fs
+      .readText(object.path)
+      .then((text) => {
+        if (cancelled) return;
+        const line = text.split(/\r?\n/).find((item) => item.trim()) ?? "";
+        setNoteExcerpt(line.slice(0, 120));
+      })
+      .catch(() => {
+        if (!cancelled) setNoteExcerpt(null);
+      });
     return () => {
       cancelled = true;
     };
@@ -67,14 +91,26 @@ export function CanvasObjectView({
         window.addEventListener("pointermove", onMovePointer);
         window.addEventListener("pointerup", onUp);
       }}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+        if (object.path) onOpen?.(object);
+      }}
     >
       <div className="canvas-object-title">{object.title}</div>
       {object.type === "image" && url ? <img src={url} alt={object.title} draggable={false} /> : null}
       {object.type === "video" && url ? <video src={url} controls /> : null}
       {object.type === "pdf" && url ? <iframe title={object.title} src={url} /> : null}
-      {object.type === "note" ? <p className="canvas-object-body">Markdown reference</p> : null}
-      {object.type === "folder" ? <p className="canvas-object-body">Folder reference</p> : null}
-      {object.type === "file" ? <p className="canvas-object-body">File reference</p> : null}
+      {object.type === "note" ? (
+        <p className="canvas-object-body">
+          {noteExcerpt || "Double-click to open note"}
+        </p>
+      ) : null}
+      {object.type === "folder" ? (
+        <p className="canvas-object-body">Double-click to open folder</p>
+      ) : null}
+      {object.type === "file" ? (
+        <p className="canvas-object-body">Double-click to show in Files</p>
+      ) : null}
       {object.type === "text" ? (
         <textarea
           className="canvas-object-text"
