@@ -37,18 +37,25 @@ export function SearchPalette({ open, onClose, onOpenNote }: SearchPaletteProps)
       return;
     }
 
+    let cancelled = false;
     setSearching(true);
     const handle = window.setTimeout(() => {
       void window.entropy.fs
         .searchMarkdown(workspace.path, trimmed)
         .then((items) => {
+          if (cancelled) return;
           setResults(items);
           setActiveIndex(0);
         })
-        .finally(() => setSearching(false));
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
     }, 120);
 
-    return () => window.clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
   }, [query, open, workspace.path]);
 
   const status = useMemo(() => {

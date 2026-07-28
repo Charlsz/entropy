@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Titlebar } from "./components/Titlebar";
 import { WorkspaceSelector } from "./components/WorkspaceSelector";
 import { WorkspaceShell } from "./components/WorkspaceShell";
@@ -13,30 +13,63 @@ export function App() {
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [initialSettings, setInitialSettings] = useState<WorkspaceSettings | null>(null);
   const [booting, setBooting] = useState(true);
+  const saveTimer = useRef<number | null>(null);
+  const latestSettings = useRef<WorkspaceSettings | null>(null);
+  const latestWorkspace = useRef<string | null>(null);
+
+  const persistSession = useCallback((nextPath: string | null, settings: WorkspaceSettings) => {
+    latestSettings.current = settings;
+    latestWorkspace.current = nextPath;
+    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      saveTimer.current = null;
+      void window.entropy.session.save({
+        lastWorkspace: latestWorkspace.current,
+        settings: toSessionSettings(latestSettings.current ?? settings),
+      });
+    }, 250);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
-      const session = await window.entropy.session.load();
-      if (cancelled) return;
+      try {
+        const session = await window.entropy.session.load();
+        if (cancelled) return;
 
-      const settings = fromSessionSettings(session.settings);
-      setInitialSettings(settings);
-      document.documentElement.dataset.theme = settings.theme;
+        const settings = fromSessionSettings(session.settings);
+        setInitialSettings(settings);
+        latestSettings.current = settings;
+        latestWorkspace.current = session.lastWorkspace;
+        document.documentElement.dataset.theme = settings.theme;
 
-      if (session.lastWorkspace && (await window.entropy.fs.exists(session.lastWorkspace))) {
-        setWorkspacePath(session.lastWorkspace);
+        if (session.lastWorkspace && (await window.entropy.fs.exists(session.lastWorkspace))) {
+          setWorkspacePath(session.lastWorkspace);
+        }
+      } catch {
+        if (!cancelled) setInitialSettings(DEFAULT_SETTINGS);
+      } finally {
+        if (!cancelled) setBooting(false);
       }
-      setBooting(false);
     })();
 
     const unsubscribe = window.entropy.app.onBeforeQuit(async () => {
+      if (saveTimer.current !== null) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      const settings = latestSettings.current ?? DEFAULT_SETTINGS;
+      await window.entropy.session.save({
+        lastWorkspace: latestWorkspace.current,
+        settings: toSessionSettings(settings),
+      });
       await flushAll();
     });
 
     return () => {
       cancelled = true;
+      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
       unsubscribe();
     };
   }, []);
@@ -48,6 +81,7 @@ export function App() {
         lastWorkspace: nextPath,
         settings: toSessionSettings(settings),
       });
+      latestWorkspace.current = nextPath;
       setWorkspacePath(nextPath);
     },
     [initialSettings],
@@ -60,6 +94,7 @@ export function App() {
       lastWorkspace: null,
       settings: toSessionSettings(settings),
     });
+    latestWorkspace.current = null;
     setWorkspacePath(null);
   }, [initialSettings]);
 
@@ -90,10 +125,7 @@ export function App() {
         initialSettings={initialSettings}
         onSettingsChange={(settings) => {
           setInitialSettings(settings);
-          void window.entropy.session.save({
-            lastWorkspace: workspacePath,
-            settings: toSessionSettings(settings),
-          });
+          persistSession(workspacePath, settings);
         }}
         onClose={() => void closeWorkspace()}
       >

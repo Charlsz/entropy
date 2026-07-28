@@ -16,6 +16,7 @@ import {
 } from "../canvas/types";
 import { CanvasObjectView } from "../canvas/CanvasObjectView";
 import { useWorkspace } from "../state/useWorkspace";
+import { registerFlush } from "../state/flushRegistry";
 import { Button } from "../components/ui/button";
 import { StatusBar } from "../components/StatusBar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
@@ -52,6 +53,11 @@ export function CanvasPage() {
   const [ready, setReady] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
   const spaceDown = useRef(false);
+  const draftRef = useRef({
+    camera: { x: 0, y: 0, scale: 1 } as Camera,
+    objects: [] as CanvasObject[],
+    connections: [] as CanvasConnection[],
+  });
   const dragRef = useRef<{
     mode: "pan" | "select";
     startX: number;
@@ -59,6 +65,12 @@ export function CanvasPage() {
     originX: number;
     originY: number;
   } | null>(null);
+
+  const active = workspace.currentSection === "canvas";
+
+  useEffect(() => {
+    draftRef.current = { camera, objects, connections };
+  }, [camera, objects, connections]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,21 +98,31 @@ export function CanvasPage() {
     };
   }, [workspace.path]);
 
+  const persistCanvas = useCallback(async () => {
+    if (!ready) return;
+    const draft = draftRef.current;
+    await window.entropy.canvas.save({
+      version: 1,
+      workspacePath: workspace.path,
+      camera: draft.camera,
+      objects: draft.objects,
+      connections: draft.connections,
+    });
+  }, [ready, workspace.path]);
+
   useEffect(() => {
     if (!ready) return;
     const handle = window.setTimeout(() => {
-      void window.entropy.canvas.save({
-        version: 1,
-        workspacePath: workspace.path,
-        camera,
-        objects,
-        connections,
-      });
+      void persistCanvas();
     }, 300);
     return () => window.clearTimeout(handle);
-  }, [ready, workspace.path, camera, objects, connections]);
+  }, [ready, camera, objects, connections, persistCanvas]);
+
+  useEffect(() => registerFlush(persistCanvas), [persistCanvas]);
 
   useEffect(() => {
+    if (!active) return;
+
     function onKeyDown(event: KeyboardEvent): void {
       if (event.code === "Space") spaceDown.current = true;
       if (event.key === "Delete" || event.key === "Backspace") {
@@ -127,7 +149,7 @@ export function CanvasPage() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedIds]);
+  }, [selectedIds, active]);
 
   const onWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();

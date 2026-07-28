@@ -3,7 +3,7 @@ import { FileText, Folder } from "lucide-react";
 import type { FileEntry } from "../../shared/types";
 import { useInView } from "../hooks/useInView";
 import { isMediaEntry, mediaKind } from "../lib/media";
-import { getFileUrl } from "../lib/urlCache";
+import { getFileUrl, getThumbUrl } from "../lib/urlCache";
 import { withVideoSlot } from "../lib/videoSlot";
 import { createSlot } from "../lib/asyncSlot";
 import { cn } from "../lib/utils";
@@ -15,6 +15,7 @@ export interface FolderPreviewData {
 
 const folderPreviewCache = new Map<string, Promise<FolderPreviewData>>();
 const withFolderSlot = createSlot(3);
+const withImageSlot = createSlot(6);
 
 export function getFolderPreview(folderPath: string): Promise<FolderPreviewData> {
   let pending = folderPreviewCache.get(folderPath);
@@ -150,7 +151,8 @@ function ImageThumb({ path, alt }: { path: string; alt: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    void getFileUrl(path).then((next) => {
+    void withImageSlot(async () => {
+      const next = await getThumbUrl(path);
       if (!cancelled) setUrl(next);
     });
     return () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type DragEvent, Fragment } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, Fragment, memo } from "react";
 import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
@@ -70,18 +70,24 @@ export function FilesPage() {
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
   const [pendingDelete, setPendingDelete] = useState<FileEntry | null>(null);
+  const [renderedCount, setRenderedCount] = useState(60);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const view = workspace.settings.filesView;
 
-  const refresh = useCallback(async () => {
+  const refreshTree = useCallback(async () => {
+    try {
+      setTree(await window.entropy.fs.folderTree(workspace.path));
+    } catch {
+      // Keep previous tree on failure.
+    }
+  }, [workspace.path]);
+
+  const refreshListing = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [nextTree, listing] = await Promise.all([
-        window.entropy.fs.folderTree(workspace.path),
-        window.entropy.fs.listDir(workspace.currentFolder),
-      ]);
-      setTree(nextTree);
+      const listing = await window.entropy.fs.listDir(workspace.currentFolder);
       setEntries(listing);
 
       const relative = workspace.currentFolder
@@ -90,21 +96,36 @@ export function FilesPage() {
       const parts = relative ? relative.split(/[/\\]/) : [];
       setCrumbs(parts);
 
-      if (selected) {
-        const stillThere = listing.find((entry) => entry.path === selected.path);
-        setSelected(stillThere ?? null);
-      }
+      setSelected((current) => {
+        if (!current) return null;
+        return listing.find((entry) => entry.path === current.path) ?? null;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to read folder");
     } finally {
       setLoading(false);
     }
-  }, [workspace.path, workspace.currentFolder, selected]);
+  }, [workspace.path, workspace.currentFolder]);
+
+  const refresh = useCallback(async () => {
+    await Promise.all([refreshTree(), refreshListing()]);
+  }, [refreshTree, refreshListing]);
 
   useEffect(() => {
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace.path, workspace.currentFolder]);
+    if (workspace.currentSection !== "files") return;
+    void refreshTree();
+  }, [refreshTree, workspace.currentSection]);
+
+  useEffect(() => {
+    if (workspace.currentSection !== "files") return;
+    setRenderedCount(60);
+    void refreshListing();
+  }, [refreshListing, workspace.currentSection]);
+
+  useEffect(() => {
+    setRenaming(false);
+    setRenameValue("");
+  }, [workspace.currentFolder]);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,7 +167,32 @@ export function FilesPage() {
     return sorted;
   }, [entries, query, sortKey, sortAsc]);
 
+  const rendered = useMemo(
+    () => visible.slice(0, renderedCount),
+    [visible, renderedCount],
+  );
+
+  useEffect(() => {
+    setRenderedCount(60);
+  }, [query, sortKey, sortAsc, workspace.currentFolder]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || loading || rendered.length >= visible.length) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setRenderedCount((count) => Math.min(count + 60, visible.length));
+      },
+      { root: null, rootMargin: "320px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [visible.length, rendered.length, view, loading]);
+
   async function openEntry(entry: FileEntry): Promise<void> {
+    setRenaming(false);
+    setRenameValue("");
     if (entry.isDirectory) {
       setCurrentFolder(entry.path);
       setSelected(null);
@@ -157,6 +203,9 @@ export function FilesPage() {
   }
 
   async function goToCrumb(index: number): Promise<void> {
+    setRenaming(false);
+    setRenameValue("");
+    setSelected(null);
     if (index < 0) {
       setCurrentFolder(workspace.path);
       return;
@@ -276,6 +325,7 @@ export function FilesPage() {
     <div className="flex h-full min-h-0 w-full flex-col" aria-label="Files">
       <ThreeColumnLayout
         id="files-layout"
+        persistLayout={workspace.currentSection === "files"}
         context={context}
         sidebar={
           <div className="flex h-full min-h-0 flex-col">
@@ -391,8 +441,12 @@ export function FilesPage() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8"
+                    className={cn(
+                      "h-8 w-8 text-muted-foreground",
+                      !sortAsc && "bg-ink-2 text-paper",
+                    )}
                     aria-label={sortAsc ? "Sort ascending" : "Sort descending"}
+                    aria-pressed={!sortAsc}
                     onClick={() => setSortAsc((v) => !v)}
                   >
                     {sortAsc ? (
@@ -410,8 +464,12 @@ export function FilesPage() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8"
-                    aria-label={view === "list" ? "Grid view" : "List view"}
+                    className={cn(
+                      "h-8 w-8 text-muted-foreground",
+                      view === "grid" && "bg-ink-2 text-paper",
+                    )}
+                    aria-label={view === "list" ? "Switch to grid view" : "Switch to list view"}
+                    aria-pressed={view === "grid"}
                     onClick={() => updateSettings({ filesView: view === "list" ? "grid" : "list" })}
                   >
                     {view === "list" ? (
@@ -494,7 +552,7 @@ export function FilesPage() {
                       <span>Type</span>
                       <span className="sr-only">Actions</span>
                     </div>
-                    {visible.map((entry) => (
+                    {rendered.map((entry) => (
                       <div
                         key={entry.path}
                         role="row"
@@ -539,10 +597,13 @@ export function FilesPage() {
                         />
                       </div>
                     ))}
+                    {rendered.length < visible.length ? (
+                      <div ref={loadMoreRef} className="h-8" aria-hidden />
+                    ) : null}
                   </div>
                 ) : (
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-x-4 gap-y-6">
-                    {visible.map((entry) => (
+                    {rendered.map((entry) => (
                       <FileGridCard
                         key={entry.path}
                         entry={entry}
@@ -560,6 +621,9 @@ export function FilesPage() {
                         onDelete={() => requestDelete(entry)}
                       />
                     ))}
+                    {rendered.length < visible.length ? (
+                      <div ref={loadMoreRef} className="col-span-full h-8" aria-hidden />
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -589,7 +653,7 @@ export function FilesPage() {
   );
 }
 
-function FileGridCard({
+const FileGridCard = memo(function FileGridCard({
   entry,
   selected,
   dropTarget,
@@ -650,4 +714,4 @@ function FileGridCard({
       </div>
     </div>
   );
-}
+});

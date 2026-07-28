@@ -26,18 +26,28 @@ function toEntry(filePath: string, stat: { isDirectory(): boolean; size: number;
   };
 }
 
-export async function listDir(dirPath: string): Promise<FileEntry[]> {
-  const names = await fs.readdir(dirPath);
-  const entries: FileEntry[] = [];
+const STAT_BATCH = 48;
 
-  for (const name of names) {
-    if (name === "." || name === "..") continue;
-    const fullPath = path.join(dirPath, name);
-    try {
-      const stat = await fs.stat(fullPath);
-      entries.push(toEntry(fullPath, stat));
-    } catch {
-      // Skip unreadable entries.
+export async function listDir(dirPath: string): Promise<FileEntry[]> {
+  const dirents = await fs.readdir(dirPath, { withFileTypes: true });
+  const entries: FileEntry[] = [];
+  const targets = dirents.filter((entry) => entry.name !== "." && entry.name !== "..");
+
+  for (let i = 0; i < targets.length; i += STAT_BATCH) {
+    const batch = targets.slice(i, i + STAT_BATCH);
+    const settled = await Promise.all(
+      batch.map(async (dirent) => {
+        const fullPath = path.join(dirPath, dirent.name);
+        try {
+          const info = await fs.stat(fullPath);
+          return toEntry(fullPath, info);
+        } catch {
+          return null;
+        }
+      }),
+    );
+    for (const entry of settled) {
+      if (entry) entries.push(entry);
     }
   }
 
@@ -125,24 +135,24 @@ export async function stat(targetPath: string): Promise<FileEntry> {
 export async function folderTree(rootPath: string, maxDepth = 6): Promise<TreeNode[]> {
   async function walk(dirPath: string, depth: number): Promise<TreeNode[]> {
     if (depth > maxDepth) return [];
-    const names = await fs.readdir(dirPath);
-    const nodes: TreeNode[] = [];
+    let dirents;
+    try {
+      dirents = await fs.readdir(dirPath, { withFileTypes: true });
+    } catch {
+      return [];
+    }
 
-    for (const name of names) {
-      if (SKIP_DIRS.has(name) || name.startsWith(".")) continue;
-      const fullPath = path.join(dirPath, name);
-      try {
-        const info = await fs.stat(fullPath);
-        if (!info.isDirectory()) continue;
-        nodes.push({
-          name,
-          path: fullPath,
-          isDirectory: true,
-          children: await walk(fullPath, depth + 1),
-        });
-      } catch {
-        // Skip.
-      }
+    const nodes: TreeNode[] = [];
+    for (const dirent of dirents) {
+      if (!dirent.isDirectory()) continue;
+      if (SKIP_DIRS.has(dirent.name) || dirent.name.startsWith(".")) continue;
+      const fullPath = path.join(dirPath, dirent.name);
+      nodes.push({
+        name: dirent.name,
+        path: fullPath,
+        isDirectory: true,
+        children: await walk(fullPath, depth + 1),
+      });
     }
 
     nodes.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
@@ -156,23 +166,24 @@ export async function listMarkdown(rootPath: string): Promise<FileEntry[]> {
   const results: FileEntry[] = [];
 
   async function walk(dirPath: string): Promise<void> {
-    let names: string[];
+    let dirents;
     try {
-      names = await fs.readdir(dirPath);
+      dirents = await fs.readdir(dirPath, { withFileTypes: true });
     } catch {
       return;
     }
 
-    for (const name of names) {
-      if (SKIP_DIRS.has(name) || name.startsWith(".")) continue;
-      const fullPath = path.join(dirPath, name);
+    for (const dirent of dirents) {
+      if (SKIP_DIRS.has(dirent.name) || dirent.name.startsWith(".")) continue;
+      const fullPath = path.join(dirPath, dirent.name);
       try {
-        const info = await fs.stat(fullPath);
-        if (info.isDirectory()) {
+        if (dirent.isDirectory()) {
           await walk(fullPath);
-        } else if (path.extname(name).toLowerCase() === ".md") {
-          results.push(toEntry(fullPath, info));
+          continue;
         }
+        if (path.extname(dirent.name).toLowerCase() !== ".md") continue;
+        const info = await fs.stat(fullPath);
+        results.push(toEntry(fullPath, info));
       } catch {
         // Skip.
       }

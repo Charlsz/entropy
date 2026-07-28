@@ -15,7 +15,23 @@ interface ThreeColumnLayoutProps {
   sidebar: ReactNode;
   main: ReactNode;
   context?: ReactNode | null;
+  /** When false, layout changes are not persisted (inactive keep-alive sections). */
+  persistLayout?: boolean;
   className?: string;
+}
+
+function syncCollapsed(
+  panel: { isCollapsed: () => boolean; collapse: () => void; expand: () => void } | null,
+  shouldCollapse: boolean,
+): void {
+  if (!panel) return;
+  try {
+    const collapsed = panel.isCollapsed();
+    if (shouldCollapse && !collapsed) panel.collapse();
+    if (!shouldCollapse && collapsed) panel.expand();
+  } catch {
+    // Panel group may still be initializing; ignore transient constraint errors.
+  }
 }
 
 export function ThreeColumnLayout({
@@ -23,50 +39,63 @@ export function ThreeColumnLayout({
   sidebar,
   main,
   context = null,
+  persistLayout = true,
   className,
 }: ThreeColumnLayoutProps) {
   const { workspace, updateSettings } = useWorkspace();
   const sidebarRef = usePanelRef();
   const contextRef = usePanelRef();
   const hasContext = context != null;
+  const layoutKey = hasContext ? `${id}-context` : `${id}-main`;
   const sidebarCollapsed = workspace.settings.sidebarCollapsed;
-  const contextCollapsed = workspace.settings.contextCollapsed || !hasContext;
+  const contextCollapsed = workspace.settings.contextCollapsed;
+  const savedLayout = workspace.settings.panelLayout;
 
   const defaultLayout = useMemo<Layout>(() => {
-    const layout = workspace.settings.panelLayout;
     if (!hasContext) {
-      const total = (layout.sidebar + layout.main) || 100;
+      const total = (savedLayout.sidebar + savedLayout.main) || 100;
       return {
-        sidebar: (layout.sidebar / total) * 100,
-        main: (layout.main / total) * 100,
+        sidebar: (savedLayout.sidebar / total) * 100,
+        main: (savedLayout.main / total) * 100,
       } as Layout;
     }
+    const total =
+      (savedLayout.sidebar + savedLayout.main + savedLayout.context) || 100;
     return {
-      sidebar: layout.sidebar,
-      main: layout.main,
-      context: layout.context,
+      sidebar: (savedLayout.sidebar / total) * 100,
+      main: (savedLayout.main / total) * 100,
+      context: (savedLayout.context / total) * 100,
     };
-  }, [hasContext, workspace.settings.panelLayout]);
+  }, [hasContext, savedLayout]);
 
   useEffect(() => {
-    if (sidebarCollapsed) sidebarRef.current?.collapse();
-    else sidebarRef.current?.expand();
-  }, [sidebarCollapsed, sidebarRef]);
+    if (!persistLayout) return;
+    const frame = window.requestAnimationFrame(() => {
+      syncCollapsed(sidebarRef.current, sidebarCollapsed);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [sidebarCollapsed, sidebarRef, layoutKey, persistLayout]);
 
   useEffect(() => {
-    if (!hasContext) return;
-    if (contextCollapsed) contextRef.current?.collapse();
-    else contextRef.current?.expand();
-  }, [contextCollapsed, contextRef, hasContext]);
+    if (!persistLayout || !hasContext) return;
+    const frame = window.requestAnimationFrame(() => {
+      syncCollapsed(contextRef.current, contextCollapsed);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [contextCollapsed, contextRef, hasContext, layoutKey, persistLayout]);
 
   return (
     <Group
-      id={id}
+      id={layoutKey}
+      key={layoutKey}
       orientation="horizontal"
       className={cn("h-full min-h-0 w-full", className)}
       defaultLayout={defaultLayout}
       onLayoutChanged={(layout) => {
-        updateSettings({ panelLayout: layoutFromGroup(layout, hasContext) });
+        if (!persistLayout) return;
+        updateSettings({
+          panelLayout: layoutFromGroup(layout, hasContext, savedLayout),
+        });
       }}
     >
       <Panel

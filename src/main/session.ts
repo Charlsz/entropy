@@ -68,20 +68,45 @@ export async function loadSession(): Promise<AppSession> {
   }
 }
 
-export async function saveSession(session: AppSession): Promise<void> {
+/** Serialize + coalesce concurrent saves so temp rename races cannot ENOENT. */
+let saveQueue: Promise<void> = Promise.resolve();
+let latestSession: AppSession | null = null;
+
+export function saveSession(session: AppSession): Promise<void> {
+  latestSession = session;
+  saveQueue = saveQueue
+    .catch(() => undefined)
+    .then(async () => {
+      if (!latestSession) return;
+      const toWrite = latestSession;
+      latestSession = null;
+      await writeSessionAtomic(toWrite);
+    });
+  return saveQueue;
+}
+
+async function writeSessionAtomic(session: AppSession): Promise<void> {
   const filePath = sessionPath();
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const tempPath = path.join(path.dirname(filePath), `.session.${process.pid}.tmp`);
+  const dir = path.dirname(filePath);
+  await fs.mkdir(dir, { recursive: true });
+
+  const tempPath = path.join(
+    dir,
+    `.session.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`,
+  );
   const payload = JSON.stringify(session, null, 2);
+
   try {
     await fs.writeFile(tempPath, payload, "utf8");
-    await fs.rename(tempPath, filePath);
-  } catch (error) {
     try {
-      await fs.unlink(tempPath);
+      await fs.rename(tempPath, filePath);
     } catch {
-      // Ignore.
+      // Windows can fail rename when the destination is locked; copy then unlink.
+      await fs.copyFile(tempPath, filePath);
+      await fs.unlink(tempPath).catch(() => undefined);
     }
+  } catch (error) {
+    await fs.unlink(tempPath).catch(() => undefined);
     throw error;
   }
 }

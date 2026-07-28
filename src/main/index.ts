@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, protocol } from "electron";
 import path from "node:path";
 import * as filesystem from "./fs";
-import { FILE_PROTOCOL, registerFileProtocol, toEntropyUrl } from "./protocol";
+import { FILE_PROTOCOL, registerFileProtocol, toEntropyThumbUrl, toEntropyUrl } from "./protocol";
 import { loadCanvas, saveCanvas, type PersistedCanvas } from "./canvasStore";
 import { loadSession, saveSession, type AppSession } from "./session";
 import {
@@ -127,6 +127,7 @@ function registerIpc(): void {
     filesystem.relativePath(fromPath, toPath),
   );
   ipcMain.handle("fs:toUrl", (_event, filePath: string) => toEntropyUrl(filePath));
+  ipcMain.handle("fs:toThumbUrl", (_event, filePath: string) => toEntropyThumbUrl(filePath));
   ipcMain.handle("fs:duplicate", (_event, targetPath: string) => filesystem.duplicate(targetPath));
   ipcMain.handle("fs:reveal", (_event, targetPath: string) =>
     filesystem.revealInFolder(targetPath),

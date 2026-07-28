@@ -56,8 +56,9 @@ export function NotebookPage({
   }, [workspace.path, workspace.currentFolder]);
 
   useEffect(() => {
+    if (workspace.currentSection !== "notebook") return;
     void refresh();
-  }, [refresh]);
+  }, [refresh, workspace.currentSection]);
 
   useEffect(() => {
     if (!pendingNote) return;
@@ -167,6 +168,7 @@ export function NotebookPage({
     <div className="flex h-full min-h-0 w-full flex-col">
       <ThreeColumnLayout
         id="notebook-layout"
+        persistLayout={workspace.currentSection === "notebook"}
         context={context}
         sidebar={
           <div className="flex h-full min-h-0 flex-col">

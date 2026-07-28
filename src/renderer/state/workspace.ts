@@ -46,13 +46,30 @@ export function normalizePanelLayout(value: unknown): PanelLayoutState {
   return { sidebar, main, context };
 }
 
-export function layoutFromGroup(layout: Layout, hasContext: boolean): PanelLayoutState {
-  const sidebar = layout.sidebar ?? DEFAULT_PANEL_LAYOUT.sidebar;
-  const context = hasContext
-    ? (layout.context ?? DEFAULT_PANEL_LAYOUT.context)
-    : DEFAULT_PANEL_LAYOUT.context;
-  const main = layout.main ?? Math.max(100 - sidebar - (hasContext ? context : 0), 30);
-  return { sidebar, main, context };
+export function layoutFromGroup(
+  layout: Layout,
+  hasContext: boolean,
+  previous: PanelLayoutState = DEFAULT_PANEL_LAYOUT,
+): PanelLayoutState {
+  if (hasContext) {
+    return {
+      sidebar: layout.sidebar ?? previous.sidebar,
+      main: layout.main ?? previous.main,
+      context: layout.context ?? previous.context,
+    };
+  }
+
+  // Two-panel groups report percentages of the non-context area only.
+  // Map them back into the full three-column layout, preserving context width.
+  const context = previous.context;
+  const available = Math.max(100 - context, 1);
+  const sidebarShare = (layout.sidebar ?? 0) / 100;
+  const mainShare = (layout.main ?? 0) / 100;
+  return {
+    sidebar: sidebarShare * available,
+    main: mainShare * available,
+    context,
+  };
 }
 
 export function createWorkspaceState(workspacePath: string): WorkspaceState {

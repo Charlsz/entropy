@@ -73,6 +73,7 @@ export interface EntropyApi {
     basename: (filePath: string) => Promise<string>;
     relative: (fromPath: string, toPath: string) => Promise<string>;
     toUrl: (filePath: string) => Promise<string>;
+    toThumbUrl: (filePath: string) => Promise<string>;
     duplicate: (targetPath: string) => Promise<string>;
     reveal: (targetPath: string) => Promise<void>;
     openExternal: (targetPath: string) => Promise<void>;
