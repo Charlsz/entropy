@@ -1,4 +1,5 @@
 import type { WorkspaceSettings } from "./workspace";
+import { DEFAULT_PANEL_LAYOUT, normalizePanelLayout } from "./workspace";
 
 export function toSessionSettings(settings: WorkspaceSettings) {
   return {
@@ -18,10 +19,6 @@ export function fromSessionSettings(
     filesView: settings.filesView,
     sidebarCollapsed: Boolean(settings.sidebarCollapsed),
     contextCollapsed: Boolean(settings.contextCollapsed),
-    panelLayout: {
-      sidebar: settings.panelLayout?.sidebar ?? 22,
-      main: settings.panelLayout?.main ?? 58,
-      context: settings.panelLayout?.context ?? 20,
-    },
+    panelLayout: normalizePanelLayout(settings.panelLayout ?? DEFAULT_PANEL_LAYOUT),
   };
 }

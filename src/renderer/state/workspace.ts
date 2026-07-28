@@ -24,9 +24,9 @@ export interface WorkspaceState {
 }
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 22,
-  main: 58,
-  context: 20,
+  sidebar: 16,
+  main: 66,
+  context: 18,
 };
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
@@ -40,9 +40,19 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
 export function normalizePanelLayout(value: unknown): PanelLayoutState {
   if (!value || typeof value !== "object") return { ...DEFAULT_PANEL_LAYOUT };
   const record = value as Record<string, unknown>;
-  const sidebar = typeof record.sidebar === "number" ? record.sidebar : DEFAULT_PANEL_LAYOUT.sidebar;
-  const main = typeof record.main === "number" ? record.main : DEFAULT_PANEL_LAYOUT.main;
-  const context = typeof record.context === "number" ? record.context : DEFAULT_PANEL_LAYOUT.context;
+  let sidebar = typeof record.sidebar === "number" ? record.sidebar : DEFAULT_PANEL_LAYOUT.sidebar;
+  let main = typeof record.main === "number" ? record.main : DEFAULT_PANEL_LAYOUT.main;
+  let context = typeof record.context === "number" ? record.context : DEFAULT_PANEL_LAYOUT.context;
+
+  // Migrate the previous default proportions toward a larger main pane.
+  if (
+    Math.abs(sidebar - 22) < 0.5 &&
+    Math.abs(main - 58) < 0.5 &&
+    Math.abs(context - 20) < 0.5
+  ) {
+    return { ...DEFAULT_PANEL_LAYOUT };
+  }
+
   return { sidebar, main, context };
 }
 

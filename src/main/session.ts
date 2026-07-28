@@ -22,9 +22,9 @@ export interface AppSession {
 }
 
 const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 22,
-  main: 58,
-  context: 20,
+  sidebar: 16,
+  main: 66,
+  context: 18,
 };
 
 const DEFAULT_SETTINGS: AppSettings = {

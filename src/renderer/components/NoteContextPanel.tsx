@@ -7,7 +7,6 @@ import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
 import { useWorkspace } from "../state/useWorkspace";
-import { isMediaEntry } from "../lib/media";
 
 const LINK_RE = /\[([^\]]+)\]\(([^)\s]+)\)/g;
 
@@ -102,14 +101,16 @@ export function NoteContextPanel({
   if (!notePath && !previewEntry) return null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="px-4 py-3">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      <div className="min-w-0 px-4 py-3">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           {preview && !notePath ? "Selection" : "Context"}
         </h2>
         {notePath && meta ? (
           <>
-            <p className="mt-2 truncate text-sm text-paper">{meta.title}</p>
+            <p className="mt-2 truncate text-sm text-paper" title={meta.title}>
+              {meta.title}
+            </p>
             <p className="mt-1 text-xs text-paper-2">
               {meta.words} words · {meta.chars} characters
             </p>
@@ -120,12 +121,12 @@ export function NoteContextPanel({
 
       <Separator />
 
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-5 p-4">
+      <ScrollArea className="min-h-0 min-w-0 flex-1">
+        <div className="min-w-0 space-y-5 p-4">
           {preview ? (
-            <section>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <section className="min-w-0">
+              <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+                <h3 className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                   Media
                 </h3>
                 <div className="flex items-center gap-0.5">
@@ -165,16 +166,18 @@ export function NoteContextPanel({
                   ) : null}
                 </div>
               </div>
-              <p className="mb-2 truncate text-sm text-foreground">{preview.name}</p>
-              {preview.isDirectory ? (
-                <div className="mx-auto w-full max-w-[180px] overflow-hidden rounded-lg">
-                  <EntryPreview entry={preview} size="lg" />
-                </div>
-              ) : isMediaEntry(preview) ? (
-                <FilePreview file={preview} compact />
-              ) : (
-                <FilePreview file={preview} compact />
-              )}
+              <p className="mb-2 min-w-0 truncate text-sm text-foreground" title={preview.name}>
+                {preview.name}
+              </p>
+              <div className="min-w-0 w-full overflow-hidden">
+                {preview.isDirectory ? (
+                  <div className="w-full max-w-full overflow-hidden rounded-lg">
+                    <EntryPreview entry={preview} size="lg" className="max-h-40" />
+                  </div>
+                ) : (
+                  <FilePreview file={preview} compact />
+                )}
+              </div>
             </section>
           ) : notePath ? (
             <p className="text-xs text-muted-foreground">

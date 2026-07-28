@@ -312,6 +312,9 @@
   .file-preview-compact video,
   .file-preview-compact iframe {
     max-height: 160px;
+    max-width: 100%;
+    width: 100%;
+    object-fit: contain;
   }
 
   .file-preview pre,

@@ -101,24 +101,25 @@ export function ThreeColumnLayout({
       <Panel
         id="sidebar"
         panelRef={sidebarRef}
-        className="min-h-0 bg-ink-2"
-        minSize="180px"
+        className="min-h-0 min-w-0 bg-ink-2"
+        minSize="140px"
+        maxSize="34%"
         collapsible
         collapsedSize={0}
         defaultSize={`${defaultLayout.sidebar}%`}
       >
-        <div className="flex h-full min-h-0 flex-col overflow-hidden">{sidebar}</div>
+        <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{sidebar}</div>
       </Panel>
 
       <Separator className="entropy-resize-handle" />
 
       <Panel
         id="main"
-        className="min-h-0 bg-background"
-        minSize="320px"
+        className="min-h-0 min-w-0 bg-background"
+        minSize="420px"
         defaultSize={`${defaultLayout.main}%`}
       >
-        <div className="flex h-full min-h-0 flex-col overflow-hidden">{main}</div>
+        <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{main}</div>
       </Panel>
 
       {hasContext ? (
@@ -127,13 +128,14 @@ export function ThreeColumnLayout({
           <Panel
             id="context"
             panelRef={contextRef}
-            className="min-h-0 bg-ink-2"
-            minSize="200px"
+            className="min-h-0 min-w-0 bg-ink-2"
+            minSize="160px"
+            maxSize="30%"
             collapsible
             collapsedSize={0}
             defaultSize={`${defaultLayout.context}%`}
           >
-            <div className="flex h-full min-h-0 flex-col overflow-hidden">{context}</div>
+            <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{context}</div>
           </Panel>
         </>
       ) : null}
