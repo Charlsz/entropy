@@ -17,7 +17,7 @@ interface FolderTreeProps {
 
 export function FolderTree({ nodes, activePath, onSelect, depth = 0 }: FolderTreeProps) {
   return (
-    <ul className="space-y-0.5" style={{ paddingLeft: depth === 0 ? 0 : 8 }}>
+    <ul className="space-y-1" style={{ paddingLeft: depth === 0 ? 0 : 8 }}>
       {nodes.map((node) => (
         <FolderTreeItem
           key={node.path}
@@ -49,7 +49,7 @@ function FolderTreeItem({
   return (
     <li>
       <Collapsible open={open} onOpenChange={setOpen} disabled={!hasChildren}>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-2">
           <CollapsibleTrigger asChild>
             <button
               type="button"
@@ -59,9 +59,9 @@ function FolderTreeItem({
             >
               {hasChildren ? (
                 open ? (
-                  <ChevronDown className="h-3.5 w-3.5" />
+                  <ChevronDown className="h-4 w-4" />
                 ) : (
-                  <ChevronRight className="h-3.5 w-3.5" />
+                  <ChevronRight className="h-4 w-4" />
                 )
               ) : (
                 <span className="h-1 w-1 rounded-full bg-paper-2/40" />
@@ -71,12 +71,12 @@ function FolderTreeItem({
           <button
             type="button"
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
+              "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
               active && "bg-accent text-foreground",
             )}
             onClick={() => onSelect(node.path)}
           >
-            <Folder className="h-3.5 w-3.5 shrink-0 opacity-70" />
+            <Folder className="h-4 w-4 shrink-0 opacity-70" />
             <span className="truncate">{node.name}</span>
           </button>
         </div>

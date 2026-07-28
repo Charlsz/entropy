@@ -86,6 +86,13 @@ export interface AppSession {
   settings: {
     theme: "dark" | "light";
     filesView: "list" | "grid";
+    sidebarCollapsed: boolean;
+    contextCollapsed: boolean;
+    panelLayout: {
+      sidebar: number;
+      main: number;
+      context: number;
+    };
   };
 }
 

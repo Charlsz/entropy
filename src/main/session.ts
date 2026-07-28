@@ -2,9 +2,18 @@ import { app } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+export interface PanelLayoutState {
+  sidebar: number;
+  main: number;
+  context: number;
+}
+
 export interface AppSettings {
   theme: "dark" | "light";
   filesView: "list" | "grid";
+  sidebarCollapsed: boolean;
+  contextCollapsed: boolean;
+  panelLayout: PanelLayoutState;
 }
 
 export interface AppSession {
@@ -12,13 +21,32 @@ export interface AppSession {
   settings: AppSettings;
 }
 
+const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
+  sidebar: 22,
+  main: 58,
+  context: 20,
+};
+
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "dark",
   filesView: "grid",
+  sidebarCollapsed: false,
+  contextCollapsed: false,
+  panelLayout: { ...DEFAULT_PANEL_LAYOUT },
 };
 
 function sessionPath(): string {
   return path.join(app.getPath("userData"), "session.json");
+}
+
+function normalizePanelLayout(value: unknown): PanelLayoutState {
+  if (!value || typeof value !== "object") return { ...DEFAULT_PANEL_LAYOUT };
+  const record = value as Record<string, unknown>;
+  return {
+    sidebar: typeof record.sidebar === "number" ? record.sidebar : DEFAULT_PANEL_LAYOUT.sidebar,
+    main: typeof record.main === "number" ? record.main : DEFAULT_PANEL_LAYOUT.main,
+    context: typeof record.context === "number" ? record.context : DEFAULT_PANEL_LAYOUT.context,
+  };
 }
 
 export async function loadSession(): Promise<AppSession> {
@@ -30,10 +58,13 @@ export async function loadSession(): Promise<AppSession> {
       settings: {
         theme: parsed.settings?.theme === "light" ? "light" : "dark",
         filesView: parsed.settings?.filesView === "list" ? "list" : "grid",
+        sidebarCollapsed: Boolean(parsed.settings?.sidebarCollapsed),
+        contextCollapsed: Boolean(parsed.settings?.contextCollapsed),
+        panelLayout: normalizePanelLayout(parsed.settings?.panelLayout),
       },
     };
   } catch {
-    return { lastWorkspace: null, settings: { ...DEFAULT_SETTINGS } };
+    return { lastWorkspace: null, settings: { ...DEFAULT_SETTINGS, panelLayout: { ...DEFAULT_PANEL_LAYOUT } } };
   }
 }
 
@@ -55,4 +86,4 @@ export async function saveSession(session: AppSession): Promise<void> {
   }
 }
 
-export { DEFAULT_SETTINGS };
+export { DEFAULT_SETTINGS, DEFAULT_PANEL_LAYOUT };

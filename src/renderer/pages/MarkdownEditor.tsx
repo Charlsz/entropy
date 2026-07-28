@@ -7,9 +7,8 @@ import {
   type DragEvent,
   type KeyboardEvent,
 } from "react";
-import { X, PenLine, Columns2, Eye, ExternalLink } from "lucide-react";
-import type { FileEntry, NoteSearchResult } from "../../shared/types";
-import { FilePreview } from "./FilePreview";
+import { X, PenLine, Columns2, Eye } from "lucide-react";
+import type { NoteSearchResult } from "../../shared/types";
 import { registerFlush } from "../state/flushRegistry";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -43,8 +42,6 @@ interface MarkdownEditorProps {
 
 type EditorMode = "edit" | "preview" | "split";
 
-const LINK_RE = /\[([^\]]+)\]\(([^)\s]+)\)/g;
-
 function countWords(text: string): number {
   const trimmed = text.trim();
   if (!trimmed) return 0;
@@ -60,7 +57,6 @@ export function MarkdownEditor({
 }: MarkdownEditorProps) {
   const { workspace } = useWorkspace();
   const [tabs, setTabs] = useState<EditorTab[]>([]);
-  const [linkedFile, setLinkedFile] = useState<FileEntry | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [mode, setMode] = useState<EditorMode>("edit");
   const [backlinks, setBacklinks] = useState<NoteSearchResult[]>([]);
@@ -252,17 +248,6 @@ export function MarkdownEditor({
     onStatsChange(`${linkLabel} · ${words} words · ${chars} characters · ${saveState}`);
   }, [activeTab, isDirty, onStatsChange, backlinks.length]);
 
-  const links = useMemo(() => {
-    if (!activeTab) return [] as { label: string; href: string }[];
-    const found: { label: string; href: string }[] = [];
-    LINK_RE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = LINK_RE.exec(activeTab.content)) !== null) {
-      found.push({ label: match[1], href: match[2] });
-    }
-    return found;
-  }, [activeTab]);
-
   const scheduleSave = useCallback(
     (filePath: string, content: string) => {
       const existing = saveTimers.current.get(filePath);
@@ -296,7 +281,6 @@ export function MarkdownEditor({
     if (tab && tab.content !== tab.savedContent && !tab.missing) {
       void persistTab(tab);
     }
-    if (linkedFile) setLinkedFile(null);
     onCloseTab(path);
   }
 
@@ -388,32 +372,6 @@ export function MarkdownEditor({
     }
   }
 
-  async function openLinked(href: string): Promise<void> {
-    if (!activeTab) return;
-    if (/^(https?:|mailto:)/i.test(href)) return;
-
-    try {
-      const noteDir = await window.entropy.fs.dirname(activeTab.path);
-      const absolute = await window.entropy.fs.join(noteDir, href);
-      if (!(await window.entropy.fs.exists(absolute))) {
-        setLinkedFile(null);
-        return;
-      }
-      const info = await window.entropy.fs.stat(absolute);
-      if (info.isDirectory) {
-        await window.entropy.fs.reveal(absolute);
-        return;
-      }
-      if (info.extension === ".md") {
-        onActiveChange(absolute);
-        return;
-      }
-      setLinkedFile(info);
-    } catch {
-      setLinkedFile(null);
-    }
-  }
-
   if (openPaths.length === 0) {
     return (
       <Empty>
@@ -424,13 +382,12 @@ export function MarkdownEditor({
   }
 
   return (
-    <div className="flex h-full min-h-0">
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div
-          className="flex h-9 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-border bg-ink px-1"
-          role="tablist"
-          aria-label="Open notes"
-        >
+    <div className="flex h-full min-h-0 flex-col">
+      <div
+        className="flex h-9 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-border bg-ink px-1"
+        role="tablist"
+        aria-label="Open notes"
+      >
           {tabs.map((tab) => {
             const dirty = tab.content !== tab.savedContent;
             const active = tab.path === activePath;
@@ -576,89 +533,6 @@ export function MarkdownEditor({
             </div>
           </div>
         )}
-      </div>
-
-      <aside className="flex w-[220px] shrink-0 flex-col border-l border-border bg-ink-2">
-        <div className="border-b border-border px-3 py-2">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            Linked
-          </h2>
-        </div>
-        <ScrollArea className="min-h-0 flex-1">
-          {links.length === 0 ? (
-            <p className="px-3 py-3 text-xs text-muted-foreground">
-              Drag files from Files into the note to insert relative links.
-            </p>
-          ) : (
-            <ul className="space-y-0.5 p-2">
-              {links.map((link) => (
-                <li key={`${link.label}-${link.href}`}>
-                  <button
-                    type="button"
-                    className="flex w-full flex-col rounded-lg px-2 py-2 text-left hover:bg-accent"
-                    onClick={() => void openLinked(link.href)}
-                  >
-                    <span className="truncate text-sm text-foreground">{link.label}</span>
-                    <span className="truncate text-[11px] text-muted-foreground">{link.href}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <div className="border-t border-border px-3 py-2">
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Backlinks
-            </h3>
-          </div>
-          {backlinks.length === 0 ? (
-            <p className="px-3 pb-3 text-xs text-muted-foreground">No notes link here yet.</p>
-          ) : (
-            <ul className="space-y-0.5 p-2 pb-3">
-              {backlinks.map((item) => (
-                <li key={item.path}>
-                  <button
-                    type="button"
-                    className="flex w-full flex-col rounded-lg px-2 py-2 text-left hover:bg-accent"
-                    onClick={() => onActiveChange(item.path)}
-                  >
-                    <span className="truncate text-sm text-foreground">
-                      {item.name.replace(/\.md$/i, "")}
-                    </span>
-                    {item.excerpt ? (
-                      <span className="line-clamp-2 text-[11px] text-muted-foreground">
-                        {item.excerpt}
-                      </span>
-                    ) : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {linkedFile ? (
-            <div className="border-t border-border p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  Preview
-                </h3>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  aria-label="Open linked file"
-                  title="Open"
-                  onClick={() => void window.entropy.fs.openExternal(linkedFile.path)}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </Button>
-              </div>
-              <FilePreview file={linkedFile} />
-            </div>
-          ) : null}
-        </ScrollArea>
-      </aside>
     </div>
   );
 }

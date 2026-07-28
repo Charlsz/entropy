@@ -4,7 +4,9 @@ import { WorkspaceSelector } from "./components/WorkspaceSelector";
 import { WorkspaceShell } from "./components/WorkspaceShell";
 import { WorkspaceProvider } from "./state/WorkspaceContext";
 import { flushAll } from "./state/flushRegistry";
+import { fromSessionSettings, toSessionSettings } from "./state/sessionSettings";
 import type { WorkspaceSettings } from "./state/workspace";
+import { DEFAULT_SETTINGS } from "./state/workspace";
 
 export function App() {
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
@@ -18,11 +20,7 @@ export function App() {
       const session = await window.entropy.session.load();
       if (cancelled) return;
 
-      const settings: WorkspaceSettings = {
-        theme: session.settings.theme,
-        filesView: session.settings.filesView,
-        sidebarCollapsed: false,
-      };
+      const settings = fromSessionSettings(session.settings);
       setInitialSettings(settings);
       document.documentElement.dataset.theme = settings.theme;
 
@@ -44,14 +42,10 @@ export function App() {
 
   const openWorkspace = useCallback(
     async (nextPath: string) => {
-      const settings = initialSettings ?? {
-        theme: "dark" as const,
-        filesView: "grid" as const,
-        sidebarCollapsed: false,
-      };
+      const settings = initialSettings ?? DEFAULT_SETTINGS;
       await window.entropy.session.save({
         lastWorkspace: nextPath,
-        settings: { theme: settings.theme, filesView: settings.filesView },
+        settings: toSessionSettings(settings),
       });
       setWorkspacePath(nextPath);
     },
@@ -60,14 +54,10 @@ export function App() {
 
   const closeWorkspace = useCallback(async () => {
     await flushAll();
-    const settings = initialSettings ?? {
-      theme: "dark" as const,
-      filesView: "grid" as const,
-      sidebarCollapsed: false,
-    };
+    const settings = initialSettings ?? DEFAULT_SETTINGS;
     await window.entropy.session.save({
       lastWorkspace: null,
-      settings: { theme: settings.theme, filesView: settings.filesView },
+      settings: toSessionSettings(settings),
     });
     setWorkspacePath(null);
   }, [initialSettings]);
@@ -102,7 +92,7 @@ export function App() {
         setInitialSettings(settings);
         void window.entropy.session.save({
           lastWorkspace: workspacePath,
-          settings: { theme: settings.theme, filesView: settings.filesView },
+          settings: toSessionSettings(settings),
         });
       }}
       onClose={() => void closeWorkspace()}
