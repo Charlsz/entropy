@@ -162,10 +162,11 @@ export async function folderTree(rootPath: string, maxDepth = 6): Promise<TreeNo
   return walk(rootPath, 0);
 }
 
-export async function listMarkdown(rootPath: string): Promise<FileEntry[]> {
+export async function listMarkdown(rootPath: string, maxDepth = 10): Promise<FileEntry[]> {
   const results: FileEntry[] = [];
 
-  async function walk(dirPath: string): Promise<void> {
+  async function walk(dirPath: string, depth: number): Promise<void> {
+    if (depth > maxDepth) return;
     let dirents;
     try {
       dirents = await fs.readdir(dirPath, { withFileTypes: true });
@@ -173,24 +174,30 @@ export async function listMarkdown(rootPath: string): Promise<FileEntry[]> {
       return;
     }
 
+    const subdirs: string[] = [];
     for (const dirent of dirents) {
       if (SKIP_DIRS.has(dirent.name) || dirent.name.startsWith(".")) continue;
       const fullPath = path.join(dirPath, dirent.name);
+      if (dirent.isDirectory()) {
+        subdirs.push(fullPath);
+        continue;
+      }
+      if (path.extname(dirent.name).toLowerCase() !== ".md") continue;
       try {
-        if (dirent.isDirectory()) {
-          await walk(fullPath);
-          continue;
-        }
-        if (path.extname(dirent.name).toLowerCase() !== ".md") continue;
         const info = await fs.stat(fullPath);
         results.push(toEntry(fullPath, info));
       } catch {
         // Skip.
       }
     }
+
+    const batch = 8;
+    for (let i = 0; i < subdirs.length; i += batch) {
+      await Promise.all(subdirs.slice(i, i + batch).map((dir) => walk(dir, depth + 1)));
+    }
   }
 
-  await walk(rootPath);
+  await walk(rootPath, 0);
   results.sort((a, b) => b.modifiedAt - a.modifiedAt);
   return results;
 }
