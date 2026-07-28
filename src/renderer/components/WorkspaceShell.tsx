@@ -4,7 +4,6 @@ import { IconRail } from "./IconRail";
 import { ContentArea } from "./ContentArea";
 import { SearchPalette } from "./SearchPalette";
 import { CommandPalette, type CommandAction } from "./CommandPalette";
-import { TooltipProvider } from "./ui/tooltip";
 import { useWorkspace } from "../state/useWorkspace";
 
 export function WorkspaceShell() {
@@ -81,40 +80,38 @@ export function WorkspaceShell() {
   );
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <div className="flex h-full flex-col bg-background" data-theme={workspace.settings.theme}>
-        <Titlebar
-          workspaceName={workspace.name}
-          onCloseWorkspace={closeWorkspace}
-          onOpenSearch={() => setSearchOpen(true)}
-          onOpenCommands={() => setCommandOpen(true)}
-          onOpenSettings={() => setSection("settings")}
+    <div className="flex h-full flex-col bg-background" data-theme={workspace.settings.theme}>
+      <Titlebar
+        workspaceName={workspace.name}
+        onCloseWorkspace={closeWorkspace}
+        onOpenSearch={() => setSearchOpen(true)}
+        onOpenCommands={() => setCommandOpen(true)}
+        onOpenSettings={() => setSection("settings")}
+      />
+      <div className="flex min-h-0 flex-1">
+        <IconRail
+          active={workspace.currentSection}
+          onChange={setSection}
+          onSearch={() => setSearchOpen(true)}
         />
-        <div className="flex min-h-0 flex-1">
-          <IconRail
-            active={workspace.currentSection}
-            onChange={setSection}
-            onSearch={() => setSearchOpen(true)}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <ContentArea
+            section={workspace.currentSection}
+            pendingNote={pendingNote}
+            onPendingNoteHandled={clearPendingNote}
           />
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <ContentArea
-              section={workspace.currentSection}
-              pendingNote={pendingNote}
-              onPendingNoteHandled={clearPendingNote}
-            />
-          </div>
         </div>
-        <SearchPalette
-          open={searchOpen}
-          onClose={() => setSearchOpen(false)}
-          onOpenNote={openNote}
-        />
-        <CommandPalette
-          open={commandOpen}
-          onClose={() => setCommandOpen(false)}
-          onAction={handleCommand}
-        />
       </div>
-    </TooltipProvider>
+      <SearchPalette
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onOpenNote={openNote}
+      />
+      <CommandPalette
+        open={commandOpen}
+        onClose={() => setCommandOpen(false)}
+        onAction={handleCommand}
+      />
+    </div>
   );
 }

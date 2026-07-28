@@ -38,7 +38,7 @@ export function ThreeColumnLayout({
   const defaultLayout = useMemo<Layout>(() => {
     const layout = workspace.settings.panelLayout;
     if (!hasContext) {
-      const total = layout.sidebar + layout.main || 100;
+      const total = (layout.sidebar + layout.main) || 100;
       return {
         sidebar: (layout.sidebar / total) * 100,
         main: (layout.main / total) * 100,

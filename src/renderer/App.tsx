@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Titlebar } from "./components/Titlebar";
 import { WorkspaceSelector } from "./components/WorkspaceSelector";
 import { WorkspaceShell } from "./components/WorkspaceShell";
@@ -7,6 +7,7 @@ import { flushAll } from "./state/flushRegistry";
 import { fromSessionSettings, toSessionSettings } from "./state/sessionSettings";
 import type { WorkspaceSettings } from "./state/workspace";
 import { DEFAULT_SETTINGS } from "./state/workspace";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 export function App() {
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
@@ -62,8 +63,10 @@ export function App() {
     setWorkspacePath(null);
   }, [initialSettings]);
 
+  let content: ReactNode;
+
   if (booting || !initialSettings) {
-    return (
+    content = (
       <div className="flex h-full flex-col bg-background">
         <Titlebar />
         <div className="flex flex-1 flex-col items-center justify-center gap-2">
@@ -72,32 +75,32 @@ export function App() {
         </div>
       </div>
     );
-  }
-
-  if (!workspacePath) {
-    return (
+  } else if (!workspacePath) {
+    content = (
       <div className="flex h-full flex-col bg-background" data-theme={initialSettings.theme}>
         <Titlebar />
         <WorkspaceSelector onSelect={(path) => void openWorkspace(path)} />
       </div>
     );
+  } else {
+    content = (
+      <WorkspaceProvider
+        key={workspacePath}
+        path={workspacePath}
+        initialSettings={initialSettings}
+        onSettingsChange={(settings) => {
+          setInitialSettings(settings);
+          void window.entropy.session.save({
+            lastWorkspace: workspacePath,
+            settings: toSessionSettings(settings),
+          });
+        }}
+        onClose={() => void closeWorkspace()}
+      >
+        <WorkspaceShell />
+      </WorkspaceProvider>
+    );
   }
 
-  return (
-    <WorkspaceProvider
-      key={workspacePath}
-      path={workspacePath}
-      initialSettings={initialSettings}
-      onSettingsChange={(settings) => {
-        setInitialSettings(settings);
-        void window.entropy.session.save({
-          lastWorkspace: workspacePath,
-          settings: toSessionSettings(settings),
-        });
-      }}
-      onClose={() => void closeWorkspace()}
-    >
-      <WorkspaceShell />
-    </WorkspaceProvider>
-  );
+  return <TooltipProvider delayDuration={200}>{content}</TooltipProvider>;
 }

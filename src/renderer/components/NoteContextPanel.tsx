@@ -65,11 +65,12 @@ export function NoteContextPanel({ notePath, onOpenNote }: NoteContextPanelProps
     };
   }, [notePath, workspace.path]);
 
-  if (!notePath || !meta) return null;
+  if (!notePath) return null;
+  const activeNotePath = notePath;
 
   async function openLinked(href: string): Promise<void> {
     try {
-      const noteDir = await window.entropy.fs.dirname(notePath!);
+      const noteDir = await window.entropy.fs.dirname(activeNotePath);
       const absolute = await window.entropy.fs.join(noteDir, href);
       if (!(await window.entropy.fs.exists(absolute))) {
         setLinkedFile(null);
@@ -92,11 +93,17 @@ export function NoteContextPanel({ notePath, onOpenNote }: NoteContextPanelProps
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Properties
         </h2>
-        <p className="mt-2 truncate text-sm text-paper">{meta.title}</p>
-        <p className="mt-1 break-all text-[11px] text-paper-2">{notePath}</p>
-        <p className="mt-3 text-xs text-paper-2">
-          {meta.words} words · {meta.chars} characters
-        </p>
+        {meta ? (
+          <>
+            <p className="mt-2 truncate text-sm text-paper">{meta.title}</p>
+            <p className="mt-1 break-all text-[11px] text-paper-2">{notePath}</p>
+            <p className="mt-3 text-xs text-paper-2">
+              {meta.words} words · {meta.chars} characters
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-xs text-muted-foreground">Loading…</p>
+        )}
       </div>
 
       <Separator />

@@ -5,14 +5,21 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function WindowControls() {
   const [maximized, setMaximized] = useState(false);
-  const isMac = window.entropy.platform === "darwin";
+  const isMac = window.entropy?.platform === "darwin";
+  const canControl = Boolean(window.entropy?.window);
 
   useEffect(() => {
-    if (isMac) return;
-    void window.entropy.window.isMaximized().then(setMaximized);
-  }, [isMac]);
+    if (isMac || !canControl) return;
+    let cancelled = false;
+    void window.entropy.window.isMaximized().then((value) => {
+      if (!cancelled) setMaximized(value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isMac, canControl]);
 
-  if (isMac) return null;
+  if (isMac || !canControl) return null;
 
   return (
     <div className="ml-1 flex items-center">
