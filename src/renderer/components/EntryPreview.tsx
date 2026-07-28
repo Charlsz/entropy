@@ -36,7 +36,7 @@ export function getFolderPreview(folderPath: string): Promise<FolderPreviewData>
 
 interface EntryPreviewProps {
   entry: FileEntry;
-  size?: "sm" | "lg";
+  size?: "sm" | "md" | "lg";
   className?: string;
 }
 
@@ -48,7 +48,9 @@ export const EntryPreview = memo(function EntryPreview({
   const { ref, inView } = useInView<HTMLDivElement>();
   const shell = cn(
     "relative overflow-hidden bg-ink-2",
-    size === "sm" ? "h-8 w-8 shrink-0 rounded" : "aspect-square w-full rounded-xl",
+    size === "sm" && "h-7 w-7 shrink-0 rounded",
+    size === "md" && "h-10 w-10 shrink-0 rounded-md",
+    size === "lg" && "aspect-square w-full rounded-xl",
     className,
   );
 
@@ -79,10 +81,10 @@ export const EntryPreview = memo(function EntryPreview({
 
   return (
     <div ref={ref} className={cn(shell, "flex items-center justify-center")}>
-      {size === "sm" ? (
-        <FileText className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-      ) : (
+      {size === "lg" ? (
         <FileText className="h-6 w-6 text-muted-foreground/70" strokeWidth={1.25} />
+      ) : (
+        <FileText className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
       )}
     </div>
   );
@@ -100,7 +102,7 @@ function FolderFallback() {
   );
 }
 
-function FolderCollage({ path, size }: { path: string; size: "sm" | "lg" }) {
+function FolderCollage({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
   const [data, setData] = useState<FolderPreviewData | null>(null);
 
   useEffect(() => {
@@ -114,12 +116,12 @@ function FolderCollage({ path, size }: { path: string; size: "sm" | "lg" }) {
   }, [path]);
 
   if (!data) return <QuietFace />;
-  if (data.media.length === 0) return size === "sm" ? <QuietFace /> : <FolderFallback />;
+  if (data.media.length === 0) return size === "lg" ? <FolderFallback /> : <QuietFace />;
 
-  if (size === "sm") {
+  if (size === "sm" || size === "md") {
     const first = data.media[0];
     return mediaKind(first.extension) === "video" ? (
-      <VideoThumb path={first.path} size="sm" />
+      <VideoThumb path={first.path} size={size} />
     ) : (
       <ImageThumb path={first.path} alt={first.name} />
     );
@@ -174,9 +176,9 @@ function ImageThumb({ path, alt }: { path: string; alt: string }) {
   );
 }
 
-const VIDEO_PREVIEW_SECONDS = 3;
+const VIDEO_PREVIEW_SECONDS = 4;
 
-function VideoThumb({ path, size }: { path: string; size: "sm" | "lg" }) {
+function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [url, setUrl] = useState<string | null>(null);
 
@@ -195,6 +197,9 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "lg" }) {
     const video = videoRef.current;
     if (!video || !url) return;
 
+    let timer = 0;
+    let cancelled = false;
+
     function onLoaded(): void {
       const el = videoRef.current;
       if (!el) return;
@@ -203,19 +208,33 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "lg" }) {
       } catch {
         // Ignore seek failures.
       }
-    }
-
-    function onSeeked(): void {
-      videoRef.current?.pause();
+      if (size === "sm") return;
+      void (async () => {
+        try {
+          el.currentTime = 0;
+          await el.play();
+          if (cancelled) return;
+          timer = window.setTimeout(() => {
+            el.pause();
+            try {
+              el.currentTime = 0.05;
+            } catch {
+              // Ignore.
+            }
+          }, VIDEO_PREVIEW_SECONDS * 1000);
+        } catch {
+          // Keep still frame.
+        }
+      })();
     }
 
     video.addEventListener("loadeddata", onLoaded);
-    video.addEventListener("seeked", onSeeked);
     return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
       video.removeEventListener("loadeddata", onLoaded);
-      video.removeEventListener("seeked", onSeeked);
     };
-  }, [url]);
+  }, [url, size]);
 
   async function playPreview(): Promise<void> {
     const video = videoRef.current;

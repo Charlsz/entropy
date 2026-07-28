@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FileEntry } from "../../shared/types";
+import { cn } from "../lib/utils";
 
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"]);
-const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv"]);
-const AUDIO_EXT = new Set([".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"]);
+const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv", ".m4v"]);
+const AUDIO_EXT = new Set([".mp3", ".wav", ".m4a", ".flac", ".aac"]);
 const TEXT_EXT = new Set([
   ".txt",
   ".md",
@@ -37,9 +38,13 @@ function detectKind(entry: FileEntry): PreviewKind {
 
 interface FilePreviewProps {
   file: FileEntry;
+  /** Compact thumbnail-style preview for side panels. */
+  compact?: boolean;
 }
 
-export function FilePreview({ file }: FilePreviewProps) {
+const VIDEO_CLIP_SECONDS = 4;
+
+export function FilePreview({ file, compact = false }: FilePreviewProps) {
   const kind = detectKind(file);
   const [url, setUrl] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null);
@@ -97,17 +102,22 @@ export function FilePreview({ file }: FilePreviewProps) {
     );
   }
 
+  const frame = cn(
+    "file-preview overflow-hidden rounded-lg bg-ink-2",
+    compact && "file-preview-compact max-h-40",
+  );
+
   if (kind === "image" && url) {
     return (
-      <div className="file-preview">
-        <img src={url} alt={file.name} />
+      <div className={frame}>
+        <img src={url} alt={file.name} className={compact ? "max-h-40 w-full object-cover" : undefined} />
       </div>
     );
   }
 
   if (kind === "pdf" && url) {
     return (
-      <div className="file-preview">
+      <div className={frame}>
         <iframe title={file.name} src={url} />
       </div>
     );
@@ -115,8 +125,8 @@ export function FilePreview({ file }: FilePreviewProps) {
 
   if (kind === "video" && url) {
     return (
-      <div className="file-preview">
-        <video src={url} controls />
+      <div className={frame}>
+        <VideoClip url={url} compact={compact} />
       </div>
     );
   }
@@ -134,4 +144,64 @@ export function FilePreview({ file }: FilePreviewProps) {
   }
 
   return <p className="text-xs text-muted-foreground">Unable to preview this file.</p>;
+}
+
+function VideoClip({ url, compact }: { url: string; compact: boolean }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let timer = 0;
+    let cancelled = false;
+
+    async function playClip(): Promise<void> {
+      const el = videoRef.current;
+      if (!el) return;
+      try {
+        el.currentTime = 0;
+        await el.play();
+        if (cancelled) return;
+        timer = window.setTimeout(() => {
+          const current = videoRef.current;
+          if (!current) return;
+          current.pause();
+          try {
+            current.currentTime = 0.05;
+          } catch {
+            // Ignore.
+          }
+        }, VIDEO_CLIP_SECONDS * 1000);
+      } catch {
+        // Keep poster frame.
+      }
+    }
+
+    function onLoaded(): void {
+      void playClip();
+    }
+
+    video.addEventListener("loadeddata", onLoaded);
+    if (video.readyState >= 2) void playClip();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      video.removeEventListener("loadeddata", onLoaded);
+      video.pause();
+    };
+  }, [url]);
+
+  return (
+    <video
+      ref={videoRef}
+      src={url}
+      muted
+      playsInline
+      preload="metadata"
+      controls={!compact}
+      className={cn("h-full w-full object-cover", compact && "max-h-40")}
+    />
+  );
 }

@@ -7,7 +7,8 @@ import { pathToFileURL } from "node:url";
 export const FILE_PROTOCOL = "entropy";
 
 const THUMB_MAX_EDGE = 320;
-const thumbJobs = new Map<string, Promise<Buffer>>();
+const thumbJobs = new Map<string, Promise<{ body: Buffer; type: string }>>();
+const PASS_THROUGH = new Set([".gif", ".svg"]);
 
 export function registerFileProtocol(): void {
   protocol.handle(FILE_PROTOCOL, async (request) => {
@@ -18,15 +19,20 @@ export function registerFileProtocol(): void {
       const encoded = request.url.slice(thumbPrefix.length).split("?")[0] ?? "";
       const filePath = decodeURIComponent(encoded);
       try {
-        const body = await getOrCreateThumb(filePath);
+        const { body, type } = await getOrCreateThumb(filePath);
         return new Response(new Uint8Array(body), {
           headers: {
-            "Content-Type": "image/jpeg",
+            "Content-Type": type,
             "Cache-Control": "public, max-age=31536000, immutable",
           },
         });
       } catch {
-        return new Response("Not found", { status: 404 });
+        // Last resort: stream original so GIF/odd formats still preview.
+        try {
+          return await net.fetch(pathToFileURL(filePath).href);
+        } catch {
+          return new Response("Not found", { status: 404 });
+        }
       }
     }
 
@@ -48,15 +54,37 @@ export function toEntropyThumbUrl(filePath: string): string {
   return `${FILE_PROTOCOL}://thumb/${encodeURIComponent(filePath)}`;
 }
 
-async function getOrCreateThumb(filePath: string): Promise<Buffer> {
+function mimeFor(ext: string): string {
+  switch (ext) {
+    case ".gif":
+      return "image/gif";
+    case ".svg":
+      return "image/svg+xml";
+    case ".png":
+      return "image/png";
+    case ".webp":
+      return "image/webp";
+    default:
+      return "image/jpeg";
+  }
+}
+
+async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type: string }> {
+  const ext = path.extname(filePath).toLowerCase();
   const info = await fs.stat(filePath);
+
+  // Animated / vector formats: serve original bytes (nativeImage often fails on GIF).
+  if (PASS_THROUGH.has(ext)) {
+    return { body: await fs.readFile(filePath), type: mimeFor(ext) };
+  }
+
   const key = createHash("sha1")
     .update(`${filePath}|${Math.trunc(info.mtimeMs)}|${THUMB_MAX_EDGE}`)
     .digest("hex");
   const cachePath = path.join(app.getPath("userData"), "thumbs", `${key}.jpg`);
 
   try {
-    return await fs.readFile(cachePath);
+    return { body: await fs.readFile(cachePath), type: "image/jpeg" };
   } catch {
     // Generate below.
   }
@@ -66,7 +94,8 @@ async function getOrCreateThumb(filePath: string): Promise<Buffer> {
     job = (async () => {
       const image = nativeImage.createFromPath(filePath);
       if (image.isEmpty()) {
-        throw new Error("Unable to decode image");
+        // Fallback to original file bytes.
+        return { body: await fs.readFile(filePath), type: mimeFor(ext) };
       }
 
       const size = image.getSize();
@@ -84,7 +113,7 @@ async function getOrCreateThumb(filePath: string): Promise<Buffer> {
       const jpeg = Buffer.from(resized.toJPEG(78));
       await fs.mkdir(path.dirname(cachePath), { recursive: true });
       await fs.writeFile(cachePath, jpeg);
-      return jpeg;
+      return { body: jpeg, type: "image/jpeg" };
     })().finally(() => {
       thumbJobs.delete(cachePath);
     });
