@@ -1,6 +1,8 @@
 import {
+  forwardRef,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -40,6 +42,10 @@ interface MarkdownEditorProps {
   onStatsChange?: (stats: string) => void;
 }
 
+export interface MarkdownEditorHandle {
+  insertMarkdown: (markdown: string) => void;
+}
+
 type SurfaceMode = "edit" | "preview";
 
 function countWords(text: string): number {
@@ -48,13 +54,11 @@ function countWords(text: string): number {
   return trimmed.split(/\s+/).length;
 }
 
-export function MarkdownEditor({
-  openPaths,
-  activePath,
-  onActiveChange,
-  onCloseTab,
-  onStatsChange,
-}: MarkdownEditorProps) {
+export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
+  function MarkdownEditor(
+    { openPaths, activePath, onActiveChange, onCloseTab, onStatsChange },
+    ref,
+  ) {
   const { workspace } = useWorkspace();
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -65,11 +69,16 @@ export function MarkdownEditor({
   const saveTimers = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const activePathRef = useRef(activePath);
   const openKey = openPaths.join("\0");
 
   useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
+
+  useEffect(() => {
+    activePathRef.current = activePath;
+  }, [activePath]);
 
   const persistTab = useCallback(async (tab: EditorTab): Promise<void> => {
     if (tab.missing || tab.content === tab.savedContent) return;
@@ -275,6 +284,50 @@ export function MarkdownEditor({
     );
     scheduleSave(activePath, value);
   }
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      insertMarkdown(markdown: string) {
+        const path = activePathRef.current;
+        if (!path) return;
+        const tab = tabsRef.current.find((item) => item.path === path);
+        if (!tab || tab.missing || tab.conflict) return;
+
+        const el = textareaRef.current;
+        let next = tab.content;
+        let cursor = next.length;
+
+        if (el && document.activeElement === el) {
+          const start = el.selectionStart;
+          const end = el.selectionEnd;
+          next = `${tab.content.slice(0, start)}${markdown}${tab.content.slice(end)}`;
+          cursor = start + markdown.length;
+        } else {
+          const pad = tab.content && !tab.content.endsWith("\n") ? "\n\n" : tab.content ? "\n" : "";
+          next = `${tab.content}${pad}${markdown}`;
+          cursor = next.length;
+        }
+
+        setTabs((prev) =>
+          prev.map((item) =>
+            item.path === path ? { ...item, content: next, conflict: false } : item,
+          ),
+        );
+        scheduleSave(path, next);
+        setSplit(false);
+        setSurface("edit");
+
+        window.requestAnimationFrame(() => {
+          const area = textareaRef.current;
+          if (!area) return;
+          area.focus();
+          area.setSelectionRange(cursor, cursor);
+        });
+      },
+    }),
+    [scheduleSave],
+  );
 
   function handleClose(path: string): void {
     const timer = saveTimers.current.get(path);
@@ -568,4 +621,5 @@ export function MarkdownEditor({
         )}
     </div>
   );
-}
+  },
+);

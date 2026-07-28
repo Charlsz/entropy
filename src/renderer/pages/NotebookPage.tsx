@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { ArrowLeftRight, FilePlus2, FolderOpen } from "lucide-react";
-import type { FileEntry, NoteSearchResult, TreeNode } from "../../shared/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeftRight, FilePlus2 } from "lucide-react";
+import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
-import { FolderTree } from "../pages/FolderTree";
-import { MarkdownEditor } from "../pages/MarkdownEditor";
+import { MarkdownEditor, type MarkdownEditorHandle } from "../pages/MarkdownEditor";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -15,6 +14,7 @@ import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { NoteContextPanel } from "../components/NoteContextPanel";
+import { NotebookLibrary } from "../components/NotebookLibrary";
 import { cn } from "../lib/utils";
 
 export function NotebookPage({
@@ -24,41 +24,37 @@ export function NotebookPage({
   pendingNote?: string | null;
   onPendingNoteHandled?: () => void;
 } = {}) {
-  const { workspace, setCurrentFolder, addRecentFile, closeWorkspace } = useWorkspace();
-  const [tree, setTree] = useState<TreeNode[]>([]);
+  const { workspace, addRecentFile, closeWorkspace } = useWorkspace();
   const [notes, setNotes] = useState<FileEntry[]>([]);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<NoteSearchResult[] | null>(null);
   const [openPaths, setOpenPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
+  const [previewEntry, setPreviewEntry] = useState<FileEntry | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusRight, setStatusRight] = useState("");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const editorRef = useRef<MarkdownEditorHandle>(null);
 
-  const refresh = useCallback(async () => {
+  const refreshNotes = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [nextTree, markdown] = await Promise.all([
-        window.entropy.fs.folderTree(workspace.path),
-        window.entropy.fs.listMarkdown(workspace.currentFolder),
-      ]);
-      setTree(nextTree);
-      setNotes(markdown);
+      setNotes(await window.entropy.fs.listMarkdown(workspace.path));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load notes");
     } finally {
       setLoading(false);
     }
-  }, [workspace.path, workspace.currentFolder]);
+  }, [workspace.path]);
 
   useEffect(() => {
     if (workspace.currentSection !== "notebook") return;
-    void refresh();
-  }, [refresh, workspace.currentSection]);
+    void refreshNotes();
+  }, [refreshNotes, workspace.currentSection]);
 
   useEffect(() => {
     if (!pendingNote) return;
@@ -72,13 +68,21 @@ export function NotebookPage({
       setSearchResults(null);
       return;
     }
+    let cancelled = false;
     const handle = window.setTimeout(() => {
       void window.entropy.fs
         .searchMarkdown(workspace.path, query)
-        .then(setSearchResults)
-        .catch(() => setSearchResults([]));
+        .then((results) => {
+          if (!cancelled) setSearchResults(results);
+        })
+        .catch(() => {
+          if (!cancelled) setSearchResults([]);
+        });
     }, 180);
-    return () => window.clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
   }, [query, workspace.path]);
 
   function openNote(notePath: string): void {
@@ -97,9 +101,9 @@ export function NotebookPage({
 
   async function handleCreate(): Promise<void> {
     try {
-      const created = await window.entropy.fs.createNote(workspace.currentFolder);
+      const created = await window.entropy.fs.createNote(workspace.path);
       openNote(created);
-      await refresh();
+      await refreshNotes();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create note");
     }
@@ -116,7 +120,7 @@ export function NotebookPage({
     try {
       await window.entropy.fs.remove(notePath);
       closeTab(notePath);
-      await refresh();
+      await refreshNotes();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete note");
     }
@@ -142,9 +146,30 @@ export function NotebookPage({
       await window.entropy.fs.rename(notePath, target);
       setOpenPaths((prev) => prev.map((path) => (path === notePath ? target : path)));
       if (activePath === notePath) setActivePath(target);
-      await refresh();
+      await refreshNotes();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to rename note");
+    }
+  }
+
+  async function referenceEntry(entry: FileEntry): Promise<void> {
+    if (!activePath) {
+      setError("Open a note before referencing a file.");
+      setPreviewEntry(entry);
+      return;
+    }
+
+    try {
+      const noteDir = await window.entropy.fs.dirname(activePath);
+      const relative = await window.entropy.fs.relative(noteDir, entry.path);
+      const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
+      const href = relative.replace(/\\/g, "/");
+      const insert = isImageLike(entry) ? `![${label}](${href})` : `[${label}](${href})`;
+      editorRef.current?.insertMarkdown(insert);
+      setPreviewEntry(entry);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reference file");
     }
   }
 
@@ -160,9 +185,16 @@ export function NotebookPage({
         excerpt: "",
       }));
 
-  const context = activePath ? (
-    <NoteContextPanel notePath={activePath} onOpenNote={openNote} />
-  ) : null;
+  const context =
+    activePath || previewEntry ? (
+      <NoteContextPanel
+        notePath={activePath}
+        previewEntry={previewEntry}
+        onOpenNote={openNote}
+        onReference={(entry) => void referenceEntry(entry)}
+        onClearPreview={() => setPreviewEntry(null)}
+      />
+    ) : null;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
@@ -174,7 +206,7 @@ export function NotebookPage({
           <div className="flex h-full min-h-0 flex-col">
             <div className="flex items-center justify-between px-4 py-3">
               <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Explorer
+                Notebook
               </span>
               <Button
                 type="button"
@@ -199,45 +231,26 @@ export function NotebookPage({
             </div>
 
             <ScrollArea className="min-h-0 flex-1 px-3">
-              <button
-                type="button"
-                className={cn(
-                  "mb-2 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
-                  workspace.currentFolder === workspace.path && "bg-accent text-foreground",
-                )}
-                onClick={() => setCurrentFolder(workspace.path)}
-              >
-                <FolderOpen className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                <span className="truncate">{workspace.name}</span>
-              </button>
-              <FolderTree
-                nodes={tree}
-                activePath={workspace.currentFolder}
-                onSelect={setCurrentFolder}
-              />
-
-              <Separator className="my-3" />
-
-              <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Notes
               </p>
 
-              {error ? <p className="px-3 text-xs text-paper-2">{error}</p> : null}
+              {error ? <p className="px-2 pb-2 text-xs text-paper-2">{error}</p> : null}
               {loading ? (
-                <div className="space-y-2 px-3">
+                <div className="space-y-2 px-2">
                   <Skeleton className="h-9 w-full" />
                   <Skeleton className="h-9 w-full" />
                   <Skeleton className="h-9 w-full" />
                 </div>
               ) : null}
               {!loading && visibleNotes.length === 0 ? (
-                <Empty className="py-8">
-                  <EmptyTitle>No notes here</EmptyTitle>
-                  <EmptyDescription>Create a markdown note to get started.</EmptyDescription>
+                <Empty className="py-6">
+                  <EmptyTitle>No notes yet</EmptyTitle>
+                  <EmptyDescription>Create a markdown note to start writing.</EmptyDescription>
                 </Empty>
               ) : null}
 
-              <ul className="space-y-1 pb-4">
+              <ul className="space-y-1 pb-3">
                 {visibleNotes.map((note) => (
                   <li
                     key={note.path}
@@ -304,6 +317,20 @@ export function NotebookPage({
                   </li>
                 ))}
               </ul>
+
+              <Separator className="my-2" />
+
+              <p className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Files
+              </p>
+              <NotebookLibrary
+                rootPath={workspace.path}
+                rootName={workspace.name}
+                selectedPath={previewEntry?.path ?? null}
+                onSelect={setPreviewEntry}
+                onReference={(entry) => void referenceEntry(entry)}
+                onOpenNote={openNote}
+              />
             </ScrollArea>
 
             <div className="border-t border-border px-3 py-2">
@@ -321,6 +348,7 @@ export function NotebookPage({
         }
         main={
           <MarkdownEditor
+            ref={editorRef}
             openPaths={openPaths}
             activePath={activePath}
             onActiveChange={(notePath) => {
@@ -350,4 +378,9 @@ export function NotebookPage({
       />
     </div>
   );
+}
+
+function isImageLike(entry: FileEntry): boolean {
+  const ext = entry.extension.toLowerCase();
+  return [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"].includes(ext);
 }
