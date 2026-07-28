@@ -231,6 +231,70 @@ export async function searchMarkdown(
   return results;
 }
 
+const MD_LINK_RE = /\[([^\]]*)\]\(([^)\s]+)\)/g;
+
+function normalizePathKey(filePath: string): string {
+  return path.resolve(filePath).replace(/[/\\]+$/, "").toLowerCase();
+}
+
+/** Notes that contain a markdown link resolving to targetNotePath. */
+export async function findBacklinks(
+  rootPath: string,
+  targetNotePath: string,
+): Promise<NoteSearchResult[]> {
+  const targetKey = normalizePathKey(targetNotePath);
+  const targetBase = path.basename(targetNotePath).toLowerCase();
+  const notes = await listMarkdown(rootPath);
+  const results: NoteSearchResult[] = [];
+
+  for (const note of notes) {
+    if (normalizePathKey(note.path) === targetKey) continue;
+
+    let content: string;
+    try {
+      content = await fs.readFile(note.path, "utf8");
+    } catch {
+      continue;
+    }
+
+    const noteDir = path.dirname(note.path);
+    MD_LINK_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    let linked = false;
+
+    while ((match = MD_LINK_RE.exec(content)) !== null) {
+      const href = match[2];
+      if (/^(https?:|mailto:)/i.test(href)) continue;
+
+      const resolved = path.resolve(noteDir, href);
+      const resolvedKey = normalizePathKey(resolved);
+      const hrefBase = path.basename(href).toLowerCase();
+
+      if (
+        resolvedKey === targetKey ||
+        resolvedKey === `${targetKey}.md` ||
+        hrefBase === targetBase
+      ) {
+        linked = true;
+        break;
+      }
+    }
+
+    if (!linked) continue;
+
+    const excerpt = content.slice(0, 120).replace(/\s+/g, " ").trim();
+    results.push({
+      path: note.path,
+      name: note.name,
+      excerpt: excerpt ? `${excerpt}${content.length > 120 ? "…" : ""}` : "",
+    });
+
+    if (results.length >= 50) break;
+  }
+
+  return results;
+}
+
 export function joinPath(...parts: string[]): string {
   return path.join(...parts);
 }

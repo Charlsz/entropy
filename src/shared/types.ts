@@ -60,6 +60,7 @@ export interface EntropyApi {
     folderTree: (rootPath: string, maxDepth?: number) => Promise<TreeNode[]>;
     listMarkdown: (rootPath: string) => Promise<FileEntry[]>;
     searchMarkdown: (rootPath: string, query: string) => Promise<NoteSearchResult[]>;
+    findBacklinks: (rootPath: string, notePath: string) => Promise<NoteSearchResult[]>;
     createNote: (dirPath: string, name?: string) => Promise<string>;
     join: (...parts: string[]) => Promise<string>;
     dirname: (filePath: string) => Promise<string>;

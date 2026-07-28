@@ -129,6 +129,9 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle("fs:searchMarkdown", (_event, rootPath: string, query: string) =>
       filesystem.searchMarkdown(rootPath, query),
     );
+    ipcMain.handle("fs:findBacklinks", (_event, rootPath: string, notePath: string) =>
+      filesystem.findBacklinks(rootPath, notePath),
+    );
     ipcMain.handle("fs:createNote", (_event, dirPath: string, name?: string) =>
       filesystem.createNote(dirPath, name),
     );

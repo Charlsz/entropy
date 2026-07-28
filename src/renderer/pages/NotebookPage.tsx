@@ -293,7 +293,11 @@ export function NotebookPage({
           <MarkdownEditor
             openPaths={openPaths}
             activePath={activePath}
-            onActiveChange={setActivePath}
+            onActiveChange={(notePath) => {
+              setOpenPaths((prev) => (prev.includes(notePath) ? prev : [...prev, notePath]));
+              setActivePath(notePath);
+              addRecentFile(notePath);
+            }}
             onCloseTab={closeTab}
             onStatsChange={setStatusRight}
           />

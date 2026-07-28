@@ -8,13 +8,14 @@ import {
   type KeyboardEvent,
 } from "react";
 import { X } from "lucide-react";
-import type { FileEntry } from "../../shared/types";
+import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { FilePreview } from "./FilePreview";
 import { registerFlush } from "../state/flushRegistry";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { MarkdownPreview } from "../components/MarkdownPreview";
 import { cn } from "../lib/utils";
+import { useWorkspace } from "../state/useWorkspace";
 
 interface EditorTab {
   path: string;
@@ -52,10 +53,12 @@ export function MarkdownEditor({
   onCloseTab,
   onStatsChange,
 }: MarkdownEditorProps) {
+  const { workspace } = useWorkspace();
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [linkedFile, setLinkedFile] = useState<FileEntry | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [mode, setMode] = useState<EditorMode>("edit");
+  const [backlinks, setBacklinks] = useState<NoteSearchResult[]>([]);
   const saveTimers = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -201,6 +204,28 @@ export function MarkdownEditor({
   const isDirty = activeTab ? activeTab.content !== activeTab.savedContent : false;
 
   useEffect(() => {
+    if (!activePath) {
+      setBacklinks([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      void window.entropy.fs
+        .findBacklinks(workspace.path, activePath)
+        .then((items) => {
+          if (!cancelled) setBacklinks(items);
+        })
+        .catch(() => {
+          if (!cancelled) setBacklinks([]);
+        });
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [activePath, workspace.path, activeTab?.savedContent]);
+
+  useEffect(() => {
     if (!onStatsChange) return;
     if (!activeTab || activeTab.loading || activeTab.missing) {
       onStatsChange("");
@@ -213,8 +238,10 @@ export function MarkdownEditor({
       : isDirty
         ? "Unsaved"
         : "Saved";
-    onStatsChange(`${words} words · ${chars} characters · ${saveState}`);
-  }, [activeTab, isDirty, onStatsChange]);
+    const linkLabel =
+      backlinks.length === 1 ? "1 backlink" : `${backlinks.length} backlinks`;
+    onStatsChange(`${linkLabel} · ${words} words · ${chars} characters · ${saveState}`);
+  }, [activeTab, isDirty, onStatsChange, backlinks.length]);
 
   const links = useMemo(() => {
     if (!activeTab) return [] as { label: string; href: string }[];
@@ -569,6 +596,36 @@ export function MarkdownEditor({
                   >
                     <span className="truncate text-sm text-foreground">{link.label}</span>
                     <span className="truncate text-[11px] text-muted-foreground">{link.href}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="border-t border-border px-3 py-2">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Backlinks
+            </h3>
+          </div>
+          {backlinks.length === 0 ? (
+            <p className="px-3 pb-3 text-xs text-muted-foreground">No notes link here yet.</p>
+          ) : (
+            <ul className="space-y-0.5 p-2 pb-3">
+              {backlinks.map((item) => (
+                <li key={item.path}>
+                  <button
+                    type="button"
+                    className="flex w-full flex-col rounded-lg px-2 py-2 text-left hover:bg-accent"
+                    onClick={() => onActiveChange(item.path)}
+                  >
+                    <span className="truncate text-sm text-foreground">
+                      {item.name.replace(/\.md$/i, "")}
+                    </span>
+                    {item.excerpt ? (
+                      <span className="line-clamp-2 text-[11px] text-muted-foreground">
+                        {item.excerpt}
+                      </span>
+                    ) : null}
                   </button>
                 </li>
               ))}
