@@ -41,7 +41,7 @@ function createWindow(): BrowserWindow {
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     titleBarOverlay:
       process.platform === "win32"
-        ? { color: "#1a1a1a", symbolColor: "#f8f8ff", height: 40 }
+        ? { color: "#212121", symbolColor: "#F8F8FF", height: 40 }
         : undefined,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),

@@ -46,10 +46,12 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "electron": "^37.2.6",
+    "geist": "^1.7.2",
     "lucide-react": "^1.27.0",
     "marked": "^18.0.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-resizable-panels": "^4.12.2",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {

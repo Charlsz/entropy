@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Geist";
+  src: url("../assets/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../assets/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root,
   [data-theme="dark"] {
@@ -28,7 +44,9 @@
     --ring: #f4f4ff;
     --rail: #212121;
     --panel: #242424;
-    --radius: 0.625rem;
+    --radius: 10px;
+    --motion: 180ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   [data-theme="light"] {
@@ -55,6 +73,9 @@
     --ring: #242424;
     --rail: #f8f8ff;
     --panel: #f4f4ff;
+    --radius: 10px;
+    --motion: 180ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   * {
@@ -70,6 +91,15 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     user-select: none;
+  }
+
+  button,
+  a,
+  [data-panel],
+  [data-separator] {
+    transition-property: color, background-color, border-color, opacity, transform;
+    transition-duration: var(--motion);
+    transition-timing-function: var(--ease-out);
   }
 
   button,
@@ -283,11 +313,42 @@
   }
 }
 
+.entropy-media-card {
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--ink-2);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 35%, transparent);
+  transition:
+    transform var(--motion) var(--ease-out),
+    box-shadow var(--motion) var(--ease-out),
+    outline-color var(--motion) var(--ease-out);
+}
+
+.entropy-media-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+.entropy-resize-handle {
+  width: 1px;
+  background: transparent;
+  transition: background-color var(--motion) var(--ease-out);
+}
+
+.entropy-resize-handle:hover,
+.entropy-resize-handle[data-separator][data-resize-handle-active] {
+  background: var(--paper-2);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+
+  .entropy-media-card:hover {
+    transform: none;
   }
 }
