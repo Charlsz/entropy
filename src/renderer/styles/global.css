@@ -92,6 +92,87 @@
 }
 
 @layer components {
+  .markdown-preview h1,
+  .markdown-preview h2,
+  .markdown-preview h3,
+  .markdown-preview h4 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 1.25em 0 0.5em;
+    text-wrap: balance;
+  }
+
+  .markdown-preview h1 {
+    font-size: 1.75rem;
+  }
+
+  .markdown-preview h2 {
+    font-size: 1.35rem;
+  }
+
+  .markdown-preview h3 {
+    font-size: 1.15rem;
+  }
+
+  .markdown-preview p,
+  .markdown-preview ul,
+  .markdown-preview ol,
+  .markdown-preview blockquote,
+  .markdown-preview pre {
+    margin: 0 0 0.9em;
+  }
+
+  .markdown-preview ul,
+  .markdown-preview ol {
+    padding-left: 1.35em;
+  }
+
+  .markdown-preview a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: hsl(var(--muted-foreground) / 0.55);
+  }
+
+  .markdown-preview code {
+    font-family: theme("fontFamily.mono");
+    font-size: 0.86em;
+    background: hsl(var(--secondary));
+    padding: 0.1em 0.35em;
+    border-radius: 0.25rem;
+  }
+
+  .markdown-preview pre {
+    overflow-x: auto;
+    background: hsl(var(--secondary));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 0.85rem 1rem;
+  }
+
+  .markdown-preview pre code {
+    background: transparent;
+    padding: 0;
+  }
+
+  .markdown-preview blockquote {
+    border-left: 2px solid hsl(var(--border));
+    padding-left: 0.9em;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .markdown-preview img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+  }
+
+  .markdown-preview hr {
+    border: 0;
+    border-top: 1px solid hsl(var(--border));
+    margin: 1.5em 0;
+  }
+
   .canvas-grid {
     position: absolute;
     inset: -4000px;

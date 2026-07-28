@@ -44,6 +44,15 @@ export function FilesPage() {
 
   const view = workspace.settings.filesView;
 
+  // Prefer Refern-style media grid as the Files home view.
+  useEffect(() => {
+    if (view !== "grid") {
+      updateSettings({ filesView: "grid" });
+    }
+    // Only migrate once on first Files open for older sessions stuck on list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -248,18 +257,18 @@ export function FilesPage() {
           onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
           onDrop={(event) => void onDrop(event, workspace.currentFolder)}
         >
-          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-            <nav className="flex min-w-0 flex-1 items-center gap-1 text-sm" aria-label="Breadcrumb">
+          <div className="flex items-center gap-2 px-4 py-3">
+            <nav className="flex min-w-0 flex-1 items-center gap-1.5 text-sm" aria-label="Breadcrumb">
               <button
                 type="button"
-                className="truncate text-muted-foreground hover:text-foreground"
+                className="truncate text-foreground"
                 onClick={() => void goToCrumb(-1)}
               >
                 {workspace.name}
               </button>
               {crumbs.map((part, index) => (
-                <span key={`${part}-${index}`} className="flex min-w-0 items-center gap-1">
-                  <span className="text-muted-foreground/40">/</span>
+                <span key={`${part}-${index}`} className="flex min-w-0 items-center gap-1.5">
+                  <span className="text-muted-foreground/35">/</span>
                   <button
                     type="button"
                     className="truncate text-muted-foreground hover:text-foreground"
@@ -277,22 +286,26 @@ export function FilesPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               aria-label="Filter files"
-              className="h-8 w-40 bg-[hsl(var(--panel))]"
+              className="h-8 w-36 border-border/60 bg-transparent"
             />
             <select
               value={sortKey}
               onChange={(event) => setSortKey(event.target.value as SortKey)}
               aria-label="Sort by"
-              className="h-8 rounded-md border border-border bg-[hsl(var(--panel))] px-2 text-xs text-foreground"
+              className="h-8 rounded-md border border-border/60 bg-transparent px-2 text-xs text-muted-foreground"
             >
               <option value="name">Name</option>
               <option value="modified">Modified</option>
               <option value="size">Size</option>
               <option value="type">Type</option>
             </select>
-            <Button type="button" variant="secondary" size="sm" onClick={() => setSortAsc((v) => !v)}>
+            <button
+              type="button"
+              className="h-8 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setSortAsc((v) => !v)}
+            >
               {sortAsc ? "Asc" : "Desc"}
-            </Button>
+            </button>
             <Button
               type="button"
               variant="ghost"
@@ -305,8 +318,8 @@ export function FilesPage() {
           </div>
 
           <ScrollArea className="min-h-0 flex-1">
-            <div className="p-3">
-              {error ? <p className="mb-2 text-xs text-destructive">{error}</p> : null}
+            <div className="px-4 pb-6">
+              {error ? <p className="mb-3 text-xs text-destructive">{error}</p> : null}
               {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
               {!loading && visible.length === 0 ? (
                 <p className="text-sm text-muted-foreground">This folder is empty.</p>
@@ -371,7 +384,7 @@ export function FilesPage() {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] gap-x-3 gap-y-5">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-x-4 gap-y-6">
                   {visible.map((entry) => (
                     <FileGridCard
                       key={entry.path}
@@ -529,10 +542,7 @@ function FileGridCard({
   return (
     <div
       draggable
-      className={cn(
-        "flex cursor-pointer flex-col gap-2",
-        dropTarget && "opacity-80",
-      )}
+      className={cn("flex cursor-pointer flex-col gap-2", dropTarget && "opacity-70")}
       onClick={onOpen}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
@@ -540,23 +550,23 @@ function FileGridCard({
     >
       <div
         className={cn(
-          "overflow-hidden rounded-lg",
-          selected && "outline outline-1 outline-paper/40 outline-offset-1",
+          "overflow-hidden rounded-xl",
+          selected && "outline outline-1 outline-offset-2 outline-paper/30",
         )}
       >
         <EntryPreview entry={entry} size="lg" />
       </div>
 
-      <div className="flex min-w-0 items-center gap-1 px-0.5">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] leading-tight text-foreground">{entry.name}</p>
+      <div className="flex min-w-0 items-center gap-1">
+        <p className="min-w-0 flex-1 truncate text-[13px] text-foreground">
+          {entry.name}
           {entry.isDirectory ? (
-            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Folder className="h-3 w-3 shrink-0" strokeWidth={1.5} />
-              <span>{count ?? "…"}</span>
-            </p>
+            <span className="ml-1.5 inline-flex items-center gap-1 align-middle text-[11px] text-muted-foreground">
+              <Folder className="inline h-3 w-3" strokeWidth={1.5} />
+              {count ?? "…"}
+            </span>
           ) : null}
-        </div>
+        </p>
         <ItemActionsMenu
           label={entry.name}
           actions={[

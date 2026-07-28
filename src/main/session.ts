@@ -14,7 +14,7 @@ export interface AppSession {
 
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "dark",
-  filesView: "list",
+  filesView: "grid",
 };
 
 function sessionPath(): string {
@@ -29,7 +29,7 @@ export async function loadSession(): Promise<AppSession> {
       lastWorkspace: typeof parsed.lastWorkspace === "string" ? parsed.lastWorkspace : null,
       settings: {
         theme: parsed.settings?.theme === "light" ? "light" : "dark",
-        filesView: parsed.settings?.filesView === "grid" ? "grid" : "list",
+        filesView: parsed.settings?.filesView === "list" ? "list" : "grid",
       },
     };
   } catch {

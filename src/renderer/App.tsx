@@ -46,7 +46,7 @@ export function App() {
     async (nextPath: string) => {
       const settings = initialSettings ?? {
         theme: "dark" as const,
-        filesView: "list" as const,
+        filesView: "grid" as const,
         sidebarCollapsed: false,
       };
       await window.entropy.session.save({
@@ -62,7 +62,7 @@ export function App() {
     await flushAll();
     const settings = initialSettings ?? {
       theme: "dark" as const,
-      filesView: "list" as const,
+      filesView: "grid" as const,
       sidebarCollapsed: false,
     };
     await window.entropy.session.save({

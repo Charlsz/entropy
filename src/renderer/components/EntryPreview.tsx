@@ -5,6 +5,7 @@ import { useInView } from "../hooks/useInView";
 import { isMediaEntry, mediaKind } from "../lib/media";
 import { getFileUrl } from "../lib/urlCache";
 import { withVideoSlot } from "../lib/videoSlot";
+import { createSlot } from "../lib/asyncSlot";
 import { cn } from "../lib/utils";
 
 export interface FolderPreviewData {
@@ -13,17 +14,20 @@ export interface FolderPreviewData {
 }
 
 const folderPreviewCache = new Map<string, Promise<FolderPreviewData>>();
+const withFolderSlot = createSlot(3);
 
 export function getFolderPreview(folderPath: string): Promise<FolderPreviewData> {
   let pending = folderPreviewCache.get(folderPath);
   if (!pending) {
-    pending = window.entropy.fs
-      .listDir(folderPath)
-      .then((entries) => ({
-        media: entries.filter(isMediaEntry).slice(0, 4),
-        count: entries.length,
-      }))
-      .catch(() => ({ media: [] as FileEntry[], count: 0 }));
+    pending = withFolderSlot(() =>
+      window.entropy.fs
+        .listDir(folderPath)
+        .then((entries) => ({
+          media: entries.filter(isMediaEntry).slice(0, 4),
+          count: entries.length,
+        }))
+        .catch(() => ({ media: [] as FileEntry[], count: 0 })),
+    );
     folderPreviewCache.set(folderPath, pending);
   }
   return pending;
@@ -43,7 +47,7 @@ export const EntryPreview = memo(function EntryPreview({
   const { ref, inView } = useInView<HTMLDivElement>();
   const shell = cn(
     "relative overflow-hidden bg-[#1a1a1a]",
-    size === "sm" ? "h-8 w-8 shrink-0 rounded" : "aspect-square w-full rounded-lg",
+    size === "sm" ? "h-8 w-8 shrink-0 rounded" : "aspect-square w-full rounded-xl",
     className,
   );
 
