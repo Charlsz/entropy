@@ -14,7 +14,9 @@ import { registerFlush } from "../state/flushRegistry";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { MarkdownPreview } from "../components/MarkdownPreview";
+import { NoteCover } from "../components/NoteCover";
 import { cn } from "../lib/utils";
+import { parseNoteFrontmatter } from "../lib/noteMeta";
 import { useWorkspace } from "../state/useWorkspace";
 
 interface EditorTab {
@@ -202,6 +204,10 @@ export function MarkdownEditor({
 
   const activeTab = tabs.find((tab) => tab.path === activePath) ?? null;
   const isDirty = activeTab ? activeTab.content !== activeTab.savedContent : false;
+  const noteMeta = useMemo(
+    () => parseNoteFrontmatter(activeTab?.content ?? ""),
+    [activeTab?.content],
+  );
 
   useEffect(() => {
     if (!activePath) {
@@ -534,6 +540,11 @@ export function MarkdownEditor({
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col">
+            {activeTab && noteMeta.cover ? (
+              <div className="pt-6">
+                <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
+              </div>
+            ) : null}
             <div className="mx-auto w-full max-w-[720px] px-8 pt-8">
               <h1 className="mb-4 text-center text-3xl font-semibold tracking-tight text-foreground">
                 {activeTab?.title}
@@ -566,7 +577,7 @@ export function MarkdownEditor({
               ) : null}
               {mode !== "edit" ? (
                 <ScrollArea className="min-h-0 flex-1">
-                  <MarkdownPreview content={activeTab?.content ?? ""} />
+                  <MarkdownPreview content={noteMeta.body} />
                 </ScrollArea>
               ) : null}
             </div>
