@@ -41,6 +41,7 @@ export function FilesPage() {
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
+  const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
 
   const view = workspace.settings.filesView;
 
@@ -85,6 +86,28 @@ export function FilesPage() {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace.path, workspace.currentFolder]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const paths = workspace.recentFiles.slice(0, 8);
+
+    void (async () => {
+      const loaded: FileEntry[] = [];
+      for (const filePath of paths) {
+        try {
+          if (!(await window.entropy.fs.exists(filePath))) continue;
+          loaded.push(await window.entropy.fs.stat(filePath));
+        } catch {
+          // Skip missing recent entries.
+        }
+      }
+      if (!cancelled) setRecentEntries(loaded);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace.recentFiles]);
 
   const visible = useMemo(() => {
     const filtered = entries.filter((entry) =>
@@ -320,9 +343,45 @@ export function FilesPage() {
           <ScrollArea className="min-h-0 flex-1">
             <div className="px-4 pb-6">
               {error ? <p className="mb-3 text-xs text-destructive">{error}</p> : null}
+
+              {recentEntries.length > 0 ? (
+                <section className="mb-6" aria-label="Recent files">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      Recent
+                    </h2>
+                    <span className="text-[11px] text-muted-foreground">
+                      {recentEntries.length}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-3 gap-y-4">
+                    {recentEntries.map((entry) => (
+                      <FileGridCard
+                        key={`recent-${entry.path}`}
+                        entry={entry}
+                        selected={selected?.path === entry.path}
+                        dropTarget={false}
+                        onOpen={() => void openEntry(entry)}
+                        onDragStart={(event) => onDragStart(event, entry)}
+                        onRename={() => startRename(entry)}
+                        onDelete={() => void handleDelete(entry)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
               {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
               {!loading && visible.length === 0 ? (
                 <p className="text-sm text-muted-foreground">This folder is empty.</p>
+              ) : null}
+
+              {!loading && visible.length > 0 ? (
+                <div className="mb-3">
+                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    {crumbs.length === 0 ? "Library" : crumbs[crumbs.length - 1]}
+                  </h2>
+                </div>
               ) : null}
 
               {view === "list" ? (
