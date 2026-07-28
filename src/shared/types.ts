@@ -43,6 +43,12 @@ export interface EntropyApi {
     onBeforeQuit: (callback: () => void | Promise<void>) => () => void;
     notifyFlushed: () => void;
   };
+  window: {
+    minimize: () => Promise<void>;
+    maximize: () => Promise<void>;
+    close: () => Promise<void>;
+    isMaximized: () => Promise<boolean>;
+  };
   fs: {
     listDir: (dirPath: string) => Promise<FileEntry[]>;
     readText: (filePath: string) => Promise<string>;

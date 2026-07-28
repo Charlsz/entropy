@@ -2,15 +2,18 @@ import {
   ArrowLeftRight,
   Command,
   Search,
+  Settings,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { WindowControls } from "./WindowControls";
 
 interface TitlebarProps {
   workspaceName?: string;
   onCloseWorkspace?: () => void;
   onOpenSearch?: () => void;
   onOpenCommands?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function Titlebar({
@@ -18,11 +21,12 @@ export function Titlebar({
   onCloseWorkspace,
   onOpenSearch,
   onOpenCommands,
+  onOpenSettings,
 }: TitlebarProps) {
   return (
-    <header className="drag-region flex h-10 shrink-0 items-center justify-between border-b border-border bg-ink px-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+    <header className="drag-region flex h-10 shrink-0 items-center justify-between border-b border-border bg-ink pl-3 pr-0">
+      <div className="flex min-w-0 items-center gap-2 pl-[env(titlebar-area-x,0px)]">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Entropy
         </span>
         {workspaceName ? (
@@ -33,7 +37,7 @@ export function Titlebar({
         ) : null}
       </div>
 
-      <div className="no-drag flex items-center gap-0.5">
+      <div className="no-drag flex items-center gap-0.5 pr-1">
         {onOpenCommands ? (
           <TitlebarIconButton label="Commands" shortcut="Ctrl P" onClick={onOpenCommands}>
             <Command strokeWidth={1.75} />
@@ -44,12 +48,17 @@ export function Titlebar({
             <Search strokeWidth={1.75} />
           </TitlebarIconButton>
         ) : null}
+        {onOpenSettings ? (
+          <TitlebarIconButton label="Settings" shortcut="Ctrl ," onClick={onOpenSettings}>
+            <Settings strokeWidth={1.75} />
+          </TitlebarIconButton>
+        ) : null}
         {onCloseWorkspace ? (
           <TitlebarIconButton label="Switch workspace" onClick={onCloseWorkspace}>
             <ArrowLeftRight strokeWidth={1.75} />
           </TitlebarIconButton>
         ) : null}
-        <div className="w-[70px]" aria-hidden />
+        <WindowControls />
       </div>
     </header>
   );

@@ -39,10 +39,6 @@ function createWindow(): BrowserWindow {
     show: true,
     backgroundColor: "#212121",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-    titleBarOverlay:
-      process.platform === "win32"
-        ? { color: "#212121", symbolColor: "#F8F8FF", height: 40 }
-        : undefined,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -141,6 +137,22 @@ function registerIpc(): void {
 
   ipcMain.handle("canvas:load", (_event, workspacePath: string) => loadCanvas(workspacePath));
   ipcMain.handle("canvas:save", (_event, doc: PersistedCanvas) => saveCanvas(doc));
+
+  ipcMain.handle("window:minimize", (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize();
+  });
+  ipcMain.handle("window:maximize", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  ipcMain.handle("window:close", (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close();
+  });
+  ipcMain.handle("window:isMaximized", (event) => {
+    return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
+  });
 
   ipcMain.on("app:flushed", () => {
     allowQuit = true;

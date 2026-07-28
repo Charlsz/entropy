@@ -35,6 +35,12 @@ const api: EntropyApi = {
     },
     notifyFlushed: () => ipcRenderer.send("app:flushed"),
   },
+  window: {
+    minimize: () => ipcRenderer.invoke("window:minimize"),
+    maximize: () => ipcRenderer.invoke("window:maximize"),
+    close: () => ipcRenderer.invoke("window:close"),
+    isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
+  },
   fs: {
     listDir: (dirPath) => ipcRenderer.invoke("fs:listDir", dirPath),
     readText: (filePath) => ipcRenderer.invoke("fs:readText", filePath),

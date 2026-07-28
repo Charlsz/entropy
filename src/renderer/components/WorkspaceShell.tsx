@@ -88,6 +88,7 @@ export function WorkspaceShell() {
           onCloseWorkspace={closeWorkspace}
           onOpenSearch={() => setSearchOpen(true)}
           onOpenCommands={() => setCommandOpen(true)}
+          onOpenSettings={() => setSection("settings")}
         />
         <div className="flex min-h-0 flex-1">
           <IconRail
