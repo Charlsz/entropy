@@ -1,3 +1,9 @@
+export interface InventoryRoot {
+  id: string;
+  name: string;
+  path: string;
+}
+
 export interface FileEntry {
   name: string;
   path: string;
@@ -77,6 +83,10 @@ export interface EntropyApi {
     duplicate: (targetPath: string) => Promise<string>;
     reveal: (targetPath: string) => Promise<void>;
     openExternal: (targetPath: string) => Promise<void>;
+    getHomePath: () => Promise<string>;
+    getInventoryRoots: () => Promise<InventoryRoot[]>;
+    measurePath: (targetPath: string) => Promise<number>;
+    measureChildren: (dirPath: string) => Promise<Array<{ path: string; size: number }>>;
   };
   canvas: {
     load: (workspacePath: string) => Promise<CanvasDocument | null>;

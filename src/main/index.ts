@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
 import path from "node:path";
 import * as filesystem from "./fs";
+import * as inventory from "./inventory";
 import { FILE_PROTOCOL, registerFileProtocol, toEntropyThumbUrl, toEntropyUrl } from "./protocol";
 import { loadCanvas, saveCanvas, type PersistedCanvas } from "./canvasStore";
 import { loadSession, saveSession, type AppSession } from "./session";
@@ -161,6 +162,14 @@ function registerIpc(): void {
   );
   ipcMain.handle("fs:openExternal", (_event, targetPath: string) =>
     filesystem.openExternal(targetPath),
+  );
+  ipcMain.handle("fs:getHomePath", () => inventory.getHomePath());
+  ipcMain.handle("fs:getInventoryRoots", () => inventory.getInventoryRoots());
+  ipcMain.handle("fs:measurePath", (_event, targetPath: string) =>
+    inventory.measurePath(targetPath),
+  );
+  ipcMain.handle("fs:measureChildren", (_event, dirPath: string) =>
+    inventory.measureChildren(dirPath),
   );
 
   ipcMain.handle("canvas:load", (_event, workspacePath: string) => loadCanvas(workspacePath));

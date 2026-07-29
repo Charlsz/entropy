@@ -68,6 +68,10 @@ const api: EntropyApi = {
     duplicate: (targetPath) => ipcRenderer.invoke("fs:duplicate", targetPath),
     reveal: (targetPath) => ipcRenderer.invoke("fs:reveal", targetPath),
     openExternal: (targetPath) => ipcRenderer.invoke("fs:openExternal", targetPath),
+    getHomePath: () => ipcRenderer.invoke("fs:getHomePath"),
+    getInventoryRoots: () => ipcRenderer.invoke("fs:getInventoryRoots"),
+    measurePath: (targetPath) => ipcRenderer.invoke("fs:measurePath", targetPath),
+    measureChildren: (dirPath) => ipcRenderer.invoke("fs:measureChildren", dirPath),
   },
   canvas: {
     load: (workspacePath) => ipcRenderer.invoke("canvas:load", workspacePath),
