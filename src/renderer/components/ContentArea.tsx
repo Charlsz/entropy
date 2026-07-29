@@ -37,9 +37,10 @@ export function ContentArea({
           onPendingNoteHandled={onPendingNoteHandled}
         />
       </SectionPane>
-      <SectionPane active={section === "files"}>
+      <SectionPane active={section === "inventory"}>
         <FilesPage />
       </SectionPane>
+      {/* Canvas retained for a future release; not exposed in v1 navigation. */}
       <SectionPane active={section === "canvas"}>
         <CanvasPage />
       </SectionPane>
@@ -84,7 +85,7 @@ function SettingsPanel() {
           </div>
 
           <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-ink-2 px-4 py-3">
-            <Label htmlFor="files-view">Files view</Label>
+            <Label htmlFor="files-view">Inventory view</Label>
             <Select
               value={workspace.settings.filesView}
               onValueChange={(value) =>

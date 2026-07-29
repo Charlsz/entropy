@@ -62,7 +62,8 @@ export function WorkspaceProvider({
   }, [workspace.settings.theme]);
 
   const setSection = useCallback((section: SectionId) => {
-    setWorkspace((prev) => ({ ...prev, currentSection: section }));
+    const next = (section as string) === "files" ? "inventory" : section;
+    setWorkspace((prev) => ({ ...prev, currentSection: next }));
   }, []);
 
   const setCurrentFolder = useCallback((folderPath: string) => {
@@ -97,7 +98,7 @@ export function WorkspaceProvider({
   const openFolder = useCallback(
     (folderPath: string) => {
       setCurrentFolder(folderPath);
-      setSection("files");
+      setSection("inventory");
     },
     [setCurrentFolder, setSection],
   );
@@ -111,7 +112,7 @@ export function WorkspaceProvider({
       } catch {
         // Keep current folder if dirname fails.
       }
-      setSection("files");
+      setSection("inventory");
     },
     [addRecentFile, setCurrentFolder, setSection],
   );

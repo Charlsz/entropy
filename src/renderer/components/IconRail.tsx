@@ -1,19 +1,27 @@
 import {
   BookOpen,
-  Files,
-  LayoutDashboard,
+  LayoutGrid,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "../lib/utils";
 import type { SectionId } from "../types/section";
+import { VISIBLE_SECTIONS } from "../types/section";
 
-const ITEMS: { id: SectionId; label: string; icon: LucideIcon }[] = [
-  { id: "notebook", label: "Notebook", icon: BookOpen },
-  { id: "files", label: "Files", icon: Files },
-  { id: "canvas", label: "Canvas", icon: LayoutDashboard },
-];
+const LABELS: Record<SectionId, string> = {
+  notebook: "Notebook",
+  inventory: "File Inventory",
+  canvas: "Canvas",
+  settings: "Settings",
+};
+
+const ICONS: Record<SectionId, LucideIcon> = {
+  notebook: BookOpen,
+  inventory: LayoutGrid,
+  canvas: LayoutGrid,
+  settings: LayoutGrid,
+};
 
 interface IconRailProps {
   active: SectionId;
@@ -26,13 +34,13 @@ export function IconRail({ active, onChange }: IconRailProps) {
       className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-ink py-2"
       aria-label="Primary navigation"
     >
-      {ITEMS.map((item) => (
+      {VISIBLE_SECTIONS.map((id) => (
         <RailButton
-          key={item.id}
-          label={item.label}
-          active={active === item.id}
-          onClick={() => onChange(item.id)}
-          icon={item.icon}
+          key={id}
+          label={LABELS[id]}
+          active={active === id}
+          onClick={() => onChange(id)}
+          icon={ICONS[id]}
         />
       ))}
     </aside>

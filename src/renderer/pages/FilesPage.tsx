@@ -115,12 +115,12 @@ export function FilesPage() {
   }, [refreshTree, refreshListing]);
 
   useEffect(() => {
-    if (workspace.currentSection !== "files") return;
+    if (workspace.currentSection !== "inventory") return;
     void refreshTree();
   }, [refreshTree, workspace.currentSection]);
 
   useEffect(() => {
-    if (workspace.currentSection !== "files") return;
+    if (workspace.currentSection !== "inventory") return;
     setRenderedCount(60);
     void refreshListing();
   }, [refreshListing, workspace.currentSection]);
@@ -337,16 +337,16 @@ export function FilesPage() {
   ) : null;
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col" aria-label="Files">
+    <div className="flex h-full min-h-0 w-full flex-col" aria-label="File Inventory">
       <ThreeColumnLayout
-        id="files-layout"
-        persistLayout={workspace.currentSection === "files"}
+        id="inventory-layout"
+        persistLayout={workspace.currentSection === "inventory"}
         context={context}
         sidebar={
           <div className="flex h-full min-h-0 flex-col">
             <div className="px-4 py-3">
               <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Library
+                Inventory
               </h2>
             </div>
             <ScrollArea className="min-h-0 flex-1 px-3">
@@ -541,7 +541,7 @@ export function FilesPage() {
                   <Empty className="py-16">
                     <EmptyTitle>This folder is empty</EmptyTitle>
                     <EmptyDescription>
-                      Drop files here or open a different folder from the library.
+                      Drop files here or open a different folder from Inventory.
                     </EmptyDescription>
                   </Empty>
                 ) : null}
