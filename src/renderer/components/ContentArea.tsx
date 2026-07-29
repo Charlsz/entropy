@@ -22,12 +22,16 @@ interface ContentAreaProps {
   section: SectionId;
   pendingNote?: string | null;
   onPendingNoteHandled?: () => void;
+  pendingReference?: string | null;
+  onPendingReferenceHandled?: () => void;
 }
 
 export function ContentArea({
   section,
   pendingNote,
   onPendingNoteHandled,
+  pendingReference,
+  onPendingReferenceHandled,
 }: ContentAreaProps) {
   return (
     <div className="relative h-full min-h-0 w-full">
@@ -35,6 +39,8 @@ export function ContentArea({
         <NotebookPage
           pendingNote={pendingNote}
           onPendingNoteHandled={onPendingNoteHandled}
+          pendingReference={pendingReference}
+          onPendingReferenceHandled={onPendingReferenceHandled}
         />
       </SectionPane>
       <SectionPane active={section === "inventory"}>

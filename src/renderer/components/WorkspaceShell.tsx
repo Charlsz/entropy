@@ -10,6 +10,8 @@ export function WorkspaceShell() {
     workspace,
     pendingNote,
     clearPendingNote,
+    pendingReference,
+    clearPendingReference,
     setSection,
     closeWorkspace,
     openNote,
@@ -62,6 +64,8 @@ export function WorkspaceShell() {
             section={workspace.currentSection}
             pendingNote={pendingNote}
             onPendingNoteHandled={clearPendingNote}
+            pendingReference={pendingReference}
+            onPendingReferenceHandled={clearPendingReference}
           />
         </div>
       </div>

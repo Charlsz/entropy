@@ -18,6 +18,9 @@ interface WorkspaceContextValue {
   workspace: WorkspaceState;
   pendingNote: string | null;
   clearPendingNote: () => void;
+  pendingReference: string | null;
+  clearPendingReference: () => void;
+  referenceInNote: (filePath: string) => void;
   setSection: (section: SectionId) => void;
   setCurrentFolder: (folderPath: string) => void;
   addRecentFile: (filePath: string) => void;
@@ -56,10 +59,14 @@ export function WorkspaceProvider({
   });
 
   const [pendingNote, setPendingNote] = useState<string | null>(null);
+  const [pendingReference, setPendingReference] = useState<string | null>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = workspace.settings.theme;
   }, [workspace.settings.theme]);
+
+  const clearPendingNote = useCallback(() => setPendingNote(null), []);
+  const clearPendingReference = useCallback(() => setPendingReference(null), []);
 
   const setSection = useCallback((section: SectionId) => {
     const next = (section as string) === "files" ? "inventory" : section;
@@ -84,13 +91,20 @@ export function WorkspaceProvider({
     setWorkspace((prev) => ({ ...prev, recentFiles: [] }));
   }, []);
 
-  const clearPendingNote = useCallback(() => setPendingNote(null), []);
-
   const openNote = useCallback(
     (notePath: string) => {
       addRecentFile(notePath);
       setSection("notebook");
       setPendingNote(notePath);
+    },
+    [addRecentFile, setSection],
+  );
+
+  const referenceInNote = useCallback(
+    (filePath: string) => {
+      addRecentFile(filePath);
+      setPendingReference(filePath);
+      setSection("notebook");
     },
     [addRecentFile, setSection],
   );
@@ -141,6 +155,9 @@ export function WorkspaceProvider({
       workspace,
       pendingNote,
       clearPendingNote,
+      pendingReference,
+      clearPendingReference,
+      referenceInNote,
       setSection,
       setCurrentFolder,
       addRecentFile,
@@ -156,6 +173,9 @@ export function WorkspaceProvider({
       workspace,
       pendingNote,
       clearPendingNote,
+      pendingReference,
+      clearPendingReference,
+      referenceInNote,
       setSection,
       setCurrentFolder,
       addRecentFile,
