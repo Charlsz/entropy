@@ -74,6 +74,7 @@ export function FilesPage() {
   const { workspace, setCurrentFolder, updateSettings, addRecentFile, referenceInNote } =
     useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
+  const [mountRoots, setMountRoots] = useState<InventoryRoot[]>([]);
   const [scanRoot, setScanRoot] = useState<string>("");
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [entries, setEntries] = useState<FileEntry[]>([]);
@@ -141,9 +142,20 @@ export function FilesPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const nextRoots = await window.entropy.fs.getInventoryRoots();
+        const extra = workspace.settings.inventoryExtraRoots ?? [];
+        const [nextRoots, mounts] = await Promise.all([
+          window.entropy.fs.getInventoryRoots(extra),
+          window.entropy.fs.listMountRoots(),
+        ]);
         if (cancelled) return;
         setRoots(nextRoots);
+        setMountRoots(
+          mounts.filter(
+            (mount) =>
+              !nextRoots.some((root) => samePath(root.path, mount.path)) &&
+              !extra.some((path) => samePath(path, mount.path)),
+          ),
+        );
         const home =
           nextRoots.find((root) => root.id === "home")?.path ??
           (await window.entropy.fs.getHomePath());
@@ -164,9 +176,47 @@ export function FilesPage() {
     return () => {
       cancelled = true;
     };
-    // Bootstrap once per mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap once; refresh when extra roots change
+  }, [workspace.settings.inventoryExtraRoots]);
+
+  async function addFolderRoot(): Promise<void> {
+    const picked = await window.entropy.fs.pickInventoryFolder();
+    if (!picked) return;
+    const existing = workspace.settings.inventoryExtraRoots ?? [];
+    if (existing.some((path) => samePath(path, picked))) {
+      selectRootPath(picked);
+      return;
+    }
+    updateSettings({ inventoryExtraRoots: [...existing, picked] });
+    setCurrentFolder(picked);
+    setScanRoot(picked);
+    setSelected(null);
+  }
+
+  function addMountRoot(root: InventoryRoot): void {
+    const existing = workspace.settings.inventoryExtraRoots ?? [];
+    if (!existing.some((path) => samePath(path, root.path))) {
+      updateSettings({ inventoryExtraRoots: [...existing, root.path] });
+    }
+    selectRoot(root);
+  }
+
+  function removeExtraRoot(rootPath: string): void {
+    const existing = workspace.settings.inventoryExtraRoots ?? [];
+    updateSettings({
+      inventoryExtraRoots: existing.filter((path) => !samePath(path, rootPath)),
+    });
+    if (samePath(scanRoot, rootPath)) {
+      const home = roots.find((root) => root.id === "home");
+      if (home) selectRoot(home);
+    }
+  }
+
+  function selectRootPath(rootPath: string): void {
+    setScanRoot(rootPath);
+    setCurrentFolder(rootPath);
+    setSelected(null);
+  }
 
   useEffect(() => {
     if (!roots.length || !workspace.currentFolder) return;
@@ -460,29 +510,75 @@ export function FilesPage() {
               <div className="mb-3 space-y-0.5">
                 {roots.map((root) => {
                   const active = activeRoot ? samePath(activeRoot.path, root.path) : false;
+                  const isExtra = root.id.startsWith("extra-");
                   return (
-                    <button
-                      key={root.id}
-                      type="button"
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
-                        active && "bg-accent text-foreground",
-                      )}
-                      onClick={() => selectRoot(root)}
-                      onDragOver={(event) => onDragOver(event, root.path)}
-                      onDragLeave={() => setDragOverPath(null)}
-                      onDrop={(event) => void onDrop(event, root.path)}
-                    >
-                      {root.id === "home" ? (
-                        <HardDrive className="h-4 w-4 shrink-0" />
-                      ) : (
-                        <Folder className="h-4 w-4 shrink-0" />
-                      )}
-                      <span className="truncate">{root.name}</span>
-                    </button>
+                    <div key={root.id} className="group flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
+                          active && "bg-accent text-foreground",
+                        )}
+                        onClick={() => selectRoot(root)}
+                        onDragOver={(event) => onDragOver(event, root.path)}
+                        onDragLeave={() => setDragOverPath(null)}
+                        onDrop={(event) => void onDrop(event, root.path)}
+                      >
+                        {root.id === "home" || root.id.startsWith("drive-") || root.id.startsWith("volume-") || root.id.startsWith("mount-") ? (
+                          <HardDrive className="h-4 w-4 shrink-0" />
+                        ) : (
+                          <Folder className="h-4 w-4 shrink-0" />
+                        )}
+                        <span className="truncate">{root.name}</span>
+                      </button>
+                      {isExtra ? (
+                        <button
+                          type="button"
+                          className="hidden rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground group-hover:inline-flex"
+                          onClick={() => removeExtraRoot(root.path)}
+                          aria-label={`Remove ${root.name}`}
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
                   );
                 })}
               </div>
+
+              <div className="mb-3 space-y-1 px-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-full justify-start px-2 text-xs text-muted-foreground"
+                  onClick={() => void addFolderRoot()}
+                >
+                  Add folder…
+                </Button>
+                {mountRoots.length > 0 ? (
+                  <div className="pt-1">
+                    <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
+                      Drives
+                    </p>
+                    <div className="space-y-0.5">
+                      {mountRoots.map((mount) => (
+                        <button
+                          key={mount.id}
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                          onClick={() => addMountRoot(mount)}
+                          title={`Index ${mount.path}`}
+                        >
+                          <HardDrive className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{mount.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               {tree.length > 0 ? (
                 <>
                   <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
