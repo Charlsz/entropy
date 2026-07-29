@@ -12,7 +12,7 @@ export function WorkspaceShell() {
     clearPendingNote,
     pendingReference,
     clearPendingReference,
-    setSection,
+    visitSection,
     closeWorkspace,
     openNote,
     updateSettings,
@@ -55,10 +55,10 @@ export function WorkspaceShell() {
         onToggleContext={toggleContext}
         onCloseWorkspace={closeWorkspace}
         onOpenSearch={() => setSearchOpen(true)}
-        onOpenSettings={() => setSection("settings")}
+        onOpenSettings={() => visitSection("settings")}
       />
       <div className="flex min-h-0 flex-1">
-        <IconRail active={workspace.currentSection} onChange={setSection} />
+        <IconRail active={workspace.currentSection} onChange={visitSection} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <ContentArea
             section={workspace.currentSection}

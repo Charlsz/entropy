@@ -71,6 +71,7 @@ export function FilesPage() {
     referenceInNote,
     goToFolder,
     setInventoryRoot,
+    visitPreview,
   } = useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
   const [mountRoots, setMountRoots] = useState<InventoryRoot[]>([]);
@@ -216,6 +217,11 @@ export function FilesPage() {
   useEffect(() => {
     setSelected(null);
   }, [workspace.currentFolder]);
+
+  useEffect(() => {
+    if (!workspace.inventoryFocusPath) return;
+    setPendingSelectPath(workspace.inventoryFocusPath);
+  }, [workspace.inventoryFocusPath]);
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
@@ -375,6 +381,7 @@ export function FilesPage() {
     }
     setSelected(entry);
     addRecentFile(entry.path);
+    visitPreview(entry.path, workspace.currentFolder);
   }
 
   function selectRoot(root: InventoryRoot): void {

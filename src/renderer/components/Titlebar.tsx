@@ -77,13 +77,13 @@ export function Titlebar({
           <>
             <TitlebarIconButton
               label="Back"
-              onClick={workspaceCtx.canGoBackFolder ? workspaceCtx.goBackFolder : undefined}
+              onClick={workspaceCtx.canGoBack ? workspaceCtx.goBack : undefined}
             >
               <ArrowLeft strokeWidth={1.75} />
             </TitlebarIconButton>
             <TitlebarIconButton
               label="Forward"
-              onClick={workspaceCtx.canGoForwardFolder ? workspaceCtx.goForwardFolder : undefined}
+              onClick={workspaceCtx.canGoForward ? workspaceCtx.goForward : undefined}
             >
               <ArrowRight strokeWidth={1.75} />
             </TitlebarIconButton>

@@ -1,4 +1,5 @@
 import type { Layout } from "react-resizable-panels";
+import type { SectionId } from "../types/section";
 
 export interface PanelLayoutState {
   sidebar: number;
@@ -18,19 +19,35 @@ export interface WorkspaceSettings {
   inventoryExtraRoots: string[];
 }
 
+/** One stop in the global Back/Forward timeline. */
+export type NavKind = "folder" | "note" | "section" | "preview";
+
+export interface NavEntry {
+  kind: NavKind;
+  /** Dedup key so consecutive identical locations are not stacked. */
+  key: string;
+  label: string;
+  section: SectionId;
+  folderPath?: string;
+  notePath?: string;
+  previewPath?: string;
+}
+
 export interface WorkspaceState {
   path: string;
   name: string;
   currentFolder: string;
-  currentSection: import("../types/section").SectionId;
+  currentSection: SectionId;
   recentFiles: string[];
   settings: WorkspaceSettings;
   /** Active Inventory scan root (Home or added drive/folder). */
   inventoryScanRoot: string;
   inventoryRootLabel: string;
-  /** Folder navigation history for global back/forward. */
-  folderHistory: string[];
-  folderHistoryIndex: number;
+  /** Selected inventory file when history points at a preview. */
+  inventoryFocusPath: string | null;
+  /** Chronological navigation across notes, folders, previews, and sections. */
+  navHistory: NavEntry[];
+  navHistoryIndex: number;
 }
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
@@ -54,6 +71,57 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],
 };
+
+function basenameLabel(filePath: string): string {
+  return filePath.split(/[/\\]/).pop() || filePath;
+}
+
+export function navFolder(folderPath: string, label?: string): NavEntry {
+  return {
+    kind: "folder",
+    key: `folder:${folderPath.replace(/[/\\]+$/, "").toLowerCase()}`,
+    label: label || basenameLabel(folderPath),
+    section: "inventory",
+    folderPath,
+  };
+}
+
+export function navNote(notePath: string): NavEntry {
+  const raw = basenameLabel(notePath);
+  return {
+    kind: "note",
+    key: `note:${notePath.replace(/[/\\]+$/, "").toLowerCase()}`,
+    label: raw.replace(/\.md$/i, ""),
+    section: "notebook",
+    notePath,
+  };
+}
+
+export function navSection(section: SectionId): NavEntry {
+  const labels: Record<SectionId, string> = {
+    notebook: "Notebook",
+    inventory: "Inventory",
+    canvas: "Canvas",
+    settings: "Settings",
+  };
+  return {
+    kind: "section",
+    key: `section:${section}`,
+    label: labels[section],
+    section,
+  };
+}
+
+export function navPreview(filePath: string, folderPath: string): NavEntry {
+  return {
+    kind: "preview",
+    key: `preview:${filePath.replace(/[/\\]+$/, "").toLowerCase()}`,
+    label: basenameLabel(filePath),
+    section: "inventory",
+    previewPath: filePath,
+    folderPath,
+  };
+}
 
 export function normalizePanelLayout(
   value: unknown,
@@ -123,10 +191,15 @@ export function createWorkspaceState(workspacePath: string): WorkspaceState {
     currentFolder: normalized,
     currentSection: "notebook",
     recentFiles: [],
-    settings: { ...DEFAULT_SETTINGS, panelLayout: { ...DEFAULT_PANEL_LAYOUT }, inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT } },
+    settings: {
+      ...DEFAULT_SETTINGS,
+      panelLayout: { ...DEFAULT_PANEL_LAYOUT },
+      inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
+    },
     inventoryScanRoot: "",
     inventoryRootLabel: "Home",
-    folderHistory: [],
-    folderHistoryIndex: -1,
+    inventoryFocusPath: null,
+    navHistory: [],
+    navHistoryIndex: -1,
   };
 }

@@ -30,7 +30,7 @@ export function NotebookPage({
   pendingReference?: string | null;
   onPendingReferenceHandled?: () => void;
 } = {}) {
-  const { workspace, addRecentFile, closeWorkspace } = useWorkspace();
+  const { workspace, addRecentFile, closeWorkspace, visitNote } = useWorkspace();
   const [notes, setNotes] = useState<FileEntry[]>([]);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<NoteSearchResult[] | null>(null);
@@ -131,10 +131,15 @@ export function NotebookPage({
     };
   }, [query, workspace.path]);
 
-  function openNote(notePath: string): void {
+  function openNoteLocal(notePath: string): void {
     setOpenPaths((prev) => (prev.includes(notePath) ? prev : [...prev, notePath]));
     setActivePath(notePath);
     addRecentFile(notePath);
+  }
+
+  function openNote(notePath: string): void {
+    openNoteLocal(notePath);
+    visitNote(notePath);
   }
 
   function closeTab(notePath: string): void {
