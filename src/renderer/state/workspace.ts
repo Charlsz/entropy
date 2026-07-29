@@ -25,6 +25,12 @@ export interface WorkspaceState {
   currentSection: import("../types/section").SectionId;
   recentFiles: string[];
   settings: WorkspaceSettings;
+  /** Active Inventory scan root (Home or added drive/folder). */
+  inventoryScanRoot: string;
+  inventoryRootLabel: string;
+  /** Folder navigation history for global back/forward. */
+  folderHistory: string[];
+  folderHistoryIndex: number;
 }
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
@@ -118,5 +124,9 @@ export function createWorkspaceState(workspacePath: string): WorkspaceState {
     currentSection: "notebook",
     recentFiles: [],
     settings: { ...DEFAULT_SETTINGS, panelLayout: { ...DEFAULT_PANEL_LAYOUT }, inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT } },
+    inventoryScanRoot: "",
+    inventoryRootLabel: "Home",
+    folderHistory: [],
+    folderHistoryIndex: -1,
   };
 }

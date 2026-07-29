@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, Fragment, memo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, memo } from "react";
 import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
@@ -8,7 +8,7 @@ import {
   List,
   Plus,
 } from "lucide-react";
-import type { FileEntry, InventoryRoot, TreemapScanResult } from "../../shared/types";
+import type { FileEntry, InventoryRoot, TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -21,14 +21,6 @@ import { MoveToDialog } from "../components/MoveToDialog";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "../components/ui/breadcrumb";
 import {
   Select,
   SelectContent,
@@ -72,8 +64,14 @@ function pickRoot(folder: string, roots: InventoryRoot[]): InventoryRoot | null 
 }
 
 export function FilesPage() {
-  const { workspace, setCurrentFolder, updateSettings, addRecentFile, referenceInNote } =
-    useWorkspace();
+  const {
+    workspace,
+    updateSettings,
+    addRecentFile,
+    referenceInNote,
+    goToFolder,
+    setInventoryRoot,
+  } = useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
   const [mountRoots, setMountRoots] = useState<InventoryRoot[]>([]);
   const [scanRoot, setScanRoot] = useState<string>("");
@@ -86,7 +84,6 @@ export function FilesPage() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
-  const [crumbs, setCrumbs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
@@ -108,13 +105,6 @@ export function FilesPage() {
     try {
       const listing = await window.entropy.fs.listDir(workspace.currentFolder);
       setEntries(listing);
-
-      const root = scanRoot || workspace.currentFolder;
-      const relative = workspace.currentFolder
-        .slice(root.length)
-        .replace(/^[/\\]+/, "");
-      const parts = relative ? relative.split(/[/\\]/) : [];
-      setCrumbs(parts);
 
       setSelected((current) => {
         if (!current) return null;
@@ -156,10 +146,11 @@ export function FilesPage() {
           homeBootstrapped.current = true;
           setScanRoot(home);
           if (samePath(workspace.currentFolder, workspace.path) || !workspace.currentFolder) {
-            setCurrentFolder(home);
+            goToFolder(home, "replace");
           } else {
             const match = pickRoot(workspace.currentFolder, nextRoots);
             setScanRoot(match?.path ?? home);
+            goToFolder(workspace.currentFolder, "replace");
           }
         }
       } catch {
@@ -181,9 +172,8 @@ export function FilesPage() {
       return;
     }
     updateSettings({ inventoryExtraRoots: [...existing, picked] });
-    setCurrentFolder(picked);
     setScanRoot(picked);
-    setSelected(null);
+    goToFolder(picked, "replace");
   }
 
   function addMountRoot(root: InventoryRoot): void {
@@ -196,8 +186,7 @@ export function FilesPage() {
 
   function selectRootPath(rootPath: string): void {
     setScanRoot(rootPath);
-    setCurrentFolder(rootPath);
-    setSelected(null);
+    goToFolder(rootPath, "replace");
   }
 
   useEffect(() => {
@@ -209,10 +198,24 @@ export function FilesPage() {
   }, [roots, scanRoot, workspace.currentFolder]);
 
   useEffect(() => {
+    if (!scanRoot) return;
+    const label =
+      roots.find((root) => samePath(root.path, scanRoot))?.name ??
+      activeRoot?.name ??
+      "Home";
+    setInventoryRoot(scanRoot, label);
+  }, [activeRoot?.name, roots, scanRoot, setInventoryRoot]);
+
+  useEffect(() => {
     if (workspace.currentSection !== "inventory") return;
     setRenderedCount(60);
+    setSelected(null);
     void refreshListing();
   }, [refreshListing, workspace.currentSection]);
+
+  useEffect(() => {
+    setSelected(null);
+  }, [workspace.currentFolder]);
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
@@ -239,7 +242,7 @@ export function FilesPage() {
     setScanningTreemap(true);
     void (async () => {
       try {
-        const next = await window.entropy.fs.scanTreemapFiles(workspace.currentFolder);
+        const next = await window.entropy.fs.scanTreemapLevel(workspace.currentFolder);
         if (!cancelled) setTreemapScan(next);
       } catch {
         if (!cancelled) setTreemapScan(null);
@@ -264,23 +267,33 @@ export function FilesPage() {
     if (!loading) setPendingSelectPath(null);
   }, [pendingSelectPath, entries, loading]);
 
-  async function selectTreemapLeaf(leafPath: string, openAfter = false): Promise<void> {
+  async function selectTreemapLeaf(leaf: TreemapFileLeaf, openAfter = false): Promise<void> {
     try {
-      const info = await window.entropy.fs.stat(leafPath);
-      const parent = await window.entropy.fs.dirname(leafPath);
+      if (leaf.isDirectory) {
+        const match = entries.find((entry) => samePath(entry.path, leaf.path));
+        setSelected(match ?? null);
+        return;
+      }
+      const info = await window.entropy.fs.stat(leaf.path);
+      const parent = await window.entropy.fs.dirname(leaf.path);
       if (!samePath(parent, workspace.currentFolder)) {
-        setPendingSelectPath(leafPath);
-        setCurrentFolder(parent);
+        setPendingSelectPath(leaf.path);
+        goToFolder(parent);
       } else {
         setSelected(info);
       }
       if (openAfter) {
-        addRecentFile(leafPath);
-        void window.entropy.fs.openExternal(leafPath);
+        addRecentFile(leaf.path);
+        void window.entropy.fs.openExternal(leaf.path);
       }
     } catch {
-      setError("Could not open that file from the size map.");
+      setError("Could not open that item from the size map.");
     }
+  }
+
+  async function zoomTreemapFolder(leaf: TreemapFileLeaf): Promise<void> {
+    if (!leaf.isDirectory) return;
+    goToFolder(leaf.path);
   }
 
   useEffect(() => {
@@ -357,29 +370,16 @@ export function FilesPage() {
 
   async function openEntry(entry: FileEntry): Promise<void> {
     if (entry.isDirectory) {
-      setCurrentFolder(entry.path);
-      setSelected(null);
+      goToFolder(entry.path);
       return;
     }
     setSelected(entry);
     addRecentFile(entry.path);
   }
 
-  async function goToCrumb(index: number): Promise<void> {
-    setSelected(null);
-    if (index < 0) {
-      setCurrentFolder(scanRoot || workspace.currentFolder);
-      return;
-    }
-    const parts = crumbs.slice(0, index + 1);
-    const next = await window.entropy.fs.join(scanRoot, ...parts);
-    setCurrentFolder(next);
-  }
-
   function selectRoot(root: InventoryRoot): void {
     setScanRoot(root.path);
-    setCurrentFolder(root.path);
-    setSelected(null);
+    goToFolder(root.path, "replace");
   }
 
   async function handleRename(entry: FileEntry): Promise<void> {
@@ -487,323 +487,289 @@ export function FilesPage() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col" aria-label="File Inventory">
-      <ThreeColumnLayout
-        id="inventory-layout-v3"
-        variant="inventory"
-        persistLayout={workspace.currentSection === "inventory"}
-        sidebar={null}
-        context={
-          <StorageTreemap
-            rootLabel={crumbs.length ? crumbs[crumbs.length - 1] : rootLabel}
-            scan={treemapScan}
-            selectedPath={selected?.path ?? pendingSelectPath}
-            scanning={scanningTreemap}
-            onSelect={(leaf) => void selectTreemapLeaf(leaf.path)}
-            onOpen={(leaf) => void selectTreemapLeaf(leaf.path, true)}
-          />
-        }
-        main={
-          <section
-            className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
-            onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
-            onDrop={(event) => void onDrop(event, workspace.currentFolder)}
-          >
-            <div className="entropy-toolbar px-4 py-3">
-              <Select
-                value={activeRoot?.path ?? scanRoot}
-                onValueChange={(value) => {
-                  const root = roots.find((item) => item.path === value);
-                  if (root) {
-                    selectRoot(root);
-                    return;
-                  }
-                  const mount = mountRoots.find((item) => item.path === value);
-                  if (mount) {
-                    addMountRoot(mount);
-                    return;
-                  }
-                  selectRootPath(value);
-                }}
-              >
-                <SelectTrigger className="h-8 w-[7.5rem] shrink-0 sm:w-[8.25rem]" aria-label="Location">
-                  <SelectValue placeholder="Location" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roots.map((root) => (
-                    <SelectItem key={root.id} value={root.path}>
-                      {root.name}
-                    </SelectItem>
-                  ))}
-                  {mountRoots.length > 0 ? (
-                    <>
-                      {mountRoots.map((mount) => (
-                        <SelectItem key={mount.id} value={mount.path}>
-                          Add {mount.name}…
-                        </SelectItem>
-                      ))}
-                    </>
+      <div className="min-h-0 flex-1">
+        <ThreeColumnLayout
+          id="inventory-layout-v3"
+          variant="inventory"
+          persistLayout={workspace.currentSection === "inventory"}
+          sidebar={null}
+          context={
+            <StorageTreemap
+              scan={treemapScan}
+              selectedPath={selected?.path ?? pendingSelectPath}
+              scanning={scanningTreemap}
+              workspacePath={workspace.path}
+              scanRoot={scanRoot}
+              recentFiles={workspace.recentFiles}
+              onSelect={(leaf) => void selectTreemapLeaf(leaf)}
+              onOpen={(leaf) => void selectTreemapLeaf(leaf, true)}
+              onZoom={(leaf) => void zoomTreemapFolder(leaf)}
+            />
+          }
+          main={
+            <section
+              className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
+              onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
+              onDrop={(event) => void onDrop(event, workspace.currentFolder)}
+            >
+              <div className="entropy-toolbar px-4 py-3">
+                <Select
+                  value={activeRoot?.path ?? scanRoot}
+                  onValueChange={(value) => {
+                    const root = roots.find((item) => item.path === value);
+                    if (root) {
+                      selectRoot(root);
+                      return;
+                    }
+                    const mount = mountRoots.find((item) => item.path === value);
+                    if (mount) {
+                      addMountRoot(mount);
+                      return;
+                    }
+                    selectRootPath(value);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[7.5rem] shrink-0 sm:w-[8.25rem]" aria-label="Location">
+                    <SelectValue placeholder="Location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roots.map((root) => (
+                      <SelectItem key={root.id} value={root.path}>
+                        {root.name}
+                      </SelectItem>
+                    ))}
+                    {mountRoots.length > 0 ? (
+                      <>
+                        {mountRoots.map((mount) => (
+                          <SelectItem key={mount.id} value={mount.path}>
+                            Add {mount.name}…
+                          </SelectItem>
+                        ))}
+                      </>
+                    ) : null}
+                  </SelectContent>
+                </Select>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      aria-label="Add folder"
+                      onClick={() => void addFolderRoot()}
+                    >
+                      <Plus className="h-4 w-4" strokeWidth={1.75} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Add folder…</TooltipContent>
+                </Tooltip>
+                <Input
+                  type="search"
+                  placeholder="Filter…"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  aria-label="Filter files"
+                  className="h-8 w-full max-w-[9rem] border-border bg-transparent sm:max-w-[11rem]"
+                />
+                <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
+                  <SelectTrigger className="h-8 w-[6.5rem] shrink-0" aria-label="Sort by">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="modified">Modified</SelectItem>
+                    <SelectItem value="size">Size</SelectItem>
+                    <SelectItem value="type">Type</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "h-8 w-8 text-muted-foreground",
+                        !sortAsc && "bg-ink-2 text-paper",
+                      )}
+                      aria-label={sortAsc ? "Sort ascending" : "Sort descending"}
+                      aria-pressed={!sortAsc}
+                      onClick={() => setSortAsc((v) => !v)}
+                    >
+                      {sortAsc ? (
+                        <ArrowUpNarrowWide className="h-4 w-4" strokeWidth={1.75} />
+                      ) : (
+                        <ArrowDownWideNarrow className="h-4 w-4" strokeWidth={1.75} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{sortAsc ? "Ascending" : "Descending"}</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "h-8 w-8 text-muted-foreground",
+                        view === "grid" && "bg-ink-2 text-paper",
+                      )}
+                      aria-label={view === "list" ? "Switch to grid view" : "Switch to list view"}
+                      aria-pressed={view === "grid"}
+                      onClick={() =>
+                        updateSettings({ filesView: view === "list" ? "grid" : "list" })
+                      }
+                    >
+                      {view === "list" ? (
+                        <LayoutGrid className="h-4 w-4" strokeWidth={1.75} />
+                      ) : (
+                        <List className="h-4 w-4" strokeWidth={1.75} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {view === "list" ? "Grid view" : "List view"}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="entropy-gallery px-4 pb-6">
+                  {error ? <p className="mb-3 text-xs text-muted-foreground">{error}</p> : null}
+
+                  {recentEntries.length > 0 ? (
+                    <section className="mb-6" aria-label="Recent files">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                          Recent
+                        </h2>
+                        <span className="text-[11px] text-muted-foreground">
+                          {recentEntries.length}
+                        </span>
+                      </div>
+                      <div className="entropy-gallery-grid">
+                        {recentEntries.map((entry) => (
+                          <FileGridCard
+                            key={`recent-${entry.path}`}
+                            entry={entry}
+                            selected={selected?.path === entry.path}
+                            dropTarget={false}
+                            onOpen={() => void openEntry(entry)}
+                            onDragStart={(event) => onDragStart(event, entry)}
+                            actions={fileActions(entry)}
+                          />
+                        ))}
+                      </div>
+                    </section>
                   ) : null}
-                </SelectContent>
-              </Select>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    aria-label="Add folder"
-                    onClick={() => void addFolderRoot()}
-                  >
-                    <Plus className="h-4 w-4" strokeWidth={1.75} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Add folder…</TooltipContent>
-              </Tooltip>
 
-              <Breadcrumb className="entropy-toolbar-trail">
-                <BreadcrumbList>
-                  <BreadcrumbItem>
-                    {crumbs.length === 0 ? (
-                      <BreadcrumbPage className="truncate">{rootLabel}</BreadcrumbPage>
-                    ) : (
-                      <BreadcrumbLink asChild>
-                        <button
-                          type="button"
-                          className="truncate"
-                          onClick={() => void goToCrumb(-1)}
-                        >
-                          {rootLabel}
-                        </button>
-                      </BreadcrumbLink>
-                    )}
-                  </BreadcrumbItem>
-                  {crumbs.map((part, index) => (
-                    <Fragment key={`${part}-${index}`}>
-                      <BreadcrumbSeparator />
-                      <BreadcrumbItem>
-                        {index === crumbs.length - 1 ? (
-                          <BreadcrumbPage className="truncate">{part}</BreadcrumbPage>
-                        ) : (
-                          <BreadcrumbLink asChild>
-                            <button
-                              type="button"
-                              className="truncate"
-                              onClick={() => void goToCrumb(index)}
-                            >
-                              {part}
-                            </button>
-                          </BreadcrumbLink>
-                        )}
-                      </BreadcrumbItem>
-                    </Fragment>
-                  ))}
-                </BreadcrumbList>
-              </Breadcrumb>
-
-              <Input
-                type="search"
-                placeholder="Filter…"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                aria-label="Filter files"
-                className="h-8 w-full max-w-[9rem] border-border bg-transparent sm:max-w-[11rem]"
-              />
-              <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
-                <SelectTrigger className="h-8 w-[6.5rem] shrink-0" aria-label="Sort by">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name">Name</SelectItem>
-                  <SelectItem value="modified">Modified</SelectItem>
-                  <SelectItem value="size">Size</SelectItem>
-                  <SelectItem value="type">Type</SelectItem>
-                </SelectContent>
-              </Select>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "h-8 w-8 text-muted-foreground",
-                      !sortAsc && "bg-ink-2 text-paper",
-                    )}
-                    aria-label={sortAsc ? "Sort ascending" : "Sort descending"}
-                    aria-pressed={!sortAsc}
-                    onClick={() => setSortAsc((v) => !v)}
-                  >
-                    {sortAsc ? (
-                      <ArrowUpNarrowWide className="h-4 w-4" strokeWidth={1.75} />
-                    ) : (
-                      <ArrowDownWideNarrow className="h-4 w-4" strokeWidth={1.75} />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{sortAsc ? "Ascending" : "Descending"}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "h-8 w-8 text-muted-foreground",
-                      view === "grid" && "bg-ink-2 text-paper",
-                    )}
-                    aria-label={view === "list" ? "Switch to grid view" : "Switch to list view"}
-                    aria-pressed={view === "grid"}
-                    onClick={() => updateSettings({ filesView: view === "list" ? "grid" : "list" })}
-                  >
-                    {view === "list" ? (
-                      <LayoutGrid className="h-4 w-4" strokeWidth={1.75} />
-                    ) : (
-                      <List className="h-4 w-4" strokeWidth={1.75} />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  {view === "list" ? "Grid view" : "List view"}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="entropy-gallery px-4 pb-6">
-                {error ? <p className="mb-3 text-xs text-muted-foreground">{error}</p> : null}
-
-                {recentEntries.length > 0 ? (
-                  <section className="mb-6" aria-label="Recent files">
-                    <div className="mb-3 flex items-center justify-between">
-                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Recent
-                      </h2>
-                      <span className="text-[11px] text-muted-foreground">
-                        {recentEntries.length}
-                      </span>
-                    </div>
+                  {loading ? (
                     <div className="entropy-gallery-grid">
-                      {recentEntries.map((entry) => (
+                      {Array.from({ length: 8 }).map((_, index) => (
+                        <Skeleton key={index} className="aspect-square w-full rounded-xl" />
+                      ))}
+                    </div>
+                  ) : null}
+                  {!loading && visible.length === 0 ? (
+                    <Empty className="py-16">
+                      <EmptyTitle>This folder is empty</EmptyTitle>
+                      <EmptyDescription>
+                        Drop files here or choose another location from the menu.
+                      </EmptyDescription>
+                    </Empty>
+                  ) : null}
+
+                  {!loading && visible.length > 0 ? (
+                    <div className="mb-3">
+                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        Gallery
+                      </h2>
+                    </div>
+                  ) : null}
+
+                  {view === "list" ? (
+                    <div className="space-y-0.5" role="table" aria-label="Files">
+                      <div
+                        className="entropy-list-table px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
+                        role="row"
+                      >
+                        <span>Name</span>
+                        <span className="entropy-list-hide-narrow">Modified</span>
+                        <span>Size</span>
+                        <span className="entropy-list-hide-narrow">Type</span>
+                        <span className="sr-only">Actions</span>
+                      </div>
+                      {rendered.map((entry) => (
+                        <div
+                          key={entry.path}
+                          role="row"
+                          draggable
+                          className={cn(
+                            "entropy-list-table w-full rounded-lg px-2 py-1.5 text-sm hover:bg-accent",
+                            selected?.path === entry.path && "bg-accent",
+                            entry.isDirectory && dragOverPath === entry.path && "ring-1 ring-ring",
+                          )}
+                          onClick={() => void openEntry(entry)}
+                          onDragStart={(event) => onDragStart(event, entry)}
+                          onDragOver={
+                            entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
+                          }
+                          onDrop={
+                            entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
+                          }
+                        >
+                          <span className="flex min-w-0 items-center gap-2 text-foreground">
+                            <EntryPreview entry={entry} size="sm" />
+                            <span className="truncate">{entry.name}</span>
+                          </span>
+                          <span className="entropy-list-hide-narrow truncate text-xs text-muted-foreground">
+                            {formatDate(entry.modifiedAt)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {entry.isDirectory ? "—" : formatBytes(entry.size)}
+                          </span>
+                          <span className="entropy-list-hide-narrow text-xs text-muted-foreground">
+                            {entry.isDirectory ? "Folder" : entry.extension || "File"}
+                          </span>
+                          <ItemActionsMenu label={entry.name} actions={fileActions(entry)} />
+                        </div>
+                      ))}
+                      {rendered.length < visible.length ? (
+                        <div ref={loadMoreRef} className="h-8" aria-hidden />
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="entropy-gallery-grid">
+                      {rendered.map((entry) => (
                         <FileGridCard
-                          key={`recent-${entry.path}`}
+                          key={entry.path}
                           entry={entry}
                           selected={selected?.path === entry.path}
-                          dropTarget={false}
+                          dropTarget={entry.isDirectory && dragOverPath === entry.path}
                           onOpen={() => void openEntry(entry)}
                           onDragStart={(event) => onDragStart(event, entry)}
+                          onDragOver={
+                            entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
+                          }
+                          onDrop={
+                            entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
+                          }
                           actions={fileActions(entry)}
                         />
                       ))}
+                      {rendered.length < visible.length ? (
+                        <div ref={loadMoreRef} className="col-span-full h-8" aria-hidden />
+                      ) : null}
                     </div>
-                  </section>
-                ) : null}
-
-                {loading ? (
-                  <div className="entropy-gallery-grid">
-                    {Array.from({ length: 8 }).map((_, index) => (
-                      <Skeleton key={index} className="aspect-square w-full rounded-xl" />
-                    ))}
-                  </div>
-                ) : null}
-                {!loading && visible.length === 0 ? (
-                  <Empty className="py-16">
-                    <EmptyTitle>This folder is empty</EmptyTitle>
-                    <EmptyDescription>
-                      Drop files here or choose another location from the menu.
-                    </EmptyDescription>
-                  </Empty>
-                ) : null}
-
-                {!loading && visible.length > 0 ? (
-                  <div className="mb-3">
-                    <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      {crumbs.length === 0 ? "Gallery" : crumbs[crumbs.length - 1]}
-                    </h2>
-                  </div>
-                ) : null}
-
-                {view === "list" ? (
-                  <div className="space-y-0.5" role="table" aria-label="Files">
-                    <div
-                      className="entropy-list-table px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
-                      role="row"
-                    >
-                      <span>Name</span>
-                      <span className="entropy-list-hide-narrow">Modified</span>
-                      <span>Size</span>
-                      <span className="entropy-list-hide-narrow">Type</span>
-                      <span className="sr-only">Actions</span>
-                    </div>
-                    {rendered.map((entry) => (
-                      <div
-                        key={entry.path}
-                        role="row"
-                        draggable
-                        className={cn(
-                          "entropy-list-table w-full rounded-lg px-2 py-1.5 text-sm hover:bg-accent",
-                          selected?.path === entry.path && "bg-accent",
-                          entry.isDirectory && dragOverPath === entry.path && "ring-1 ring-ring",
-                        )}
-                        onClick={() => void openEntry(entry)}
-                        onDragStart={(event) => onDragStart(event, entry)}
-                        onDragOver={
-                          entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
-                        }
-                        onDrop={
-                          entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
-                        }
-                      >
-                        <span className="flex min-w-0 items-center gap-2 text-foreground">
-                          <EntryPreview entry={entry} size="sm" />
-                          <span className="truncate">{entry.name}</span>
-                        </span>
-                        <span className="entropy-list-hide-narrow truncate text-xs text-muted-foreground">
-                          {formatDate(entry.modifiedAt)}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {entry.isDirectory ? "—" : formatBytes(entry.size)}
-                        </span>
-                        <span className="entropy-list-hide-narrow text-xs text-muted-foreground">
-                          {entry.isDirectory ? "Folder" : entry.extension || "File"}
-                        </span>
-                        <ItemActionsMenu label={entry.name} actions={fileActions(entry)} />
-                      </div>
-                    ))}
-                    {rendered.length < visible.length ? (
-                      <div ref={loadMoreRef} className="h-8" aria-hidden />
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="entropy-gallery-grid">
-                    {rendered.map((entry) => (
-                      <FileGridCard
-                        key={entry.path}
-                        entry={entry}
-                        selected={selected?.path === entry.path}
-                        dropTarget={entry.isDirectory && dragOverPath === entry.path}
-                        onOpen={() => void openEntry(entry)}
-                        onDragStart={(event) => onDragStart(event, entry)}
-                        onDragOver={
-                          entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
-                        }
-                        onDrop={
-                          entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
-                        }
-                        actions={fileActions(entry)}
-                      />
-                    ))}
-                    {rendered.length < visible.length ? (
-                      <div ref={loadMoreRef} className="col-span-full h-8" aria-hidden />
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </section>
-        }
-      />
+                  )}
+                </div>
+              </ScrollArea>
+            </section>
+          }
+        />
+      </div>
       <StatusBar
         left={workspace.currentFolder}
         right={`${visible.length} items${selected ? ` · ${selected.name}` : ""}`}
@@ -833,6 +799,7 @@ export function FilesPage() {
     </div>
   );
 }
+
 
 const FileGridCard = memo(function FileGridCard({
   entry,

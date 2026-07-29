@@ -14,6 +14,12 @@ import {
   type WorkspaceState,
 } from "./workspace";
 
+function samePath(a: string, b: string): boolean {
+  return a.replace(/[/\\]+$/, "").toLowerCase() === b.replace(/[/\\]+$/, "").toLowerCase();
+}
+
+export type FolderNavMode = "push" | "replace";
+
 interface WorkspaceContextValue {
   workspace: WorkspaceState;
   pendingNote: string | null;
@@ -23,6 +29,18 @@ interface WorkspaceContextValue {
   referenceInNote: (filePath: string) => void;
   setSection: (section: SectionId) => void;
   setCurrentFolder: (folderPath: string) => void;
+  goToFolder: (
+    folderPath: string,
+    mode?: FolderNavMode,
+    opts?: { activate?: boolean },
+  ) => void;
+  goBackFolder: () => void;
+  goForwardFolder: () => void;
+  goToInventoryCrumb: (index: number) => Promise<void>;
+  setInventoryRoot: (scanRoot: string, rootLabel: string) => void;
+  canGoBackFolder: boolean;
+  canGoForwardFolder: boolean;
+  inventoryCrumbs: string[];
   addRecentFile: (filePath: string) => void;
   clearRecentFiles: () => void;
   updateSettings: (patch: Partial<WorkspaceSettings>) => void;
@@ -77,6 +95,106 @@ export function WorkspaceProvider({
     setWorkspace((prev) => ({ ...prev, currentFolder: folderPath }));
   }, []);
 
+  const goToFolder = useCallback(
+    (folderPath: string, mode: FolderNavMode = "push", opts?: { activate?: boolean }) => {
+      setWorkspace((prev) => {
+        const stack = prev.folderHistory;
+        const index = prev.folderHistoryIndex;
+        const activate = opts?.activate ? { currentSection: "inventory" as const } : {};
+        if (mode === "replace") {
+          return {
+            ...prev,
+            ...activate,
+            currentFolder: folderPath,
+            folderHistory: [folderPath],
+            folderHistoryIndex: 0,
+          };
+        }
+        if (index >= 0 && samePath(stack[index] ?? "", folderPath)) {
+          return { ...prev, ...activate, currentFolder: folderPath };
+        }
+        const nextHistory = [...stack.slice(0, index + 1), folderPath];
+        return {
+          ...prev,
+          ...activate,
+          currentFolder: folderPath,
+          folderHistory: nextHistory,
+          folderHistoryIndex: nextHistory.length - 1,
+        };
+      });
+    },
+    [],
+  );
+
+  const goBackFolder = useCallback(() => {
+    setWorkspace((prev) => {
+      if (prev.folderHistoryIndex <= 0) return prev;
+      const nextIndex = prev.folderHistoryIndex - 1;
+      return {
+        ...prev,
+        folderHistoryIndex: nextIndex,
+        currentFolder: prev.folderHistory[nextIndex],
+        currentSection: "inventory",
+      };
+    });
+  }, []);
+
+  const goForwardFolder = useCallback(() => {
+    setWorkspace((prev) => {
+      if (prev.folderHistoryIndex >= prev.folderHistory.length - 1) return prev;
+      const nextIndex = prev.folderHistoryIndex + 1;
+      return {
+        ...prev,
+        folderHistoryIndex: nextIndex,
+        currentFolder: prev.folderHistory[nextIndex],
+        currentSection: "inventory",
+      };
+    });
+  }, []);
+
+  const setInventoryRoot = useCallback((scanRoot: string, rootLabel: string) => {
+    setWorkspace((prev) => ({
+      ...prev,
+      inventoryScanRoot: scanRoot,
+      inventoryRootLabel: rootLabel,
+    }));
+  }, []);
+
+  const goToInventoryCrumb = useCallback(
+    async (index: number) => {
+      const root = workspace.inventoryScanRoot || workspace.currentFolder;
+      if (index < 0) {
+        goToFolder(root, "push", { activate: true });
+        return;
+      }
+      const relative = workspace.currentFolder
+        .slice(root.length)
+        .replace(/^[/\\]+/, "");
+      const parts = relative ? relative.split(/[/\\]/) : [];
+      const nextParts = parts.slice(0, index + 1);
+      const next = await window.entropy.fs.join(root, ...nextParts);
+      goToFolder(next, "push", { activate: true });
+    },
+    [goToFolder, workspace.currentFolder, workspace.inventoryScanRoot],
+  );
+
+  const inventoryCrumbs = useMemo(() => {
+    const root = workspace.inventoryScanRoot;
+    if (!root || !workspace.currentFolder) return [];
+    if (!samePath(workspace.currentFolder, root) && !workspace.currentFolder.toLowerCase().startsWith(root.toLowerCase())) {
+      return [];
+    }
+    const relative = workspace.currentFolder
+      .slice(root.length)
+      .replace(/^[/\\]+/, "");
+    return relative ? relative.split(/[/\\]/) : [];
+  }, [workspace.currentFolder, workspace.inventoryScanRoot]);
+
+  const canGoBackFolder = workspace.folderHistoryIndex > 0;
+  const canGoForwardFolder =
+    workspace.folderHistoryIndex >= 0 &&
+    workspace.folderHistoryIndex < workspace.folderHistory.length - 1;
+
   const addRecentFile = useCallback((filePath: string) => {
     setWorkspace((prev) => {
       const recentFiles = [filePath, ...prev.recentFiles.filter((item) => item !== filePath)].slice(
@@ -111,10 +229,9 @@ export function WorkspaceProvider({
 
   const openFolder = useCallback(
     (folderPath: string) => {
-      setCurrentFolder(folderPath);
-      setSection("inventory");
+      goToFolder(folderPath, "push", { activate: true });
     },
-    [setCurrentFolder, setSection],
+    [goToFolder],
   );
 
   const openFileLocation = useCallback(
@@ -122,13 +239,12 @@ export function WorkspaceProvider({
       addRecentFile(filePath);
       try {
         const dir = await window.entropy.fs.dirname(filePath);
-        setCurrentFolder(dir);
+        goToFolder(dir, "push", { activate: true });
       } catch {
-        // Keep current folder if dirname fails.
+        setSection("inventory");
       }
-      setSection("inventory");
     },
-    [addRecentFile, setCurrentFolder, setSection],
+    [addRecentFile, goToFolder, setSection],
   );
 
   const updateSettings = useCallback(
@@ -160,6 +276,14 @@ export function WorkspaceProvider({
       referenceInNote,
       setSection,
       setCurrentFolder,
+      goToFolder,
+      goBackFolder,
+      goForwardFolder,
+      goToInventoryCrumb,
+      setInventoryRoot,
+      canGoBackFolder,
+      canGoForwardFolder,
+      inventoryCrumbs,
       addRecentFile,
       clearRecentFiles,
       updateSettings,
@@ -178,6 +302,14 @@ export function WorkspaceProvider({
       referenceInNote,
       setSection,
       setCurrentFolder,
+      goToFolder,
+      goBackFolder,
+      goForwardFolder,
+      goToInventoryCrumb,
+      setInventoryRoot,
+      canGoBackFolder,
+      canGoForwardFolder,
+      inventoryCrumbs,
       addRecentFile,
       clearRecentFiles,
       updateSettings,
