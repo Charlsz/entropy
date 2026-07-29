@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect, type KeyboardEvent } from "react";
+import { useMemo, useState, useEffect, type KeyboardEvent } from "react";
 import { HardDrive } from "lucide-react";
 import { cn } from "../lib/utils";
 import { squarify } from "../lib/squarify";
@@ -30,29 +30,33 @@ export function StorageTreemap({
   onOpen,
   className,
 }: StorageTreemapProps) {
-  const frameRef = useRef<HTMLDivElement>(null);
+  const [frameEl, setFrameEl] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    const node = frameRef.current;
-    if (!node) return;
+    if (!frameEl) return;
     const sync = () => {
-      const rect = node.getBoundingClientRect();
-      setSize({ width: Math.max(0, rect.width), height: Math.max(0, rect.height) });
+      const rect = frameEl.getBoundingClientRect();
+      setSize({
+        width: Math.max(0, Math.floor(rect.width)),
+        height: Math.max(0, Math.floor(rect.height)),
+      });
     };
     sync();
     const observer = new ResizeObserver(sync);
-    observer.observe(node);
+    observer.observe(frameEl);
     return () => observer.disconnect();
-  }, []);
+  }, [frameEl]);
 
   const total = useMemo(
     () => nodes.reduce((sum, node) => sum + Math.max(node.size, 0), 0),
     [nodes],
   );
 
+  const showMap = nodes.length > 0 && total > 0;
+
   const layout = useMemo(() => {
-    if (size.width < 8 || size.height < 8 || total <= 0) return [];
+    if (!showMap || size.width < 8 || size.height < 8) return [];
     const gap = 1.5;
     const rects = squarify(
       nodes.map((node) => ({ id: node.path, size: node.size })),
@@ -78,7 +82,7 @@ export function StorageTreemap({
         };
       })
       .filter((item): item is NonNullable<typeof item> => item != null);
-  }, [nodes, size.height, size.width, total]);
+  }, [nodes, showMap, size.height, size.width]);
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)} aria-label="Storage treemap">
@@ -94,11 +98,11 @@ export function StorageTreemap({
       </div>
 
       <div className="min-h-0 flex-1 px-3 pb-3">
-        {scanning && layout.length === 0 ? (
+        {scanning && !showMap ? (
           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
             Measuring folder sizes…
           </div>
-        ) : nodes.length === 0 || total <= 0 ? (
+        ) : !showMap ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-6 text-center">
             <p className="text-sm text-muted-foreground">
               Size map appears here once this folder is measured.
@@ -106,51 +110,57 @@ export function StorageTreemap({
           </div>
         ) : (
           <div
-            ref={frameRef}
+            ref={setFrameEl}
             className="relative h-full min-h-[160px] overflow-hidden rounded-xl bg-ink"
             role="list"
             aria-label="Folder size map"
           >
-            {layout.map((cell, index) => {
-              const selected = selectedPath === cell.path;
-              const showLabel = cell.width > 56 && cell.height > 34;
-              const tone = index % 2 === 0 ? "bg-ink-2" : "bg-background/80";
-              return (
-                <button
-                  key={cell.path}
-                  type="button"
-                  role="listitem"
-                  title={`${cell.name} · ${formatBytes(cell.size)}`}
-                  className={cn(
-                    "absolute overflow-hidden border border-border/50 p-1.5 text-left transition-colors hover:bg-accent/50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                    tone,
-                    selected && "z-10 ring-1 ring-ring",
-                  )}
-                  style={{
-                    left: cell.x,
-                    top: cell.y,
-                    width: cell.width,
-                    height: cell.height,
-                  }}
-                  onClick={() => onSelect?.(cell.path)}
-                  onDoubleClick={() => onOpen?.(cell.path)}
-                  onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
-                    if (event.key === "Enter") onOpen?.(cell.path);
-                  }}
-                >
-                  {showLabel ? (
-                    <span className="flex h-full min-h-0 flex-col justify-between">
-                      <span className="truncate text-[11px] font-medium text-foreground">
-                        {cell.name}
+            {layout.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                {scanning ? "Measuring folder sizes…" : "Preparing size map…"}
+              </div>
+            ) : (
+              layout.map((cell, index) => {
+                const selected = selectedPath === cell.path;
+                const showLabel = cell.width > 56 && cell.height > 34;
+                const tone = index % 2 === 0 ? "bg-ink-2" : "bg-background/80";
+                return (
+                  <button
+                    key={cell.path}
+                    type="button"
+                    role="listitem"
+                    title={`${cell.name} · ${formatBytes(cell.size)}`}
+                    className={cn(
+                      "absolute overflow-hidden border border-border/50 p-1.5 text-left transition-colors hover:bg-accent/50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      tone,
+                      selected && "z-10 ring-1 ring-ring",
+                    )}
+                    style={{
+                      left: cell.x,
+                      top: cell.y,
+                      width: cell.width,
+                      height: cell.height,
+                    }}
+                    onClick={() => onSelect?.(cell.path)}
+                    onDoubleClick={() => onOpen?.(cell.path)}
+                    onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+                      if (event.key === "Enter") onOpen?.(cell.path);
+                    }}
+                  >
+                    {showLabel ? (
+                      <span className="flex h-full min-h-0 flex-col justify-between">
+                        <span className="truncate text-[11px] font-medium text-foreground">
+                          {cell.name}
+                        </span>
+                        <span className="truncate text-[10px] text-muted-foreground">
+                          {formatBytes(cell.size)}
+                        </span>
                       </span>
-                      <span className="truncate text-[10px] text-muted-foreground">
-                        {formatBytes(cell.size)}
-                      </span>
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
+                    ) : null}
+                  </button>
+                );
+              })
+            )}
             {scanning ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/70 px-2 py-1 text-center text-[10px] text-muted-foreground">
                 Updating sizes…
