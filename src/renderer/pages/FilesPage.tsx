@@ -3,12 +3,11 @@ import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
   Folder,
-  FolderOpen,
   LayoutGrid,
   List,
-  ArrowLeftRight,
+  HardDrive,
 } from "lucide-react";
-import type { FileEntry, TreeNode } from "../../shared/types";
+import type { FileEntry, InventoryRoot, TreeNode } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { FolderTree } from "./FolderTree";
 import { Button } from "../components/ui/button";
@@ -55,11 +54,30 @@ function formatDate(value: number): string {
   return new Date(value).toLocaleString();
 }
 
+function samePath(a: string, b: string): boolean {
+  return a.replace(/[/\\]+$/, "").toLowerCase() === b.replace(/[/\\]+$/, "").toLowerCase();
+}
+
+function isUnderPath(folder: string, root: string): boolean {
+  const left = folder.replace(/[/\\]+$/, "").toLowerCase();
+  const right = root.replace(/[/\\]+$/, "").toLowerCase();
+  return left === right || left.startsWith(`${right}\\`) || left.startsWith(`${right}/`);
+}
+
+function pickRoot(folder: string, roots: InventoryRoot[]): InventoryRoot | null {
+  const matches = roots.filter((root) => isUnderPath(folder, root.path));
+  matches.sort((a, b) => b.path.length - a.path.length);
+  return matches[0] ?? null;
+}
+
 export function FilesPage() {
-  const { workspace, setCurrentFolder, updateSettings, addRecentFile, closeWorkspace } =
-    useWorkspace();
+  const { workspace, setCurrentFolder, updateSettings, addRecentFile } = useWorkspace();
+  const [roots, setRoots] = useState<InventoryRoot[]>([]);
+  const [scanRoot, setScanRoot] = useState<string>("");
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [entries, setEntries] = useState<FileEntry[]>([]);
+  const [sizeByPath, setSizeByPath] = useState<Record<string, number>>({});
+  const [scanning, setScanning] = useState(false);
   const [selected, setSelected] = useState<FileEntry | null>(null);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -73,26 +91,32 @@ export function FilesPage() {
   const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
   const [renderedCount, setRenderedCount] = useState(60);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const homeBootstrapped = useRef(false);
 
   const view = workspace.settings.filesView;
+  const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
+  const rootLabel = activeRoot?.name ?? "Home";
 
   const refreshTree = useCallback(async () => {
+    if (!scanRoot) return;
     try {
-      setTree(await window.entropy.fs.folderTree(workspace.path));
+      setTree(await window.entropy.fs.folderTree(scanRoot, 3));
     } catch {
       // Keep previous tree on failure.
     }
-  }, [workspace.path]);
+  }, [scanRoot]);
 
   const refreshListing = useCallback(async () => {
+    if (!workspace.currentFolder) return;
     setLoading(true);
     setError(null);
     try {
       const listing = await window.entropy.fs.listDir(workspace.currentFolder);
       setEntries(listing);
 
+      const root = scanRoot || workspace.currentFolder;
       const relative = workspace.currentFolder
-        .slice(workspace.path.length)
+        .slice(root.length)
         .replace(/^[/\\]+/, "");
       const parts = relative ? relative.split(/[/\\]/) : [];
       setCrumbs(parts);
@@ -106,11 +130,50 @@ export function FilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [workspace.path, workspace.currentFolder]);
+  }, [scanRoot, workspace.currentFolder]);
 
   const refresh = useCallback(async () => {
     await Promise.all([refreshTree(), refreshListing()]);
   }, [refreshTree, refreshListing]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const nextRoots = await window.entropy.fs.getInventoryRoots();
+        if (cancelled) return;
+        setRoots(nextRoots);
+        const home =
+          nextRoots.find((root) => root.id === "home")?.path ??
+          (await window.entropy.fs.getHomePath());
+        if (!homeBootstrapped.current) {
+          homeBootstrapped.current = true;
+          setScanRoot(home);
+          if (samePath(workspace.currentFolder, workspace.path) || !workspace.currentFolder) {
+            setCurrentFolder(home);
+          } else {
+            const match = pickRoot(workspace.currentFolder, nextRoots);
+            setScanRoot(match?.path ?? home);
+          }
+        }
+      } catch {
+        // Roots unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Bootstrap once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!roots.length || !workspace.currentFolder) return;
+    const match = pickRoot(workspace.currentFolder, roots);
+    if (match && !samePath(match.path, scanRoot)) {
+      setScanRoot(match.path);
+    }
+  }, [roots, scanRoot, workspace.currentFolder]);
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory") return;
@@ -122,6 +185,28 @@ export function FilesPage() {
     setRenderedCount(60);
     void refreshListing();
   }, [refreshListing, workspace.currentSection]);
+
+  useEffect(() => {
+    if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
+    let cancelled = false;
+    setScanning(true);
+    void (async () => {
+      try {
+        const measured = await window.entropy.fs.measureChildren(workspace.currentFolder);
+        if (cancelled) return;
+        const next: Record<string, number> = {};
+        for (const item of measured) next[item.path] = item.size;
+        setSizeByPath(next);
+      } catch {
+        if (!cancelled) setSizeByPath({});
+      } finally {
+        if (!cancelled) setScanning(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace.currentFolder, workspace.currentSection]);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,8 +230,17 @@ export function FilesPage() {
     };
   }, [workspace.recentFiles]);
 
+  const sizedEntries = useMemo(
+    () =>
+      entries.map((entry) => ({
+        ...entry,
+        size: sizeByPath[entry.path] ?? entry.size,
+      })),
+    [entries, sizeByPath],
+  );
+
   const visible = useMemo(() => {
-    const filtered = entries.filter((entry) =>
+    const filtered = sizedEntries.filter((entry) =>
       entry.name.toLowerCase().includes(query.trim().toLowerCase()),
     );
 
@@ -161,7 +255,7 @@ export function FilesPage() {
     });
 
     return sorted;
-  }, [entries, query, sortKey, sortAsc]);
+  }, [sizedEntries, query, sortKey, sortAsc]);
 
   const rendered = useMemo(
     () => visible.slice(0, renderedCount),
@@ -199,12 +293,18 @@ export function FilesPage() {
   async function goToCrumb(index: number): Promise<void> {
     setSelected(null);
     if (index < 0) {
-      setCurrentFolder(workspace.path);
+      setCurrentFolder(scanRoot || workspace.currentFolder);
       return;
     }
     const parts = crumbs.slice(0, index + 1);
-    const next = await window.entropy.fs.join(workspace.path, ...parts);
+    const next = await window.entropy.fs.join(scanRoot, ...parts);
     setCurrentFolder(next);
+  }
+
+  function selectRoot(root: InventoryRoot): void {
+    setScanRoot(root.path);
+    setCurrentFolder(root.path);
+    setSelected(null);
   }
 
   async function handleRename(entry: FileEntry): Promise<void> {
@@ -307,17 +407,16 @@ export function FilesPage() {
 
   const treemapNodes = useMemo(
     () =>
-      entries
-        .filter((entry) => entry.size > 0 || entry.isDirectory)
+      sizedEntries
         .map((entry) => ({
           path: entry.path,
           name: entry.name,
-          size: Math.max(entry.size, entry.isDirectory ? 0 : 0),
+          size: entry.size,
           isDirectory: entry.isDirectory,
         }))
         .filter((node) => node.size > 0)
         .sort((a, b) => b.size - a.size),
-    [entries],
+    [sizedEntries],
   );
 
   return (
@@ -328,11 +427,12 @@ export function FilesPage() {
         persistLayout={workspace.currentSection === "inventory"}
         context={
           <StorageTreemap
-            rootLabel={crumbs.length ? crumbs[crumbs.length - 1] : workspace.name}
+            rootLabel={crumbs.length ? crumbs[crumbs.length - 1] : rootLabel}
             nodes={treemapNodes}
             selectedPath={selected?.path ?? null}
+            scanning={scanning}
             onSelect={(path) => {
-              const entry = entries.find((item) => item.path === path);
+              const entry = sizedEntries.find((item) => item.path === path);
               if (!entry) return;
               if (entry.isDirectory) setCurrentFolder(entry.path);
               else setSelected(entry);
@@ -347,38 +447,45 @@ export function FilesPage() {
               </h2>
             </div>
             <ScrollArea className="min-h-0 flex-1 px-3">
-              <button
-                type="button"
-                className={cn(
-                  "mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
-                  workspace.currentFolder === workspace.path && "bg-accent text-foreground",
-                  dragOverPath === workspace.path && "ring-1 ring-ring",
-                )}
-                onClick={() => setCurrentFolder(workspace.path)}
-                onDragOver={(event) => onDragOver(event, workspace.path)}
-                onDragLeave={() => setDragOverPath(null)}
-                onDrop={(event) => void onDrop(event, workspace.path)}
-              >
-                <FolderOpen className="h-4 w-4 shrink-0" />
-                <span className="truncate">{workspace.name}</span>
-              </button>
-              <FolderTree
-                nodes={tree}
-                activePath={workspace.currentFolder}
-                onSelect={setCurrentFolder}
-              />
+              <div className="mb-3 space-y-0.5">
+                {roots.map((root) => {
+                  const active = activeRoot ? samePath(activeRoot.path, root.path) : false;
+                  return (
+                    <button
+                      key={root.id}
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
+                        active && "bg-accent text-foreground",
+                      )}
+                      onClick={() => selectRoot(root)}
+                      onDragOver={(event) => onDragOver(event, root.path)}
+                      onDragLeave={() => setDragOverPath(null)}
+                      onDrop={(event) => void onDrop(event, root.path)}
+                    >
+                      {root.id === "home" ? (
+                        <HardDrive className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <Folder className="h-4 w-4 shrink-0" />
+                      )}
+                      <span className="truncate">{root.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {tree.length > 0 ? (
+                <>
+                  <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
+                    Folders
+                  </p>
+                  <FolderTree
+                    nodes={tree}
+                    activePath={workspace.currentFolder}
+                    onSelect={setCurrentFolder}
+                  />
+                </>
+              ) : null}
             </ScrollArea>
-            <div className="border-t border-border px-3 py-2">
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                onClick={closeWorkspace}
-                title="Switch workspace"
-              >
-                <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
-                <span className="truncate">{workspace.name}</span>
-              </button>
-            </div>
           </div>
         }
         main={
@@ -392,7 +499,7 @@ export function FilesPage() {
                 <BreadcrumbList>
                   <BreadcrumbItem>
                     {crumbs.length === 0 ? (
-                      <BreadcrumbPage className="truncate">{workspace.name}</BreadcrumbPage>
+                      <BreadcrumbPage className="truncate">{rootLabel}</BreadcrumbPage>
                     ) : (
                       <BreadcrumbLink asChild>
                         <button
@@ -400,7 +507,7 @@ export function FilesPage() {
                           className="truncate"
                           onClick={() => void goToCrumb(-1)}
                         >
-                          {workspace.name}
+                          {rootLabel}
                         </button>
                       </BreadcrumbLink>
                     )}
@@ -651,9 +758,9 @@ export function FilesPage() {
       />
       <MoveToDialog
         open={movingEntry !== null}
-        rootPath={workspace.path}
-        rootName={workspace.name}
-        excludePath={movingEntry?.path ?? workspace.path}
+        rootPath={scanRoot || workspace.currentFolder}
+        rootName={rootLabel}
+        excludePath={movingEntry?.path ?? workspace.currentFolder}
         onClose={() => setMovingEntry(null)}
         onMove={(folder) => void handleMoveDialog(folder)}
       />
