@@ -38,7 +38,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
-import { FileContextPanel } from "../components/FileContextPanel";
+import { StorageTreemap } from "../components/StorageTreemap";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { cn } from "../lib/utils";
 
@@ -67,8 +67,6 @@ export function FilesPage() {
   const [crumbs, setCrumbs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState("");
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
   const [pendingDelete, setPendingDelete] = useState<FileEntry | null>(null);
@@ -124,11 +122,6 @@ export function FilesPage() {
     setRenderedCount(60);
     void refreshListing();
   }, [refreshListing, workspace.currentSection]);
-
-  useEffect(() => {
-    setRenaming(false);
-    setRenameValue("");
-  }, [workspace.currentFolder]);
 
   useEffect(() => {
     let cancelled = false;
@@ -194,8 +187,6 @@ export function FilesPage() {
   }, [visible.length, rendered.length, view, loading]);
 
   async function openEntry(entry: FileEntry): Promise<void> {
-    setRenaming(false);
-    setRenameValue("");
     if (entry.isDirectory) {
       setCurrentFolder(entry.path);
       setSelected(null);
@@ -206,8 +197,6 @@ export function FilesPage() {
   }
 
   async function goToCrumb(index: number): Promise<void> {
-    setRenaming(false);
-    setRenameValue("");
     setSelected(null);
     if (index < 0) {
       setCurrentFolder(workspace.path);
@@ -218,29 +207,20 @@ export function FilesPage() {
     setCurrentFolder(next);
   }
 
-  function startRename(entry: FileEntry): void {
-    setSelected(entry);
-    setRenaming(true);
-    setRenameValue(entry.name);
-  }
-
-  async function commitRename(): Promise<void> {
-    if (!selected || !renaming) return;
-    const nextName = renameValue.trim();
-    setRenaming(false);
-    if (!nextName || nextName === selected.name) return;
+  async function handleRename(entry: FileEntry): Promise<void> {
+    const nextName = window.prompt("Rename", entry.name)?.trim();
+    if (!nextName || nextName === entry.name) return;
 
     try {
-      const dir = await window.entropy.fs.dirname(selected.path);
+      const dir = await window.entropy.fs.dirname(entry.path);
       const target = await window.entropy.fs.join(dir, nextName);
       if (await window.entropy.fs.exists(target)) {
         setError("A file with that name already exists.");
         return;
       }
-      await window.entropy.fs.rename(selected.path, target);
+      await window.entropy.fs.rename(entry.path, target);
       await refresh();
-      const info = await window.entropy.fs.stat(target);
-      setSelected(info);
+      setSelected(await window.entropy.fs.stat(target));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to rename");
     }
@@ -288,14 +268,17 @@ export function FilesPage() {
   }
 
   function fileActions(entry: FileEntry) {
-    return buildEntryActions({
-      canReference: false,
-      onRename: () => startRename(entry),
-      onCopyPath: () => void copyPath(entry.path),
-      onReveal: () => void revealPath(entry.path),
-      onMoveTo: () => setMovingEntry(entry),
-      onDelete: () => requestDelete(entry),
-    });
+    return [
+      ...buildEntryActions({
+        canReference: false,
+        onRename: () => void handleRename(entry),
+        onCopyPath: () => void copyPath(entry.path),
+        onReveal: () => void revealPath(entry.path),
+        onMoveTo: () => setMovingEntry(entry),
+        onDelete: () => requestDelete(entry),
+      }),
+      { label: "Duplicate", onSelect: () => void handleDuplicate(entry) },
+    ];
   }
 
   function onDragStart(event: DragEvent, entry: FileEntry): void {
@@ -322,26 +305,40 @@ export function FilesPage() {
     }
   }
 
-  const context = selected ? (
-    <FileContextPanel
-      selected={selected}
-      renaming={renaming}
-      renameValue={renameValue}
-      onRenameValueChange={setRenameValue}
-      onStartRename={() => startRename(selected)}
-      onCommitRename={() => void commitRename()}
-      onCancelRename={() => setRenaming(false)}
-      onDuplicate={() => void handleDuplicate(selected)}
-      onDelete={() => requestDelete(selected)}
-    />
-  ) : null;
+  const treemapNodes = useMemo(
+    () =>
+      entries
+        .filter((entry) => entry.size > 0 || entry.isDirectory)
+        .map((entry) => ({
+          path: entry.path,
+          name: entry.name,
+          size: Math.max(entry.size, entry.isDirectory ? 0 : 0),
+          isDirectory: entry.isDirectory,
+        }))
+        .filter((node) => node.size > 0)
+        .sort((a, b) => b.size - a.size),
+    [entries],
+  );
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col" aria-label="File Inventory">
       <ThreeColumnLayout
         id="inventory-layout"
+        variant="inventory"
         persistLayout={workspace.currentSection === "inventory"}
-        context={context}
+        context={
+          <StorageTreemap
+            rootLabel={crumbs.length ? crumbs[crumbs.length - 1] : workspace.name}
+            nodes={treemapNodes}
+            selectedPath={selected?.path ?? null}
+            onSelect={(path) => {
+              const entry = entries.find((item) => item.path === path);
+              if (!entry) return;
+              if (entry.isDirectory) setCurrentFolder(entry.path);
+              else setSelected(entry);
+            }}
+          />
+        }
         sidebar={
           <div className="flex h-full min-h-0 flex-col">
             <div className="px-4 py-3">
