@@ -1,7 +1,9 @@
 import { shell } from "electron";
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
+import type { DuplicateGroup, FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -391,8 +393,40 @@ export async function findFileReferences(
 
 const DUP_MAX_DEPTH = 10;
 const DUP_MAX_RESULTS = 24;
+const DUP_GROUP_MAX_FILES = 4000;
+const DUP_HASH_CACHE = new Map<string, { hash: string; mtimeMs: number; size: number }>();
 
-/** Same basename + size under root (bounded walk). Excludes the target itself. */
+export async function hashFile(filePath: string): Promise<string> {
+  const info = await fs.stat(filePath);
+  const cached = DUP_HASH_CACHE.get(filePath);
+  if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
+    return cached.hash;
+  }
+
+  const hash = await new Promise<string>((resolve, reject) => {
+    const hasher = createHash("sha256");
+    const stream = createReadStream(filePath);
+    stream.on("data", (chunk) => hasher.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(hasher.digest("hex")));
+  });
+
+  DUP_HASH_CACHE.set(filePath, { hash, mtimeMs: info.mtimeMs, size: info.size });
+  return hash;
+}
+
+function toFileEntry(full: string, name: string, size: number, mtimeMs: number): FileEntry {
+  return {
+    name,
+    path: full,
+    isDirectory: false,
+    size,
+    modifiedAt: mtimeMs,
+    extension: path.extname(name).toLowerCase(),
+  };
+}
+
+/** Content-identical copies under root (same SHA-256). Excludes the target itself. */
 export async function findDuplicates(
   rootPath: string,
   filePath: string,
@@ -404,9 +438,15 @@ export async function findDuplicates(
   } catch {
     return [];
   }
-  if (!targetStat.isFile()) return [];
+  if (!targetStat.isFile() || targetStat.size <= 0) return [];
 
-  const targetName = path.basename(target).toLowerCase();
+  let targetHash: string;
+  try {
+    targetHash = await hashFile(target);
+  } catch {
+    return [];
+  }
+
   const targetSize = targetStat.size;
   const targetKey = normalizePathKey(target);
   const found: FileEntry[] = [];
@@ -432,17 +472,11 @@ export async function findDuplicates(
           continue;
         }
         if (!link.isFile()) continue;
-        if (dirent.name.toLowerCase() !== targetName) continue;
         if (link.size !== targetSize) continue;
         if (normalizePathKey(full) === targetKey) continue;
-        found.push({
-          name: dirent.name,
-          path: full,
-          isDirectory: false,
-          size: link.size,
-          modifiedAt: link.mtimeMs,
-          extension: path.extname(dirent.name).toLowerCase(),
-        });
+        const hash = await hashFile(full);
+        if (hash !== targetHash) continue;
+        found.push(toFileEntry(full, dirent.name, link.size, link.mtimeMs));
       } catch {
         // Skip inaccessible.
       }
@@ -451,6 +485,77 @@ export async function findDuplicates(
 
   await walk(path.normalize(rootPath), 0);
   return found;
+}
+
+/** Content-hash duplicate groups under root (size-bucketed, then hashed). */
+export async function findDuplicateGroups(rootPath: string): Promise<DuplicateGroup[]> {
+  const root = path.normalize(rootPath);
+  const bySize = new Map<number, FileEntry[]>();
+  let seen = 0;
+
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (depth > DUP_MAX_DEPTH || seen >= DUP_GROUP_MAX_FILES) return;
+    let dirents;
+    try {
+      dirents = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const dirent of dirents) {
+      if (seen >= DUP_GROUP_MAX_FILES) return;
+      if (dirent.name === "." || dirent.name === "..") continue;
+      if (dirent.name.startsWith(".")) continue;
+      const full = path.join(dir, dirent.name);
+      try {
+        const link = await fs.lstat(full);
+        if (link.isSymbolicLink()) continue;
+        if (link.isDirectory()) {
+          await walk(full, depth + 1);
+          continue;
+        }
+        if (!link.isFile() || link.size <= 0) continue;
+        seen += 1;
+        const entry = toFileEntry(full, dirent.name, link.size, link.mtimeMs);
+        const list = bySize.get(link.size) ?? [];
+        list.push(entry);
+        bySize.set(link.size, list);
+      } catch {
+        // Skip inaccessible.
+      }
+    }
+  }
+
+  await walk(root, 0);
+
+  const groups: DuplicateGroup[] = [];
+  for (const [size, entries] of bySize) {
+    if (entries.length < 2) continue;
+    const byHash = new Map<string, FileEntry[]>();
+    for (const entry of entries) {
+      try {
+        const hash = await hashFile(entry.path);
+        const list = byHash.get(hash) ?? [];
+        list.push(entry);
+        byHash.set(hash, list);
+      } catch {
+        // Skip unreadable.
+      }
+    }
+    for (const [hash, copies] of byHash) {
+      if (copies.length < 2) continue;
+      copies.sort((a, b) => b.modifiedAt - a.modifiedAt);
+      groups.push({
+        hash,
+        size,
+        copies,
+        recoverableBytes: size * (copies.length - 1),
+        keepPath: copies[0].path,
+      });
+    }
+  }
+
+  groups.sort((a, b) => b.recoverableBytes - a.recoverableBytes);
+  return groups.slice(0, 50);
 }
 
 export function joinPath(...parts: string[]): string {

@@ -54,6 +54,16 @@ export interface GlobalSearchHit {
   source: "note" | "file" | "folder";
 }
 
+export interface DuplicateGroup {
+  hash: string;
+  size: number;
+  copies: FileEntry[];
+  /** Bytes reclaimable if all but one copy are removed. */
+  recoverableBytes: number;
+  /** Suggested path to keep (most recently modified). */
+  keepPath: string;
+}
+
 export interface EntropyApi {
   platform: string;
   versions: {
@@ -122,6 +132,7 @@ export interface EntropyApi {
     scanTreemapLevel: (dirPath: string) => Promise<TreemapScanResult>;
     findFileReferences: (workspacePath: string, filePath: string) => Promise<NoteSearchResult[]>;
     findDuplicates: (rootPath: string, filePath: string) => Promise<FileEntry[]>;
+    findDuplicateGroups: (rootPath: string) => Promise<DuplicateGroup[]>;
   };
   canvas: {
     load: (workspacePath: string) => Promise<CanvasDocument | null>;

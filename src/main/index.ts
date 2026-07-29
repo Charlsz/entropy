@@ -154,6 +154,9 @@ function registerIpc(): void {
   ipcMain.handle("fs:findDuplicates", (_event, rootPath: string, filePath: string) =>
     filesystem.findDuplicates(rootPath, filePath),
   );
+  ipcMain.handle("fs:findDuplicateGroups", (_event, rootPath: string) =>
+    filesystem.findDuplicateGroups(rootPath),
+  );
   ipcMain.handle("fs:createNote", (_event, dirPath: string, name?: string) =>
     filesystem.createNote(dirPath, name),
   );

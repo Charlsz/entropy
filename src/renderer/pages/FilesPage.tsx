@@ -31,6 +31,7 @@ import {
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { StorageTreemap } from "../components/StorageTreemap";
 import { InventoryContextBar } from "../components/InventoryContextBar";
+import { DuplicateGroupsDialog } from "../components/DuplicateGroupsDialog";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry } from "../lib/media";
 import {
@@ -101,6 +102,7 @@ export function FilesPage() {
   const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
   const [pendingDelete, setPendingDelete] = useState<FileEntry | null>(null);
   const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
+  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [renderedCount, setRenderedCount] = useState(60);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const homeBootstrapped = useRef(false);
@@ -678,6 +680,20 @@ export function FilesPage() {
                     <Button
                       type="button"
                       variant="ghost"
+                      size="sm"
+                      className="h-8 shrink-0 px-2 text-xs text-muted-foreground"
+                      onClick={() => setDuplicatesOpen(true)}
+                    >
+                      Duplicates
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Find content-identical files</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
                       size="icon"
                       className={cn(
                         "h-8 w-8 text-muted-foreground",
@@ -902,6 +918,11 @@ export function FilesPage() {
         excludePath={movingEntry?.path ?? workspace.currentFolder}
         onClose={() => setMovingEntry(null)}
         onMove={(folder) => void handleMoveDialog(folder)}
+      />
+      <DuplicateGroupsDialog
+        open={duplicatesOpen}
+        rootPath={scanRoot || workspace.currentFolder}
+        onClose={() => setDuplicatesOpen(false)}
       />
     </div>
   );
