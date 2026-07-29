@@ -1,0 +1,94 @@
+/** Standalone markdown image embed on its own line: ![alt](src) or ![alt](src "title") */
+export const MEDIA_LINE_RE = /^!\[([^\]]*)\]\((<[^>\n]+>|[^)\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\)$/;
+
+export type MarkdownBlock =
+  | { type: "text"; value: string }
+  | { type: "media"; alt: string; src: string; raw: string };
+
+function unwrapSrc(raw: string): string {
+  if (raw.startsWith("<") && raw.endsWith(">")) return raw.slice(1, -1);
+  return raw;
+}
+
+/** Split markdown into text and standalone media-embed blocks (Obsidian-style live embeds). */
+export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
+  if (!content) return [{ type: "text", value: "" }];
+
+  const lines = content.split("\n");
+  const blocks: MarkdownBlock[] = [];
+  let textLines: string[] = [];
+
+  const flushText = () => {
+    if (textLines.length === 0) return;
+    blocks.push({ type: "text", value: textLines.join("\n") });
+    textLines = [];
+  };
+
+  for (const line of lines) {
+    const match = MEDIA_LINE_RE.exec(line.trimEnd());
+    if (match) {
+      flushText();
+      const src = unwrapSrc(match[2]);
+      blocks.push({
+        type: "media",
+        alt: match[1],
+        src,
+        raw: line,
+      });
+    } else {
+      textLines.push(line);
+    }
+  }
+
+  flushText();
+
+  if (blocks.length === 0) return [{ type: "text", value: "" }];
+  return blocks;
+}
+
+export function joinMarkdownBlocks(blocks: MarkdownBlock[]): string {
+  return blocks
+    .map((block) => {
+      if (block.type === "text") return block.value;
+      return block.raw;
+    })
+    .join("\n");
+}
+
+export function mediaMarkdown(alt: string, src: string): string {
+  const safeSrc = /\s/.test(src) ? `<${src}>` : src;
+  return `![${alt}](${safeSrc})`;
+}
+
+const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv", ".m4v"]);
+const IMAGE_EXT = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".bmp",
+  ".svg",
+  ".avif",
+]);
+
+export function extensionOfHref(href: string): string {
+  const clean = href.split(/[?#]/)[0] ?? href;
+  const base = clean.split(/[/\\]/).pop() ?? clean;
+  const dot = base.lastIndexOf(".");
+  if (dot < 0) return "";
+  return base.slice(dot).toLowerCase();
+}
+
+export function embedKind(href: string): "image" | "video" | "other" {
+  if (/^(https?:|data:)/i.test(href)) {
+    const ext = extensionOfHref(href);
+    if (VIDEO_EXT.has(ext)) return "video";
+    if (IMAGE_EXT.has(ext) || !ext) return "image";
+    return "other";
+  }
+  const ext = extensionOfHref(href);
+  if (VIDEO_EXT.has(ext)) return "video";
+  if (IMAGE_EXT.has(ext)) return "image";
+  return "other";
+}
