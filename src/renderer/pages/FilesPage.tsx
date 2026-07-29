@@ -33,6 +33,13 @@ import { StorageTreemap } from "../components/StorageTreemap";
 import { InventoryContextBar } from "../components/InventoryContextBar";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry } from "../lib/media";
+import {
+  INVENTORY_FILTERS,
+  entryMatchesFilters,
+  filtersNeedRelations,
+  type EntryRelationFlags,
+  type InventoryFilterId,
+} from "../lib/inventoryFilters";
 import { cn } from "../lib/utils";
 
 type SortKey = "name" | "modified" | "size" | "type";
@@ -84,6 +91,8 @@ export function FilesPage() {
   const [pendingSelectPath, setPendingSelectPath] = useState<string | null>(null);
   const [selected, setSelected] = useState<FileEntry | null>(null);
   const [query, setQuery] = useState("");
+  const [activeFilters, setActiveFilters] = useState<Set<InventoryFilterId>>(() => new Set());
+  const [relationFlags, setRelationFlags] = useState<Record<string, EntryRelationFlags>>({});
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -335,9 +344,15 @@ export function FilesPage() {
   );
 
   const visible = useMemo(() => {
-    const filtered = sizedEntries.filter((entry) =>
-      entry.name.toLowerCase().includes(query.trim().toLowerCase()),
-    );
+    const filtered = sizedEntries.filter((entry) => {
+      if (!entry.name.toLowerCase().includes(query.trim().toLowerCase())) return false;
+      return entryMatchesFilters(
+        entry,
+        activeFilters,
+        workspace.recentFiles,
+        filtersNeedRelations(activeFilters) ? relationFlags : null,
+      );
+    });
 
     const sorted = [...filtered].sort((a, b) => {
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
@@ -350,7 +365,51 @@ export function FilesPage() {
     });
 
     return sorted;
-  }, [sizedEntries, query, sortKey, sortAsc]);
+  }, [
+    sizedEntries,
+    query,
+    sortKey,
+    sortAsc,
+    activeFilters,
+    workspace.recentFiles,
+    relationFlags,
+  ]);
+
+  useEffect(() => {
+    if (!filtersNeedRelations(activeFilters)) return;
+    const files = sizedEntries.filter((entry) => !entry.isDirectory);
+    if (files.length === 0) {
+      setRelationFlags({});
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const next: Record<string, EntryRelationFlags> = {};
+      for (const file of files.slice(0, 80)) {
+        if (cancelled) return;
+        const [noteRefs, duplicates] = await Promise.all([
+          window.entropy.fs.findFileReferences(workspace.path, file.path).catch(() => []),
+          scanRoot
+            ? window.entropy.fs.findDuplicates(scanRoot, file.path).catch(() => [])
+            : Promise.resolve([]),
+        ]);
+        next[file.path] = { noteRefs: noteRefs.length, duplicates: duplicates.length };
+      }
+      if (!cancelled) setRelationFlags(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFilters, sizedEntries, workspace.path, scanRoot]);
+
+  function toggleFilter(id: InventoryFilterId): void {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const rendered = useMemo(
     () => visible.slice(0, renderedCount),
@@ -641,6 +700,37 @@ export function FilesPage() {
                     {view === "list" ? "Grid view" : "List view"}
                   </TooltipContent>
                 </Tooltip>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2">
+                {INVENTORY_FILTERS.map((filter) => {
+                  const on = activeFilters.has(filter.id);
+                  return (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      aria-pressed={on}
+                      className={cn(
+                        "rounded-md px-2 py-1 text-[11px] transition-colors",
+                        on
+                          ? "bg-ink-2 text-foreground"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                      )}
+                      onClick={() => toggleFilter(filter.id)}
+                    >
+                      {filter.label}
+                    </button>
+                  );
+                })}
+                {activeFilters.size > 0 ? (
+                  <button
+                    type="button"
+                    className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                    onClick={() => setActiveFilters(new Set())}
+                  >
+                    Clear
+                  </button>
+                ) : null}
               </div>
 
               <ScrollArea className="min-h-0 flex-1">
