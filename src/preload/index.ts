@@ -74,6 +74,8 @@ const api: EntropyApi = {
     pickInventoryFolder: () => ipcRenderer.invoke("fs:pickInventoryFolder"),
     measurePath: (targetPath) => ipcRenderer.invoke("fs:measurePath", targetPath),
     measureChildren: (dirPath) => ipcRenderer.invoke("fs:measureChildren", dirPath),
+    scanTreemapFiles: (dirPath, maxLeaves) =>
+      ipcRenderer.invoke("fs:scanTreemapFiles", dirPath, maxLeaves),
   },
   canvas: {
     load: (workspacePath) => ipcRenderer.invoke("canvas:load", workspacePath),

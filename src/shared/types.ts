@@ -4,6 +4,23 @@ export interface InventoryRoot {
   path: string;
 }
 
+export type { FileKindId } from "./fileKinds";
+
+export interface TreemapFileLeaf {
+  path: string;
+  name: string;
+  size: number;
+  extension: string;
+  kind: import("./fileKinds").FileKindId;
+}
+
+export interface TreemapScanResult {
+  files: TreemapFileLeaf[];
+  totalSize: number;
+  fileCount: number;
+  truncated: boolean;
+}
+
 export interface FileEntry {
   name: string;
   path: string;
@@ -89,6 +106,7 @@ export interface EntropyApi {
     pickInventoryFolder: () => Promise<string | null>;
     measurePath: (targetPath: string) => Promise<number>;
     measureChildren: (dirPath: string) => Promise<Array<{ path: string; size: number }>>;
+    scanTreemapFiles: (dirPath: string, maxLeaves?: number) => Promise<TreemapScanResult>;
   };
   canvas: {
     load: (workspacePath: string) => Promise<CanvasDocument | null>;

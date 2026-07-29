@@ -178,6 +178,9 @@ function registerIpc(): void {
   ipcMain.handle("fs:measureChildren", (_event, dirPath: string) =>
     inventory.measureChildren(dirPath),
   );
+  ipcMain.handle("fs:scanTreemapFiles", (_event, dirPath: string, maxLeaves?: number) =>
+    inventory.scanTreemapFiles(dirPath, maxLeaves),
+  );
 
   ipcMain.handle("canvas:load", (_event, workspacePath: string) => loadCanvas(workspacePath));
   ipcMain.handle("canvas:save", (_event, doc: PersistedCanvas) => saveCanvas(doc));

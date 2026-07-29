@@ -2,7 +2,8 @@ import { app, BrowserWindow, dialog } from "electron";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { InventoryRoot } from "../shared/types";
+import type { InventoryRoot, TreemapFileLeaf, TreemapScanResult } from "../shared/types";
+import { kindFromExtension } from "../shared/fileKinds";
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -222,4 +223,88 @@ export async function measureChildren(
 
 export function clearSizeCache(): void {
   sizeCache.clear();
+}
+
+const MAX_SCAN_DEPTH = 14;
+const DEFAULT_MAX_LEAVES = 2200;
+
+/** Recursively collect files for a GrandPerspective-style treemap (leaves = files). */
+export async function scanTreemapFiles(
+  rootPath: string,
+  maxLeaves = DEFAULT_MAX_LEAVES,
+): Promise<TreemapScanResult> {
+  const collected: TreemapFileLeaf[] = [];
+  await walkFiles(path.normalize(rootPath), 0, collected);
+
+  let totalSize = 0;
+  for (const file of collected) totalSize += file.size;
+  collected.sort((a, b) => b.size - a.size);
+
+  if (collected.length <= maxLeaves) {
+    return {
+      files: collected,
+      totalSize,
+      fileCount: collected.length,
+      truncated: false,
+    };
+  }
+
+  const kept = collected.slice(0, maxLeaves - 1);
+  const rest = collected.slice(maxLeaves - 1);
+  let restSize = 0;
+  for (const file of rest) restSize += file.size;
+  kept.push({
+    path: path.join(rootPath, ".__entropy_other__"),
+    name: `Other (${rest.length.toLocaleString()} files)`,
+    size: restSize,
+    extension: "",
+    kind: "other",
+  });
+
+  return {
+    files: kept,
+    totalSize,
+    fileCount: collected.length,
+    truncated: true,
+  };
+}
+
+async function walkFiles(
+  dirPath: string,
+  depth: number,
+  out: TreemapFileLeaf[],
+): Promise<void> {
+  if (depth > MAX_SCAN_DEPTH) return;
+  let dirents;
+  try {
+    dirents = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const dirent of dirents) {
+    if (dirent.name === "." || dirent.name === "..") continue;
+    if (SKIP_DIRS.has(dirent.name)) continue;
+    if (dirent.name.startsWith(".")) continue;
+    const fullPath = path.join(dirPath, dirent.name);
+    try {
+      const link = await fs.lstat(fullPath);
+      if (link.isSymbolicLink()) continue;
+      if (link.isDirectory()) {
+        await walkFiles(fullPath, depth + 1, out);
+        continue;
+      }
+      if (!link.isFile() || link.size <= 0) continue;
+      const extension = path.extname(dirent.name).toLowerCase();
+      out.push({
+        path: fullPath,
+        name: dirent.name,
+        size: link.size,
+        extension,
+        kind: kindFromExtension(extension),
+      });
+    } catch {
+      // Skip inaccessible entries.
+    }
+  }
 }
