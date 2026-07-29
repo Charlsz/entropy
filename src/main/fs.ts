@@ -14,6 +14,31 @@ const SKIP_DIRS = new Set([
   ".cache",
 ]);
 
+/** Legacy Windows profile junctions that often raise EPERM when scanned. */
+const WINDOWS_PROFILE_ALIASES = new Set([
+  "application data",
+  "cookies",
+  "local settings",
+  "my documents",
+  "my music",
+  "my pictures",
+  "my videos",
+  "nethood",
+  "printhood",
+  "recent",
+  "sendto",
+  "start menu",
+  "templates",
+]);
+
+function shouldSkipDirName(name: string): boolean {
+  if (SKIP_DIRS.has(name) || name.startsWith(".")) return true;
+  if (process.platform === "win32" && WINDOWS_PROFILE_ALIASES.has(name.toLowerCase())) {
+    return true;
+  }
+  return false;
+}
+
 function toEntry(filePath: string, stat: { isDirectory(): boolean; size: number; mtimeMs: number }): FileEntry {
   const name = path.basename(filePath);
   return {
@@ -28,10 +53,24 @@ function toEntry(filePath: string, stat: { isDirectory(): boolean; size: number;
 
 const STAT_BATCH = 48;
 
+function isPermissionError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === "EPERM" || code === "EACCES" || code === "ENOENT";
+}
+
 export async function listDir(dirPath: string): Promise<FileEntry[]> {
-  const dirents = await fs.readdir(dirPath, { withFileTypes: true });
+  let dirents;
+  try {
+    dirents = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch (error) {
+    if (isPermissionError(error)) return [];
+    throw error;
+  }
+
   const entries: FileEntry[] = [];
-  const targets = dirents.filter((entry) => entry.name !== "." && entry.name !== "..");
+  const targets = dirents.filter(
+    (entry) => entry.name !== "." && entry.name !== ".." && !shouldSkipDirName(entry.name),
+  );
 
   for (let i = 0; i < targets.length; i += STAT_BATCH) {
     const batch = targets.slice(i, i + STAT_BATCH);
@@ -39,7 +78,22 @@ export async function listDir(dirPath: string): Promise<FileEntry[]> {
       batch.map(async (dirent) => {
         const fullPath = path.join(dirPath, dirent.name);
         try {
-          const info = await fs.stat(fullPath);
+          // Prefer lstat so Windows junctions are visible as links.
+          const linkInfo = await fs.lstat(fullPath);
+          if (linkInfo.isSymbolicLink() && (dirent.isDirectory() || linkInfo.isDirectory())) {
+            // Skip inaccessible profile junctions; keep intentional user symlinks that resolve.
+            try {
+              await fs.access(fullPath);
+              const target = await fs.stat(fullPath);
+              if (!target.isDirectory()) return toEntry(fullPath, target);
+              // Still hide known Windows aliases even if access somehow succeeds.
+              if (shouldSkipDirName(dirent.name)) return null;
+              return toEntry(fullPath, target);
+            } catch {
+              return null;
+            }
+          }
+          const info = linkInfo.isDirectory() || linkInfo.isFile() ? linkInfo : await fs.stat(fullPath);
           return toEntry(fullPath, info);
         } catch {
           return null;
@@ -144,9 +198,23 @@ export async function folderTree(rootPath: string, maxDepth = 6): Promise<TreeNo
 
     const nodes: TreeNode[] = [];
     for (const dirent of dirents) {
-      if (!dirent.isDirectory()) continue;
-      if (SKIP_DIRS.has(dirent.name) || dirent.name.startsWith(".")) continue;
+      if (!dirent.isDirectory() && !dirent.isSymbolicLink()) continue;
+      if (shouldSkipDirName(dirent.name)) continue;
       const fullPath = path.join(dirPath, dirent.name);
+      try {
+        const linkInfo = await fs.lstat(fullPath);
+        if (linkInfo.isSymbolicLink()) {
+          try {
+            await fs.access(fullPath);
+          } catch {
+            continue;
+          }
+        } else if (!linkInfo.isDirectory()) {
+          continue;
+        }
+      } catch {
+        continue;
+      }
       nodes.push({
         name: dirent.name,
         path: fullPath,
@@ -176,7 +244,7 @@ export async function listMarkdown(rootPath: string, maxDepth = 10): Promise<Fil
 
     const subdirs: string[] = [];
     for (const dirent of dirents) {
-      if (SKIP_DIRS.has(dirent.name) || dirent.name.startsWith(".")) continue;
+      if (shouldSkipDirName(dirent.name)) continue;
       const fullPath = path.join(dirPath, dirent.name);
       if (dirent.isDirectory()) {
         subdirs.push(fullPath);

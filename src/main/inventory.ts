@@ -16,6 +16,19 @@ const SKIP_DIRS = new Set([
   "$Recycle.Bin",
   "System Volume Information",
   "AppData",
+  "Application Data",
+  "Cookies",
+  "Local Settings",
+  "My Documents",
+  "NetHood",
+  "PrintHood",
+  "Recent",
+  "SendTo",
+  "Start Menu",
+  "Templates",
+  "My Music",
+  "My Pictures",
+  "My Videos",
 ]);
 
 const sizeCache = new Map<string, { size: number; mtimeMs: number }>();
