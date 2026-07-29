@@ -1,5 +1,7 @@
+import { useMemo, useRef, useState, useEffect, type KeyboardEvent } from "react";
 import { HardDrive } from "lucide-react";
 import { cn } from "../lib/utils";
+import { squarify } from "../lib/squarify";
 
 export interface TreemapNode {
   path: string;
@@ -15,19 +17,68 @@ interface StorageTreemapProps {
   selectedPath?: string | null;
   scanning?: boolean;
   onSelect?: (path: string) => void;
+  onOpen?: (path: string) => void;
   className?: string;
 }
 
-/** Placeholder storage view; Phase 4 replaces this with a real squarified treemap. */
 export function StorageTreemap({
   rootLabel = "Storage",
   nodes = [],
   selectedPath = null,
   scanning = false,
   onSelect,
+  onOpen,
   className,
 }: StorageTreemapProps) {
-  const total = nodes.reduce((sum, node) => sum + Math.max(node.size, 0), 0);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const node = frameRef.current;
+    if (!node) return;
+    const sync = () => {
+      const rect = node.getBoundingClientRect();
+      setSize({ width: Math.max(0, rect.width), height: Math.max(0, rect.height) });
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const total = useMemo(
+    () => nodes.reduce((sum, node) => sum + Math.max(node.size, 0), 0),
+    [nodes],
+  );
+
+  const layout = useMemo(() => {
+    if (size.width < 8 || size.height < 8 || total <= 0) return [];
+    const gap = 1.5;
+    const rects = squarify(
+      nodes.map((node) => ({ id: node.path, size: node.size })),
+      0,
+      0,
+      size.width,
+      size.height,
+    );
+    const byPath = new Map(nodes.map((node) => [node.path, node]));
+    return rects
+      .map((rect) => {
+        const node = byPath.get(rect.id);
+        if (!node) return null;
+        const width = Math.max(rect.width - gap, 0);
+        const height = Math.max(rect.height - gap, 0);
+        if (width <= 2 || height <= 2) return null;
+        return {
+          ...node,
+          x: rect.x + gap / 2,
+          y: rect.y + gap / 2,
+          width,
+          height,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item != null);
+  }, [nodes, size.height, size.width, total]);
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)} aria-label="Storage treemap">
@@ -36,11 +87,14 @@ export function StorageTreemap({
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Storage
         </h2>
-        <span className="ml-auto truncate text-[11px] text-muted-foreground">{rootLabel}</span>
+        <span className="ml-auto truncate text-[11px] text-muted-foreground">
+          {rootLabel}
+          {total > 0 ? ` · ${formatBytes(total)}` : ""}
+        </span>
       </div>
 
       <div className="min-h-0 flex-1 px-3 pb-3">
-        {scanning ? (
+        {scanning && layout.length === 0 ? (
           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
             Measuring folder sizes…
           </div>
@@ -51,29 +105,57 @@ export function StorageTreemap({
             </p>
           </div>
         ) : (
-          <div className="grid h-full min-h-[160px] grid-cols-2 grid-rows-2 gap-1.5">
-            {nodes.slice(0, 4).map((node) => {
-              const share = Math.max(node.size / total, 0.02);
-              const selected = selectedPath === node.path;
+          <div
+            ref={frameRef}
+            className="relative h-full min-h-[160px] overflow-hidden rounded-xl bg-ink"
+            role="list"
+            aria-label="Folder size map"
+          >
+            {layout.map((cell, index) => {
+              const selected = selectedPath === cell.path;
+              const showLabel = cell.width > 56 && cell.height > 34;
+              const tone = index % 2 === 0 ? "bg-ink-2" : "bg-background/80";
               return (
                 <button
-                  key={node.path}
+                  key={cell.path}
                   type="button"
-                  title={`${node.name} · ${formatBytes(node.size)}`}
+                  role="listitem"
+                  title={`${cell.name} · ${formatBytes(cell.size)}`}
                   className={cn(
-                    "flex min-h-0 flex-col justify-between overflow-hidden rounded-lg border border-border/60 bg-background/40 p-2.5 text-left transition-colors hover:bg-accent/60",
-                    selected && "ring-1 ring-ring",
+                    "absolute overflow-hidden border border-border/50 p-1.5 text-left transition-colors hover:bg-accent/50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                    tone,
+                    selected && "z-10 ring-1 ring-ring",
                   )}
-                  style={{ flexGrow: share }}
-                  onClick={() => onSelect?.(node.path)}
+                  style={{
+                    left: cell.x,
+                    top: cell.y,
+                    width: cell.width,
+                    height: cell.height,
+                  }}
+                  onClick={() => onSelect?.(cell.path)}
+                  onDoubleClick={() => onOpen?.(cell.path)}
+                  onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+                    if (event.key === "Enter") onOpen?.(cell.path);
+                  }}
                 >
-                  <span className="truncate text-xs font-medium text-foreground">{node.name}</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {formatBytes(node.size)} · {Math.round((node.size / total) * 100)}%
-                  </span>
+                  {showLabel ? (
+                    <span className="flex h-full min-h-0 flex-col justify-between">
+                      <span className="truncate text-[11px] font-medium text-foreground">
+                        {cell.name}
+                      </span>
+                      <span className="truncate text-[10px] text-muted-foreground">
+                        {formatBytes(cell.size)}
+                      </span>
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
+            {scanning ? (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/70 px-2 py-1 text-center text-[10px] text-muted-foreground">
+                Updating sizes…
+              </div>
+            ) : null}
           </div>
         )}
       </div>

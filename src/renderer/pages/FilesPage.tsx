@@ -434,8 +434,12 @@ export function FilesPage() {
             onSelect={(path) => {
               const entry = sizedEntries.find((item) => item.path === path);
               if (!entry) return;
-              if (entry.isDirectory) setCurrentFolder(entry.path);
-              else setSelected(entry);
+              setSelected(entry);
+            }}
+            onOpen={(path) => {
+              const entry = sizedEntries.find((item) => item.path === path);
+              if (!entry) return;
+              void openEntry(entry);
             }}
           />
         }
