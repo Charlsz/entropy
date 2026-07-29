@@ -14,6 +14,8 @@ export interface WorkspaceSettings {
   panelLayout: PanelLayoutState;
   /** File Inventory: Nav | Content | Treemap */
   inventoryPanelLayout: PanelLayoutState;
+  /** User-added drives/folders for Inventory indexing. */
+  inventoryExtraRoots: string[];
 }
 
 export interface WorkspaceState {
@@ -44,6 +46,7 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   filesView: "grid",
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
+  inventoryExtraRoots: [],
 };
 
 export function normalizePanelLayout(

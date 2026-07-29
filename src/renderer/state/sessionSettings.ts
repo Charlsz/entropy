@@ -13,6 +13,7 @@ export function toSessionSettings(settings: WorkspaceSettings) {
     contextCollapsed: settings.contextCollapsed,
     panelLayout: { ...settings.panelLayout },
     inventoryPanelLayout: { ...settings.inventoryPanelLayout },
+    inventoryExtraRoots: [...settings.inventoryExtraRoots],
   };
 }
 
@@ -29,5 +30,8 @@ export function fromSessionSettings(
       settings.inventoryPanelLayout ?? DEFAULT_INVENTORY_PANEL_LAYOUT,
       DEFAULT_INVENTORY_PANEL_LAYOUT,
     ),
+    inventoryExtraRoots: Array.isArray(settings.inventoryExtraRoots)
+      ? settings.inventoryExtraRoots.filter((item): item is string => typeof item === "string")
+      : [],
   };
 }

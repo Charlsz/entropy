@@ -15,6 +15,7 @@ export interface AppSettings {
   contextCollapsed: boolean;
   panelLayout: PanelLayoutState;
   inventoryPanelLayout: PanelLayoutState;
+  inventoryExtraRoots: string[];
 }
 
 export interface AppSession {
@@ -41,6 +42,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   contextCollapsed: false,
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
+  inventoryExtraRoots: [],
 };
 
 function sessionPath(): string {
@@ -76,6 +78,11 @@ export async function loadSession(): Promise<AppSession> {
           parsed.settings?.inventoryPanelLayout,
           DEFAULT_INVENTORY_PANEL_LAYOUT,
         ),
+        inventoryExtraRoots: Array.isArray(parsed.settings?.inventoryExtraRoots)
+          ? parsed.settings.inventoryExtraRoots.filter(
+              (item): item is string => typeof item === "string",
+            )
+          : [],
       },
     };
   } catch {
@@ -85,6 +92,7 @@ export async function loadSession(): Promise<AppSession> {
         ...DEFAULT_SETTINGS,
         panelLayout: { ...DEFAULT_PANEL_LAYOUT },
         inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
+        inventoryExtraRoots: [],
       },
     };
   }
