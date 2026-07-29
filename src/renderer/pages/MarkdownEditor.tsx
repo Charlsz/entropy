@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type DragEvent,
   type KeyboardEvent,
 } from "react";
 import { X, PenLine, Columns2, Eye } from "lucide-react";
@@ -14,9 +13,12 @@ import type { NoteSearchResult } from "../../shared/types";
 import { registerFlush } from "../state/flushRegistry";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
-import { Textarea } from "../components/ui/textarea";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { MarkdownPreview } from "../components/MarkdownPreview";
+import {
+  LiveMarkdownEditor,
+  type LiveMarkdownEditorHandle,
+} from "../components/LiveMarkdownEditor";
 import { NoteCover } from "../components/NoteCover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { cn } from "../lib/utils";
@@ -69,7 +71,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const mode = split ? "split" : surface;
   const saveTimers = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const liveEditorRef = useRef<LiveMarkdownEditorHandle>(null);
   const activePathRef = useRef(activePath);
   const openKey = openPaths.join("\0");
 
@@ -295,39 +297,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         const tab = tabsRef.current.find((item) => item.path === path);
         if (!tab || tab.missing || tab.conflict) return;
 
-        const el = textareaRef.current;
-        let next = tab.content;
-        let cursor = next.length;
-
-        if (el && document.activeElement === el) {
-          const start = el.selectionStart;
-          const end = el.selectionEnd;
-          next = `${tab.content.slice(0, start)}${markdown}${tab.content.slice(end)}`;
-          cursor = start + markdown.length;
-        } else {
-          const pad = tab.content && !tab.content.endsWith("\n") ? "\n\n" : tab.content ? "\n" : "";
-          next = `${tab.content}${pad}${markdown}`;
-          cursor = next.length;
-        }
-
-        setTabs((prev) =>
-          prev.map((item) =>
-            item.path === path ? { ...item, content: next, conflict: false } : item,
-          ),
-        );
-        scheduleSave(path, next);
         setSplit(false);
         setSurface("edit");
-
         window.requestAnimationFrame(() => {
-          const area = textareaRef.current;
-          if (!area) return;
-          area.focus();
-          area.setSelectionRange(cursor, cursor);
+          liveEditorRef.current?.insertMarkdown(markdown);
         });
       },
     }),
-    [scheduleSave],
+    [],
   );
 
   function handleClose(path: string): void {
@@ -401,31 +378,30 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }
 
   async function insertFileLink(filePath: string): Promise<void> {
-    if (!activeTab || !textareaRef.current || activeTab.missing) return;
+    if (!activeTab || activeTab.missing) return;
     const noteDir = await window.entropy.fs.dirname(activeTab.path);
     const relative = await window.entropy.fs.relative(noteDir, filePath);
     const name = await window.entropy.fs.basename(filePath);
-    const snippet = `[${name}](${relative})`;
-
-    const el = textareaRef.current;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const next = activeTab.content.slice(0, start) + snippet + activeTab.content.slice(end);
-    handleChange(next);
-
-    requestAnimationFrame(() => {
-      el.focus();
-      const cursor = start + snippet.length;
-      el.setSelectionRange(cursor, cursor);
-    });
-  }
-
-  async function onDrop(event: DragEvent<HTMLTextAreaElement>): Promise<void> {
-    event.preventDefault();
-    const entropyPath = event.dataTransfer.getData("application/x-entropy-path");
-    if (entropyPath) {
-      await insertFileLink(entropyPath);
-    }
+    const info = await window.entropy.fs.stat(filePath);
+    const ext = info.extension.toLowerCase();
+    const isMedia = [
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".gif",
+      ".webp",
+      ".bmp",
+      ".svg",
+      ".avif",
+      ".mp4",
+      ".webm",
+      ".ogg",
+      ".mov",
+      ".mkv",
+      ".m4v",
+    ].includes(ext);
+    const snippet = isMedia ? `![${name}](${relative})` : `[${name}](${relative})`;
+    liveEditorRef.current?.insertMarkdown(snippet);
   }
 
   if (openPaths.length === 0) {
@@ -596,21 +572,23 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               )}
             >
               {mode !== "preview" ? (
-                <Textarea
-                  ref={textareaRef}
+                <div
                   className={cn(
-                    "select-text mb-8 min-h-0 w-full flex-1 resize-none rounded-none border-0 bg-transparent px-8 pb-16 font-sans text-[15px] leading-7 shadow-none focus-visible:ring-0",
-                    mode === "split" ? "border-r border-border" : "mx-auto max-w-[720px]",
+                    "min-h-0 flex-1 overflow-y-auto",
+                    mode === "split" ? "border-r border-border" : "",
                   )}
-                  value={activeTab?.content ?? ""}
-                  onChange={(event) => handleChange(event.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => void onDrop(event)}
-                  spellCheck
-                  aria-label="Markdown editor"
-                  disabled={Boolean(activeTab?.conflict)}
-                />
+                >
+                  <LiveMarkdownEditor
+                    ref={liveEditorRef}
+                    className={mode === "split" ? "" : "mx-auto max-w-[720px]"}
+                    value={activeTab?.content ?? ""}
+                    notePath={activeTab?.path}
+                    disabled={Boolean(activeTab?.conflict)}
+                    onChange={handleChange}
+                    onKeyDown={handleKeyDown}
+                    onDropPath={(path) => void insertFileLink(path)}
+                  />
+                </div>
               ) : null}
               {mode !== "edit" ? (
                 <ScrollArea className="min-h-0 flex-1">
