@@ -316,6 +316,7 @@ async function walkFiles(
 /**
  * One-level map scan: folders + files at this depth (Google Maps–style zoom).
  * Folder sizes are recursive totals so double-click can drill in.
+ * Tiny leaves are folded into an Other region so the map stays clickable.
  */
 export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResult> {
   const root = path.normalize(dirPath);
@@ -327,7 +328,7 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
     return { files: [], totalSize: 0, fileCount: 0, truncated: false };
   }
 
-  const files: TreemapFileLeaf[] = [];
+  const collected: TreemapFileLeaf[] = [];
   for (const dirent of dirents) {
     if (dirent.name === "." || dirent.name === "..") continue;
     if (SKIP_DIRS.has(dirent.name)) continue;
@@ -340,7 +341,7 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
       if (link.isDirectory()) {
         const size = await measurePath(fullPath);
         if (size <= 0) continue;
-        files.push({
+        collected.push({
           path: fullPath,
           name: dirent.name,
           size,
@@ -355,7 +356,7 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
 
       if (!link.isFile() || link.size <= 0) continue;
       const extension = path.extname(dirent.name).toLowerCase();
-      files.push({
+      collected.push({
         path: fullPath,
         name: dirent.name,
         size: link.size,
@@ -371,13 +372,68 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
   }
 
   let totalSize = 0;
-  for (const file of files) totalSize += file.size;
-  files.sort((a, b) => b.size - a.size);
+  for (const file of collected) totalSize += file.size;
+  collected.sort((a, b) => b.size - a.size);
+
+  const { files, truncated } = aggregateTinyLeaves(collected, totalSize, root, location);
 
   return {
     files,
     totalSize,
-    fileCount: files.length,
-    truncated: false,
+    fileCount: collected.length,
+    truncated,
   };
 }
+
+/** Keep leaves large enough to interact with; fold the rest into Other. */
+function aggregateTinyLeaves(
+  collected: TreemapFileLeaf[],
+  totalSize: number,
+  root: string,
+  location: string,
+): { files: TreemapFileLeaf[]; truncated: boolean } {
+  if (collected.length === 0 || totalSize <= 0) {
+    return { files: collected, truncated: false };
+  }
+
+  const minSize = Math.max(Math.floor(totalSize * LEVEL_MIN_SHARE), 1);
+  const kept: TreemapFileLeaf[] = [];
+  const rest: TreemapFileLeaf[] = [];
+
+  for (const file of collected) {
+    if (kept.length < LEVEL_MAX_LEAVES && file.size >= minSize) {
+      kept.push(file);
+    } else {
+      rest.push(file);
+    }
+  }
+
+  // All items tiny: still show the largest handful so the map isn't empty.
+  if (kept.length === 0) {
+    const headCount = Math.min(12, collected.length);
+    kept.push(...collected.slice(0, headCount));
+    rest.length = 0;
+    rest.push(...collected.slice(headCount));
+  }
+
+  if (rest.length === 0) {
+    return { files: kept, truncated: false };
+  }
+
+  let restSize = 0;
+  for (const file of rest) restSize += file.size;
+  kept.push({
+    path: path.join(root, ".__entropy_other__"),
+    name: `Other (${rest.length.toLocaleString()} items)`,
+    size: restSize,
+    extension: "",
+    kind: "other",
+    isDirectory: false,
+    location,
+  });
+
+  return { files: kept, truncated: true };
+}
+
+const LEVEL_MIN_SHARE = 0.01;
+const LEVEL_MAX_LEAVES = 64;

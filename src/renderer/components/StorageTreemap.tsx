@@ -384,6 +384,17 @@ export function StorageTreemap({
               </div>
             ))}
           </div>
+          {scan?.truncated ? (
+            <p className="mt-1.5 text-[10px] text-muted-foreground">
+              Tiny items are grouped as Other so every region stays readable.
+            </p>
+          ) : null}
+        </div>
+      ) : scan?.truncated ? (
+        <div className="shrink-0 border-t border-border px-3 py-2">
+          <p className="text-[10px] text-muted-foreground">
+            Tiny items are grouped as Other so every region stays readable.
+          </p>
         </div>
       ) : null}
     </div>
