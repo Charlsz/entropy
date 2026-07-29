@@ -12,10 +12,11 @@ import { cn } from "../lib/utils";
 
 interface ThreeColumnLayoutProps {
   id: string;
-  sidebar: ReactNode;
+  /** Pass null to hide the left column (Inventory Content | Treemap). */
+  sidebar?: ReactNode | null;
   main: ReactNode;
   context?: ReactNode | null;
-  /** Notebook uses editor layout; inventory uses Nav | Content | Treemap. */
+  /** Notebook uses editor layout; inventory uses Content | Treemap. */
   variant?: "notebook" | "inventory";
   /** When false, layout changes are not persisted (inactive keep-alive sections). */
   persistLayout?: boolean;
@@ -38,7 +39,7 @@ function syncCollapsed(
 
 export function ThreeColumnLayout({
   id,
-  sidebar,
+  sidebar = null,
   main,
   context = null,
   variant = "notebook",
@@ -48,8 +49,9 @@ export function ThreeColumnLayout({
   const { workspace, updateSettings } = useWorkspace();
   const sidebarRef = usePanelRef();
   const contextRef = usePanelRef();
+  const hasSidebar = sidebar != null;
   const hasContext = context != null;
-  const layoutKey = hasContext ? `${id}-context` : `${id}-main`;
+  const layoutKey = `${id}-${hasSidebar ? "side" : "noside"}-${hasContext ? "context" : "main"}`;
   const sidebarCollapsed = workspace.settings.sidebarCollapsed;
   const contextCollapsed = workspace.settings.contextCollapsed;
   const isInventory = variant === "inventory";
@@ -58,6 +60,13 @@ export function ThreeColumnLayout({
     : workspace.settings.panelLayout;
 
   const defaultLayout = useMemo<Layout>(() => {
+    if (!hasSidebar && hasContext) {
+      const total = (savedLayout.main + savedLayout.context) || 100;
+      return {
+        main: (savedLayout.main / total) * 100,
+        context: (savedLayout.context / total) * 100,
+      } as Layout;
+    }
     if (!hasContext) {
       const total = (savedLayout.sidebar + savedLayout.main) || 100;
       return {
@@ -72,19 +81,18 @@ export function ThreeColumnLayout({
       main: (savedLayout.main / total) * 100,
       context: (savedLayout.context / total) * 100,
     };
-  }, [hasContext, savedLayout]);
+  }, [hasContext, hasSidebar, savedLayout]);
 
   useEffect(() => {
-    if (!persistLayout) return;
+    if (!persistLayout || !hasSidebar) return;
     const frame = window.requestAnimationFrame(() => {
       syncCollapsed(sidebarRef.current, sidebarCollapsed);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [sidebarCollapsed, sidebarRef, layoutKey, persistLayout]);
+  }, [sidebarCollapsed, sidebarRef, layoutKey, persistLayout, hasSidebar]);
 
   useEffect(() => {
     if (!persistLayout || !hasContext) return;
-    // Inventory treemap should stay visible; do not sync notebook contextCollapsed.
     if (isInventory) return;
     const frame = window.requestAnimationFrame(() => {
       syncCollapsed(contextRef.current, contextCollapsed);
@@ -101,33 +109,43 @@ export function ThreeColumnLayout({
       defaultLayout={defaultLayout}
       onLayoutChanged={(layout) => {
         if (!persistLayout) return;
-        const next = layoutFromGroup(layout, hasContext, savedLayout);
-        if (isInventory) {
-          updateSettings({ inventoryPanelLayout: next });
-        } else {
-          updateSettings({ panelLayout: next });
+        if (!hasSidebar && hasContext) {
+          const next = {
+            sidebar: 0,
+            main: layout.main ?? savedLayout.main,
+            context: layout.context ?? savedLayout.context,
+          };
+          if (isInventory) updateSettings({ inventoryPanelLayout: next });
+          else updateSettings({ panelLayout: next });
+          return;
         }
+        const next = layoutFromGroup(layout, hasContext, savedLayout);
+        if (isInventory) updateSettings({ inventoryPanelLayout: next });
+        else updateSettings({ panelLayout: next });
       }}
     >
-      <Panel
-        id="sidebar"
-        panelRef={sidebarRef}
-        className="min-h-0 min-w-0 bg-ink-2"
-        minSize={isInventory ? "88px" : "140px"}
-        maxSize={isInventory ? "16%" : "34%"}
-        collapsible
-        collapsedSize={0}
-        defaultSize={`${defaultLayout.sidebar}%`}
-      >
-        <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{sidebar}</div>
-      </Panel>
-
-      <Separator className="entropy-resize-handle" />
+      {hasSidebar ? (
+        <>
+          <Panel
+            id="sidebar"
+            panelRef={sidebarRef}
+            className="min-h-0 min-w-0 bg-ink-2"
+            minSize={isInventory ? "88px" : "140px"}
+            maxSize={isInventory ? "16%" : "34%"}
+            collapsible
+            collapsedSize={0}
+            defaultSize={`${defaultLayout.sidebar}%`}
+          >
+            <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{sidebar}</div>
+          </Panel>
+          <Separator className="entropy-resize-handle" />
+        </>
+      ) : null}
 
       <Panel
         id="main"
         className="min-h-0 min-w-0 bg-background"
-        minSize={isInventory ? "280px" : "420px"}
+        minSize={isInventory ? "240px" : "420px"}
         defaultSize={`${defaultLayout.main}%`}
       >
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{main}</div>
@@ -141,7 +159,7 @@ export function ThreeColumnLayout({
             panelRef={contextRef}
             className="min-h-0 min-w-0 bg-ink-2"
             minSize={isInventory ? "240px" : "160px"}
-            maxSize={isInventory ? "60%" : "30%"}
+            maxSize={isInventory ? "70%" : "30%"}
             collapsible={!isInventory}
             collapsedSize={0}
             defaultSize={`${defaultLayout.context}%`}

@@ -34,9 +34,9 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
 };
 
 export const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 10,
-  main: 45,
-  context: 45,
+  sidebar: 0,
+  main: 50,
+  context: 50,
 };
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
@@ -69,12 +69,11 @@ export function normalizePanelLayout(
     return { ...DEFAULT_PANEL_LAYOUT };
   }
 
-  // Migrate Inventory from Nav 20 / Content 40 / Treemap 40 → 10 / 45 / 45.
+  // Migrate Inventory from earlier three-column defaults → Content | Treemap.
   if (
     fallback === DEFAULT_INVENTORY_PANEL_LAYOUT &&
-    Math.abs(sidebar - 20) < 0.5 &&
-    Math.abs(main - 40) < 0.5 &&
-    Math.abs(context - 40) < 0.5
+    ((Math.abs(sidebar - 20) < 0.5 && Math.abs(main - 40) < 0.5 && Math.abs(context - 40) < 0.5) ||
+      (Math.abs(sidebar - 10) < 0.5 && Math.abs(main - 45) < 0.5 && Math.abs(context - 45) < 0.5))
   ) {
     return { ...DEFAULT_INVENTORY_PANEL_LAYOUT };
   }

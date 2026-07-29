@@ -30,9 +30,9 @@ const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
 };
 
 const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 10,
-  main: 45,
-  context: 45,
+  sidebar: 0,
+  main: 50,
+  context: 50,
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
