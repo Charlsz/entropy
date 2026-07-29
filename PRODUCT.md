@@ -58,7 +58,7 @@ The filesystem is the single source of truth. Entropy never owns, duplicates, or
 ## Layout contract
 
 - **Notebook:** three-column desktop — sidebar | editor | context. Context hides when empty. No Linked / extra notebook-only side panels.
-- **File Inventory:** Navigation (~20%) | Content View (~40%) | Treemap (~40%), resizable and persisted. Content View keeps the existing grid language.
+- **File Inventory:** Navigation (~10%) | Content View (~45%) | Treemap (~45%), resizable and persisted. Content View keeps the existing grid language. Treemap maps individual files by type (GrandPerspective spirit), not folder blocks.
 - Use horizontal space deliberately; maximize the working surface.
 - Performance over decoration.
 
