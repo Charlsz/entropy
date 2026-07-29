@@ -7,7 +7,7 @@ import {
   List,
   HardDrive,
 } from "lucide-react";
-import type { FileEntry, InventoryRoot, TreeNode } from "../../shared/types";
+import type { FileEntry, InventoryRoot, TreeNode, TreemapScanResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { FolderTree } from "./FolderTree";
 import { Button } from "../components/ui/button";
@@ -79,7 +79,9 @@ export function FilesPage() {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [sizeByPath, setSizeByPath] = useState<Record<string, number>>({});
-  const [scanning, setScanning] = useState(false);
+  const [treemapScan, setTreemapScan] = useState<TreemapScanResult | null>(null);
+  const [scanningTreemap, setScanningTreemap] = useState(false);
+  const [pendingSelectPath, setPendingSelectPath] = useState<string | null>(null);
   const [selected, setSelected] = useState<FileEntry | null>(null);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -240,7 +242,6 @@ export function FilesPage() {
   useEffect(() => {
     if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
     let cancelled = false;
-    setScanning(true);
     void (async () => {
       try {
         const measured = await window.entropy.fs.measureChildren(workspace.currentFolder);
@@ -250,14 +251,62 @@ export function FilesPage() {
         setSizeByPath(next);
       } catch {
         if (!cancelled) setSizeByPath({});
-      } finally {
-        if (!cancelled) setScanning(false);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [workspace.currentFolder, workspace.currentSection]);
+
+  useEffect(() => {
+    if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
+    let cancelled = false;
+    setScanningTreemap(true);
+    void (async () => {
+      try {
+        const next = await window.entropy.fs.scanTreemapFiles(workspace.currentFolder);
+        if (!cancelled) setTreemapScan(next);
+      } catch {
+        if (!cancelled) setTreemapScan(null);
+      } finally {
+        if (!cancelled) setScanningTreemap(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace.currentFolder, workspace.currentSection]);
+
+  useEffect(() => {
+    if (!pendingSelectPath || loading) return;
+    const match = entries.find((entry) => entry.path === pendingSelectPath);
+    if (match) {
+      setSelected(match);
+      setPendingSelectPath(null);
+      return;
+    }
+    // Listing finished without the file (filtered away) — clear pending.
+    if (!loading) setPendingSelectPath(null);
+  }, [pendingSelectPath, entries, loading]);
+
+  async function selectTreemapLeaf(leafPath: string, openAfter = false): Promise<void> {
+    try {
+      const info = await window.entropy.fs.stat(leafPath);
+      const parent = await window.entropy.fs.dirname(leafPath);
+      if (!samePath(parent, workspace.currentFolder)) {
+        setPendingSelectPath(leafPath);
+        setCurrentFolder(parent);
+      } else {
+        setSelected(info);
+      }
+      if (openAfter) {
+        addRecentFile(leafPath);
+        void window.entropy.fs.openExternal(leafPath);
+      }
+    } catch {
+      setError("Could not open that file from the size map.");
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -461,42 +510,20 @@ export function FilesPage() {
     }
   }
 
-  const treemapNodes = useMemo(
-    () =>
-      sizedEntries
-        .map((entry) => ({
-          path: entry.path,
-          name: entry.name,
-          size: entry.size,
-          isDirectory: entry.isDirectory,
-        }))
-        .filter((node) => node.size > 0)
-        .sort((a, b) => b.size - a.size),
-    [sizedEntries],
-  );
-
   return (
     <div className="flex h-full min-h-0 w-full flex-col" aria-label="File Inventory">
       <ThreeColumnLayout
-        id="inventory-layout"
+        id="inventory-layout-v2"
         variant="inventory"
         persistLayout={workspace.currentSection === "inventory"}
         context={
           <StorageTreemap
             rootLabel={crumbs.length ? crumbs[crumbs.length - 1] : rootLabel}
-            nodes={treemapNodes}
-            selectedPath={selected?.path ?? null}
-            scanning={scanning}
-            onSelect={(path) => {
-              const entry = sizedEntries.find((item) => item.path === path);
-              if (!entry) return;
-              setSelected(entry);
-            }}
-            onOpen={(path) => {
-              const entry = sizedEntries.find((item) => item.path === path);
-              if (!entry) return;
-              void openEntry(entry);
-            }}
+            scan={treemapScan}
+            selectedPath={selected?.path ?? pendingSelectPath}
+            scanning={scanningTreemap}
+            onSelect={(leaf) => void selectTreemapLeaf(leaf.path)}
+            onOpen={(leaf) => void selectTreemapLeaf(leaf.path, true)}
           />
         }
         sidebar={
