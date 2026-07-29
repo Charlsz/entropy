@@ -2,20 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, Frag
 import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
+  FileText,
   Folder,
   LayoutGrid,
   List,
-  HardDrive,
+  Plus,
 } from "lucide-react";
-import type { FileEntry, InventoryRoot, TreeNode, TreemapScanResult } from "../../shared/types";
+import type { FileEntry, InventoryRoot, TreemapScanResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
-import { FolderTree } from "./FolderTree";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { StatusBar } from "../components/StatusBar";
 import { ItemActionsMenu, type ItemAction } from "../components/ItemActionsMenu";
-import { EntryPreview, useFolderCount } from "../components/EntryPreview";
+import { EntryPreview, getFolderPreview, useFolderCount } from "../components/EntryPreview";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
@@ -39,6 +39,7 @@ import {
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { StorageTreemap } from "../components/StorageTreemap";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
+import { isMediaEntry } from "../lib/media";
 import { cn } from "../lib/utils";
 
 type SortKey = "name" | "modified" | "size" | "type";
@@ -76,7 +77,6 @@ export function FilesPage() {
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
   const [mountRoots, setMountRoots] = useState<InventoryRoot[]>([]);
   const [scanRoot, setScanRoot] = useState<string>("");
-  const [tree, setTree] = useState<TreeNode[]>([]);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [sizeByPath, setSizeByPath] = useState<Record<string, number>>({});
   const [treemapScan, setTreemapScan] = useState<TreemapScanResult | null>(null);
@@ -100,15 +100,6 @@ export function FilesPage() {
   const view = workspace.settings.filesView;
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
-
-  const refreshTree = useCallback(async () => {
-    if (!scanRoot) return;
-    try {
-      setTree(await window.entropy.fs.folderTree(scanRoot, 3));
-    } catch {
-      // Keep previous tree on failure.
-    }
-  }, [scanRoot]);
 
   const refreshListing = useCallback(async () => {
     if (!workspace.currentFolder) return;
@@ -137,8 +128,8 @@ export function FilesPage() {
   }, [scanRoot, workspace.currentFolder]);
 
   const refresh = useCallback(async () => {
-    await Promise.all([refreshTree(), refreshListing()]);
-  }, [refreshTree, refreshListing]);
+    await refreshListing();
+  }, [refreshListing]);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,17 +194,6 @@ export function FilesPage() {
     selectRoot(root);
   }
 
-  function removeExtraRoot(rootPath: string): void {
-    const existing = workspace.settings.inventoryExtraRoots ?? [];
-    updateSettings({
-      inventoryExtraRoots: existing.filter((path) => !samePath(path, rootPath)),
-    });
-    if (samePath(scanRoot, rootPath)) {
-      const home = roots.find((root) => root.id === "home");
-      if (home) selectRoot(home);
-    }
-  }
-
   function selectRootPath(rootPath: string): void {
     setScanRoot(rootPath);
     setCurrentFolder(rootPath);
@@ -227,11 +207,6 @@ export function FilesPage() {
       setScanRoot(match.path);
     }
   }, [roots, scanRoot, workspace.currentFolder]);
-
-  useEffect(() => {
-    if (workspace.currentSection !== "inventory") return;
-    void refreshTree();
-  }, [refreshTree, workspace.currentSection]);
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory") return;
@@ -513,9 +488,10 @@ export function FilesPage() {
   return (
     <div className="flex h-full min-h-0 w-full flex-col" aria-label="File Inventory">
       <ThreeColumnLayout
-        id="inventory-layout-v2"
+        id="inventory-layout-v3"
         variant="inventory"
         persistLayout={workspace.currentSection === "inventory"}
+        sidebar={null}
         context={
           <StorageTreemap
             rootLabel={crumbs.length ? crumbs[crumbs.length - 1] : rootLabel}
@@ -526,101 +502,6 @@ export function FilesPage() {
             onOpen={(leaf) => void selectTreemapLeaf(leaf.path, true)}
           />
         }
-        sidebar={
-          <div className="flex h-full min-h-0 flex-col">
-            <div className="px-4 py-3">
-              <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Inventory
-              </h2>
-            </div>
-            <ScrollArea className="min-h-0 flex-1 px-3">
-              <div className="mb-3 space-y-0.5">
-                {roots.map((root) => {
-                  const active = activeRoot ? samePath(activeRoot.path, root.path) : false;
-                  const isExtra = root.id.startsWith("extra-");
-                  return (
-                    <div key={root.id} className="group flex items-center gap-0.5">
-                      <button
-                        type="button"
-                        className={cn(
-                          "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
-                          active && "bg-accent text-foreground",
-                        )}
-                        onClick={() => selectRoot(root)}
-                        onDragOver={(event) => onDragOver(event, root.path)}
-                        onDragLeave={() => setDragOverPath(null)}
-                        onDrop={(event) => void onDrop(event, root.path)}
-                      >
-                        {root.id === "home" || root.id.startsWith("drive-") || root.id.startsWith("volume-") || root.id.startsWith("mount-") ? (
-                          <HardDrive className="h-4 w-4 shrink-0" />
-                        ) : (
-                          <Folder className="h-4 w-4 shrink-0" />
-                        )}
-                        <span className="truncate">{root.name}</span>
-                      </button>
-                      {isExtra ? (
-                        <button
-                          type="button"
-                          className="hidden rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground group-hover:inline-flex"
-                          onClick={() => removeExtraRoot(root.path)}
-                          aria-label={`Remove ${root.name}`}
-                        >
-                          Remove
-                        </button>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mb-3 space-y-1 px-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-full justify-start px-2 text-xs text-muted-foreground"
-                  onClick={() => void addFolderRoot()}
-                >
-                  Add folder…
-                </Button>
-                {mountRoots.length > 0 ? (
-                  <div className="pt-1">
-                    <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
-                      Drives
-                    </p>
-                    <div className="space-y-0.5">
-                      {mountRoots.map((mount) => (
-                        <button
-                          key={mount.id}
-                          type="button"
-                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-                          onClick={() => addMountRoot(mount)}
-                          title={`Index ${mount.path}`}
-                        >
-                          <HardDrive className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{mount.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              {tree.length > 0 ? (
-                <>
-                  <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
-                    Folders
-                  </p>
-                  <FolderTree
-                    nodes={tree}
-                    activePath={workspace.currentFolder}
-                    onSelect={setCurrentFolder}
-                  />
-                </>
-              ) : null}
-            </ScrollArea>
-          </div>
-        }
         main={
           <section
             className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
@@ -628,6 +509,58 @@ export function FilesPage() {
             onDrop={(event) => void onDrop(event, workspace.currentFolder)}
           >
             <div className="flex items-center gap-2 px-4 py-3">
+              <Select
+                value={activeRoot?.path ?? scanRoot}
+                onValueChange={(value) => {
+                  const root = roots.find((item) => item.path === value);
+                  if (root) {
+                    selectRoot(root);
+                    return;
+                  }
+                  const mount = mountRoots.find((item) => item.path === value);
+                  if (mount) {
+                    addMountRoot(mount);
+                    return;
+                  }
+                  selectRootPath(value);
+                }}
+              >
+                <SelectTrigger className="h-8 w-[132px] shrink-0" aria-label="Location">
+                  <SelectValue placeholder="Location" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roots.map((root) => (
+                    <SelectItem key={root.id} value={root.path}>
+                      {root.name}
+                    </SelectItem>
+                  ))}
+                  {mountRoots.length > 0 ? (
+                    <>
+                      {mountRoots.map((mount) => (
+                        <SelectItem key={mount.id} value={mount.path}>
+                          Add {mount.name}…
+                        </SelectItem>
+                      ))}
+                    </>
+                  ) : null}
+                </SelectContent>
+              </Select>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    aria-label="Add folder"
+                    onClick={() => void addFolderRoot()}
+                  >
+                    <Plus className="h-4 w-4" strokeWidth={1.75} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add folder…</TooltipContent>
+              </Tooltip>
+
               <Breadcrumb className="min-w-0 flex-1">
                 <BreadcrumbList>
                   <BreadcrumbItem>
@@ -778,7 +711,7 @@ export function FilesPage() {
                   <Empty className="py-16">
                     <EmptyTitle>This folder is empty</EmptyTitle>
                     <EmptyDescription>
-                      Drop files here or open a different folder from Inventory.
+                      Drop files here or choose another location from the menu.
                     </EmptyDescription>
                   </Empty>
                 ) : null}
@@ -786,7 +719,7 @@ export function FilesPage() {
                 {!loading && visible.length > 0 ? (
                   <div className="mb-3">
                     <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      {crumbs.length === 0 ? "Library" : crumbs[crumbs.length - 1]}
+                      {crumbs.length === 0 ? "Gallery" : crumbs[crumbs.length - 1]}
                     </h2>
                   </div>
                 ) : null}
@@ -921,6 +854,29 @@ const FileGridCard = memo(function FileGridCard({
   actions: ItemAction[];
 }) {
   const count = useFolderCount(entry.path, entry.isDirectory);
+  const isMedia = isMediaEntry(entry);
+  const [face, setFace] = useState<"loading" | "preview" | "icon">(
+    entry.isDirectory || isMedia ? "loading" : "icon",
+  );
+
+  useEffect(() => {
+    if (isMedia) {
+      setFace("preview");
+      return;
+    }
+    if (!entry.isDirectory) {
+      setFace("icon");
+      return;
+    }
+    let cancelled = false;
+    setFace("loading");
+    void getFolderPreview(entry.path).then((data) => {
+      if (!cancelled) setFace(data.media.length > 0 ? "preview" : "icon");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [entry.isDirectory, entry.path, isMedia]);
 
   return (
     <div
@@ -933,11 +889,23 @@ const FileGridCard = memo(function FileGridCard({
     >
       <div
         className={cn(
-          "entropy-media-card overflow-hidden rounded-xl",
-          selected && "outline outline-1 outline-offset-2 outline-paper-2",
+          "aspect-square overflow-hidden",
+          face === "preview" && "entropy-media-card rounded-xl",
+          face === "icon" && "flex items-center justify-center",
+          face === "loading" && "rounded-xl bg-ink-2/50",
+          selected && face === "preview" && "outline outline-1 outline-offset-2 outline-ring",
+          selected && face === "icon" && "rounded-xl ring-1 ring-ring",
         )}
       >
-        <EntryPreview entry={entry} size="lg" />
+        {face === "icon" ? (
+          entry.isDirectory ? (
+            <Folder className="h-14 w-14 text-muted-foreground/75" strokeWidth={1.15} />
+          ) : (
+            <FileText className="h-14 w-14 text-muted-foreground/75" strokeWidth={1.15} />
+          )
+        ) : face === "preview" ? (
+          <EntryPreview entry={entry} size="lg" />
+        ) : null}
       </div>
 
       <div className="flex min-w-0 items-center gap-1">
