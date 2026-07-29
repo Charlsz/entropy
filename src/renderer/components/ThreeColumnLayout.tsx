@@ -15,6 +15,8 @@ interface ThreeColumnLayoutProps {
   sidebar: ReactNode;
   main: ReactNode;
   context?: ReactNode | null;
+  /** Notebook uses editor layout; inventory uses Nav | Content | Treemap. */
+  variant?: "notebook" | "inventory";
   /** When false, layout changes are not persisted (inactive keep-alive sections). */
   persistLayout?: boolean;
   className?: string;
@@ -39,6 +41,7 @@ export function ThreeColumnLayout({
   sidebar,
   main,
   context = null,
+  variant = "notebook",
   persistLayout = true,
   className,
 }: ThreeColumnLayoutProps) {
@@ -49,7 +52,10 @@ export function ThreeColumnLayout({
   const layoutKey = hasContext ? `${id}-context` : `${id}-main`;
   const sidebarCollapsed = workspace.settings.sidebarCollapsed;
   const contextCollapsed = workspace.settings.contextCollapsed;
-  const savedLayout = workspace.settings.panelLayout;
+  const isInventory = variant === "inventory";
+  const savedLayout = isInventory
+    ? workspace.settings.inventoryPanelLayout
+    : workspace.settings.panelLayout;
 
   const defaultLayout = useMemo<Layout>(() => {
     if (!hasContext) {
@@ -78,11 +84,13 @@ export function ThreeColumnLayout({
 
   useEffect(() => {
     if (!persistLayout || !hasContext) return;
+    // Inventory treemap should stay visible; do not sync notebook contextCollapsed.
+    if (isInventory) return;
     const frame = window.requestAnimationFrame(() => {
       syncCollapsed(contextRef.current, contextCollapsed);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [contextCollapsed, contextRef, hasContext, layoutKey, persistLayout]);
+  }, [contextCollapsed, contextRef, hasContext, layoutKey, persistLayout, isInventory]);
 
   return (
     <Group
@@ -93,9 +101,12 @@ export function ThreeColumnLayout({
       defaultLayout={defaultLayout}
       onLayoutChanged={(layout) => {
         if (!persistLayout) return;
-        updateSettings({
-          panelLayout: layoutFromGroup(layout, hasContext, savedLayout),
-        });
+        const next = layoutFromGroup(layout, hasContext, savedLayout);
+        if (isInventory) {
+          updateSettings({ inventoryPanelLayout: next });
+        } else {
+          updateSettings({ panelLayout: next });
+        }
       }}
     >
       <Panel
@@ -103,7 +114,7 @@ export function ThreeColumnLayout({
         panelRef={sidebarRef}
         className="min-h-0 min-w-0 bg-ink-2"
         minSize="140px"
-        maxSize="34%"
+        maxSize={isInventory ? "32%" : "34%"}
         collapsible
         collapsedSize={0}
         defaultSize={`${defaultLayout.sidebar}%`}
@@ -116,7 +127,7 @@ export function ThreeColumnLayout({
       <Panel
         id="main"
         className="min-h-0 min-w-0 bg-background"
-        minSize="420px"
+        minSize={isInventory ? "240px" : "420px"}
         defaultSize={`${defaultLayout.main}%`}
       >
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{main}</div>
@@ -129,9 +140,9 @@ export function ThreeColumnLayout({
             id="context"
             panelRef={contextRef}
             className="min-h-0 min-w-0 bg-ink-2"
-            minSize="160px"
-            maxSize="30%"
-            collapsible
+            minSize={isInventory ? "200px" : "160px"}
+            maxSize={isInventory ? "55%" : "30%"}
+            collapsible={!isInventory}
             collapsedSize={0}
             defaultSize={`${defaultLayout.context}%`}
           >
