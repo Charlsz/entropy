@@ -30,6 +30,7 @@ import {
 } from "../components/ui/select";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { StorageTreemap } from "../components/StorageTreemap";
+import { InventoryContextBar } from "../components/InventoryContextBar";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry } from "../lib/media";
 import { cn } from "../lib/utils";
@@ -773,6 +774,15 @@ export function FilesPage() {
                   )}
                 </div>
               </ScrollArea>
+              {selected ? (
+                <InventoryContextBar
+                  selected={selected}
+                  scanRoot={scanRoot}
+                  onOpenExternal={() => void window.entropy.fs.openExternal(selected.path)}
+                  onReveal={() => void revealPath(selected.path)}
+                  onReference={() => referenceInNote(selected.path)}
+                />
+              ) : null}
             </section>
           }
         />
