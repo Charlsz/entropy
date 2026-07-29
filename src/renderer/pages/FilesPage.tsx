@@ -728,7 +728,7 @@ export function FilesPage() {
                             {formatDate(entry.modifiedAt)}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {entry.isDirectory ? "—" : formatBytes(entry.size)}
+                            {formatBytes(entry.size)}
                           </span>
                           <span className="entropy-list-hide-narrow text-xs text-muted-foreground">
                             {entry.isDirectory ? "Folder" : entry.extension || "File"}
@@ -875,17 +875,28 @@ const FileGridCard = memo(function FileGridCard({
         ) : null}
       </div>
 
-      <div className="flex min-w-0 items-center gap-1">
-        <p className="entropy-gallery-label flex-1" title={entry.name}>
-          {entry.name}
+      <div className="flex min-w-0 items-start gap-1">
+        <div className="min-w-0 flex-1">
+          <p className="entropy-gallery-label" title={entry.name}>
+            {entry.name}
+          </p>
           {entry.isDirectory ? (
-            <span className="ml-1.5 inline-flex items-center gap-1 align-middle text-[11px] text-muted-foreground">
-              <Folder className="inline h-3 w-3" strokeWidth={1.5} />
-              {count ?? "…"}
-            </span>
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              <span>{count == null ? "…" : `${count.toLocaleString()} items`}</span>
+              {entry.size > 0 ? (
+                <>
+                  <span className="mx-1 text-border">·</span>
+                  <span>{formatBytes(entry.size)}</span>
+                </>
+              ) : null}
+            </p>
+          ) : entry.size > 0 ? (
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              {formatBytes(entry.size)}
+            </p>
           ) : null}
-        </p>
-        <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+        </div>
+        <div className="shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
           <ItemActionsMenu label={entry.name} actions={actions} />
         </div>
       </div>
