@@ -21,6 +21,33 @@ interface StorageTreemapProps {
   className?: string;
 }
 
+/** Low-chroma fills that sit next to ink/paper without neon WinDirStat brightness. */
+const TREEMAP_FILLS = [
+  "#3a3f46", // cool slate
+  "#403c38", // warm stone
+  "#3a403c", // muted sage
+  "#3f3a42", // dusty mauve
+  "#383e40", // teal stone
+  "#403e36", // olive ash
+  "#373b44", // blue slate
+  "#423a38", // clay
+] as const;
+
+function hashPath(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function fillForNode(path: string, share: number): string {
+  const base = TREEMAP_FILLS[hashPath(path) % TREEMAP_FILLS.length];
+  // Larger shares lift slightly toward paper-2 so distribution is visible, still quiet.
+  const lift = Math.min(0.22, 0.06 + share * 0.28);
+  return `color-mix(in srgb, ${base} ${Math.round((1 - lift) * 100)}%, #f4f4ff)`;
+}
+
 export function StorageTreemap({
   rootLabel = "Storage",
   nodes = [],
@@ -73,16 +100,18 @@ export function StorageTreemap({
         const width = Math.max(rect.width - gap, 0);
         const height = Math.max(rect.height - gap, 0);
         if (width <= 2 || height <= 2) return null;
+        const share = total > 0 ? node.size / total : 0;
         return {
           ...node,
           x: rect.x + gap / 2,
           y: rect.y + gap / 2,
           width,
           height,
+          fill: fillForNode(node.path, share),
         };
       })
       .filter((item): item is NonNullable<typeof item> => item != null);
-  }, [nodes, showMap, size.height, size.width]);
+  }, [nodes, showMap, size.height, size.width, total]);
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)} aria-label="Storage treemap">
@@ -120,10 +149,9 @@ export function StorageTreemap({
                 {scanning ? "Measuring folder sizes…" : "Preparing size map…"}
               </div>
             ) : (
-              layout.map((cell, index) => {
+              layout.map((cell) => {
                 const selected = selectedPath === cell.path;
                 const showLabel = cell.width > 56 && cell.height > 34;
-                const tone = index % 2 === 0 ? "bg-ink-2" : "bg-background/80";
                 return (
                   <button
                     key={cell.path}
@@ -131,15 +159,15 @@ export function StorageTreemap({
                     role="listitem"
                     title={`${cell.name} · ${formatBytes(cell.size)}`}
                     className={cn(
-                      "absolute overflow-hidden border border-border/50 p-1.5 text-left transition-colors hover:bg-accent/50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                      tone,
-                      selected && "z-10 ring-1 ring-ring",
+                      "absolute overflow-hidden border border-black/25 p-1.5 text-left transition-[filter,box-shadow] hover:brightness-110 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      selected && "z-10 ring-1 ring-ring brightness-110",
                     )}
                     style={{
                       left: cell.x,
                       top: cell.y,
                       width: cell.width,
                       height: cell.height,
+                      backgroundColor: cell.fill,
                     }}
                     onClick={() => onSelect?.(cell.path)}
                     onDoubleClick={() => onOpen?.(cell.path)}
