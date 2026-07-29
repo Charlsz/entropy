@@ -56,6 +56,8 @@ const api: EntropyApi = {
     listMarkdown: (rootPath) => ipcRenderer.invoke("fs:listMarkdown", rootPath),
     searchMarkdown: (rootPath, query) =>
       ipcRenderer.invoke("fs:searchMarkdown", rootPath, query),
+    searchInventoryNames: (rootPath, query) =>
+      ipcRenderer.invoke("fs:searchInventoryNames", rootPath, query),
     findBacklinks: (rootPath, notePath) =>
       ipcRenderer.invoke("fs:findBacklinks", rootPath, notePath),
     findFileReferences: (workspacePath, filePath) =>

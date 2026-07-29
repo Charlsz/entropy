@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog } from "electron";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { InventoryRoot, TreemapFileLeaf, TreemapScanResult } from "../shared/types";
+import type { InventoryRoot, TreemapFileLeaf, TreemapScanResult, GlobalSearchHit } from "../shared/types";
 import { kindFromExtension } from "../shared/fileKinds";
 
 const SKIP_DIRS = new Set([
@@ -437,3 +437,65 @@ function aggregateTinyLeaves(
 
 const LEVEL_MIN_SHARE = 0.01;
 const LEVEL_MAX_LEAVES = 64;
+
+const NAME_SEARCH_MAX_DEPTH = 8;
+const NAME_SEARCH_MAX_RESULTS = 40;
+
+/** Bounded name search under an Inventory root (files + folders). */
+export async function searchInventoryNames(
+  rootPath: string,
+  query: string,
+): Promise<GlobalSearchHit[]> {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return [];
+
+  const results: GlobalSearchHit[] = [];
+  const root = path.normalize(rootPath);
+
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (depth > NAME_SEARCH_MAX_DEPTH || results.length >= NAME_SEARCH_MAX_RESULTS) return;
+    let dirents;
+    try {
+      dirents = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const dirent of dirents) {
+      if (results.length >= NAME_SEARCH_MAX_RESULTS) return;
+      if (dirent.name === "." || dirent.name === "..") continue;
+      if (SKIP_DIRS.has(dirent.name)) continue;
+      if (dirent.name.startsWith(".")) continue;
+      const full = path.join(dir, dirent.name);
+      try {
+        const link = await fs.lstat(full);
+        if (link.isSymbolicLink()) continue;
+        const nameHit = dirent.name.toLowerCase().includes(trimmed);
+        if (link.isDirectory()) {
+          if (nameHit) {
+            results.push({
+              path: full,
+              name: dirent.name,
+              excerpt: full,
+              source: "folder",
+            });
+          }
+          await walk(full, depth + 1);
+          continue;
+        }
+        if (!link.isFile()) continue;
+        if (!nameHit) continue;
+        results.push({
+          path: full,
+          name: dirent.name,
+          excerpt: full,
+          source: "file",
+        });
+      } catch {
+        // Skip inaccessible.
+      }
+    }
+  }
+
+  await walk(root, 0);
+  return results;
+}

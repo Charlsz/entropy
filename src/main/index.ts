@@ -142,6 +142,9 @@ function registerIpc(): void {
   ipcMain.handle("fs:searchMarkdown", (_event, rootPath: string, query: string) =>
     filesystem.searchMarkdown(rootPath, query),
   );
+  ipcMain.handle("fs:searchInventoryNames", (_event, rootPath: string, query: string) =>
+    inventory.searchInventoryNames(rootPath, query),
+  );
   ipcMain.handle("fs:findBacklinks", (_event, rootPath: string, notePath: string) =>
     filesystem.findBacklinks(rootPath, notePath),
   );

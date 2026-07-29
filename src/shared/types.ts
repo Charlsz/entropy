@@ -47,6 +47,13 @@ export interface NoteSearchResult {
   excerpt: string;
 }
 
+export interface GlobalSearchHit {
+  path: string;
+  name: string;
+  excerpt: string;
+  source: "note" | "file" | "folder";
+}
+
 export interface EntropyApi {
   platform: string;
   versions: {
@@ -93,6 +100,7 @@ export interface EntropyApi {
     folderTree: (rootPath: string, maxDepth?: number) => Promise<TreeNode[]>;
     listMarkdown: (rootPath: string) => Promise<FileEntry[]>;
     searchMarkdown: (rootPath: string, query: string) => Promise<NoteSearchResult[]>;
+    searchInventoryNames: (rootPath: string, query: string) => Promise<GlobalSearchHit[]>;
     findBacklinks: (rootPath: string, notePath: string) => Promise<NoteSearchResult[]>;
     createNote: (dirPath: string, name?: string) => Promise<string>;
     join: (...parts: string[]) => Promise<string>;
