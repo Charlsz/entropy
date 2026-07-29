@@ -1,56 +1,32 @@
 import { useMemo, useState, useEffect, type KeyboardEvent } from "react";
 import { HardDrive } from "lucide-react";
+import type { TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
+import {
+  FILE_KIND_FILL,
+  FILE_KIND_LABEL,
+  FILE_KIND_ORDER,
+  type FileKindId,
+} from "../../shared/fileKinds";
 import { cn } from "../lib/utils";
 import { squarify } from "../lib/squarify";
 
-export interface TreemapNode {
-  path: string;
-  name: string;
-  size: number;
-  isDirectory: boolean;
-  children?: TreemapNode[];
-}
-
 interface StorageTreemapProps {
   rootLabel?: string;
-  nodes?: TreemapNode[];
+  scan?: TreemapScanResult | null;
   selectedPath?: string | null;
   scanning?: boolean;
-  onSelect?: (path: string) => void;
-  onOpen?: (path: string) => void;
+  onSelect?: (leaf: TreemapFileLeaf) => void;
+  onOpen?: (leaf: TreemapFileLeaf) => void;
   className?: string;
 }
 
-/** Low-chroma fills that sit next to ink/paper without neon WinDirStat brightness. */
-const TREEMAP_FILLS = [
-  "#3a3f46", // cool slate
-  "#403c38", // warm stone
-  "#3a403c", // muted sage
-  "#3f3a42", // dusty mauve
-  "#383e40", // teal stone
-  "#403e36", // olive ash
-  "#373b44", // blue slate
-  "#423a38", // clay
-] as const;
-
-function hashPath(value: string): number {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-  }
-  return hash;
-}
-
-function fillForNode(path: string, share: number): string {
-  const base = TREEMAP_FILLS[hashPath(path) % TREEMAP_FILLS.length];
-  // Larger shares lift slightly toward paper-2 so distribution is visible, still quiet.
-  const lift = Math.min(0.22, 0.06 + share * 0.28);
-  return `color-mix(in srgb, ${base} ${Math.round((1 - lift) * 100)}%, #f4f4ff)`;
+function isAggregateLeaf(leaf: TreemapFileLeaf): boolean {
+  return leaf.path.endsWith(".__entropy_other__") || leaf.name.startsWith("Other (");
 }
 
 export function StorageTreemap({
   rootLabel = "Storage",
-  nodes = [],
+  scan = null,
   selectedPath = null,
   scanning = false,
   onSelect,
@@ -75,43 +51,57 @@ export function StorageTreemap({
     return () => observer.disconnect();
   }, [frameEl]);
 
-  const total = useMemo(
-    () => nodes.reduce((sum, node) => sum + Math.max(node.size, 0), 0),
-    [nodes],
-  );
+  const files = scan?.files ?? [];
+  const total = scan?.totalSize ?? 0;
+  const showMap = files.length > 0 && total > 0;
 
-  const showMap = nodes.length > 0 && total > 0;
+  const kindTotals = useMemo(() => {
+    const map = new Map<FileKindId, { size: number; count: number }>();
+    for (const file of files) {
+      if (isAggregateLeaf(file)) continue;
+      const prev = map.get(file.kind) ?? { size: 0, count: 0 };
+      prev.size += file.size;
+      prev.count += 1;
+      map.set(file.kind, prev);
+    }
+    return FILE_KIND_ORDER.filter((kind) => map.has(kind)).map((kind) => ({
+      kind,
+      size: map.get(kind)!.size,
+      count: map.get(kind)!.count,
+      fill: FILE_KIND_FILL[kind],
+      label: FILE_KIND_LABEL[kind],
+    }));
+  }, [files]);
 
   const layout = useMemo(() => {
     if (!showMap || size.width < 8 || size.height < 8) return [];
-    const gap = 1.5;
+    const gap = 1;
     const rects = squarify(
-      nodes.map((node) => ({ id: node.path, size: node.size })),
+      files.map((file) => ({ id: file.path, size: file.size })),
       0,
       0,
       size.width,
       size.height,
     );
-    const byPath = new Map(nodes.map((node) => [node.path, node]));
+    const byPath = new Map(files.map((file) => [file.path, file]));
     return rects
       .map((rect) => {
-        const node = byPath.get(rect.id);
-        if (!node) return null;
+        const file = byPath.get(rect.id);
+        if (!file) return null;
         const width = Math.max(rect.width - gap, 0);
         const height = Math.max(rect.height - gap, 0);
-        if (width <= 2 || height <= 2) return null;
-        const share = total > 0 ? node.size / total : 0;
+        if (width <= 1.5 || height <= 1.5) return null;
         return {
-          ...node,
+          ...file,
           x: rect.x + gap / 2,
           y: rect.y + gap / 2,
           width,
           height,
-          fill: fillForNode(node.path, share),
+          fill: FILE_KIND_FILL[file.kind],
         };
       })
       .filter((item): item is NonNullable<typeof item> => item != null);
-  }, [nodes, showMap, size.height, size.width, total]);
+  }, [files, showMap, size.height, size.width]);
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)} aria-label="Storage treemap">
@@ -123,18 +113,19 @@ export function StorageTreemap({
         <span className="ml-auto truncate text-[11px] text-muted-foreground">
           {rootLabel}
           {total > 0 ? ` · ${formatBytes(total)}` : ""}
+          {scan?.fileCount ? ` · ${scan.fileCount.toLocaleString()} files` : ""}
         </span>
       </div>
 
-      <div className="min-h-0 flex-1 px-3 pb-3">
+      <div className="min-h-0 flex-1 px-3 pb-2">
         {scanning && !showMap ? (
           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
-            Measuring folder sizes…
+            Indexing files by type…
           </div>
         ) : !showMap ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-6 text-center">
             <p className="text-sm text-muted-foreground">
-              Size map appears here once this folder is measured.
+              File size map by type appears here once this folder is scanned.
             </p>
           </div>
         ) : (
@@ -142,25 +133,27 @@ export function StorageTreemap({
             ref={setFrameEl}
             className="relative h-full min-h-[160px] overflow-hidden rounded-xl bg-ink"
             role="list"
-            aria-label="Folder size map"
+            aria-label="File size map by type"
           >
             {layout.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                {scanning ? "Measuring folder sizes…" : "Preparing size map…"}
+                {scanning ? "Indexing files by type…" : "Preparing size map…"}
               </div>
             ) : (
               layout.map((cell) => {
                 const selected = selectedPath === cell.path;
-                const showLabel = cell.width > 56 && cell.height > 34;
+                const showLabel = cell.width > 64 && cell.height > 36 && !isAggregateLeaf(cell);
+                const kindLabel = FILE_KIND_LABEL[cell.kind];
                 return (
                   <button
                     key={cell.path}
                     type="button"
                     role="listitem"
-                    title={`${cell.name} · ${formatBytes(cell.size)}`}
+                    title={`${cell.name} · ${kindLabel} · ${formatBytes(cell.size)}`}
                     className={cn(
-                      "absolute overflow-hidden border border-black/25 p-1.5 text-left transition-[filter,box-shadow] hover:brightness-110 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      "absolute overflow-hidden border border-black/30 p-1 text-left transition-[filter,box-shadow] hover:brightness-110 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                       selected && "z-10 ring-1 ring-ring brightness-110",
+                      isAggregateLeaf(cell) && "cursor-default opacity-80",
                     )}
                     style={{
                       left: cell.x,
@@ -169,18 +162,24 @@ export function StorageTreemap({
                       height: cell.height,
                       backgroundColor: cell.fill,
                     }}
-                    onClick={() => onSelect?.(cell.path)}
-                    onDoubleClick={() => onOpen?.(cell.path)}
+                    onClick={() => {
+                      if (isAggregateLeaf(cell)) return;
+                      onSelect?.(cell);
+                    }}
+                    onDoubleClick={() => {
+                      if (isAggregateLeaf(cell)) return;
+                      onOpen?.(cell);
+                    }}
                     onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
-                      if (event.key === "Enter") onOpen?.(cell.path);
+                      if (event.key === "Enter" && !isAggregateLeaf(cell)) onOpen?.(cell);
                     }}
                   >
                     {showLabel ? (
                       <span className="flex h-full min-h-0 flex-col justify-between">
-                        <span className="truncate text-[11px] font-medium text-foreground">
+                        <span className="truncate text-[10px] font-medium text-foreground">
                           {cell.name}
                         </span>
-                        <span className="truncate text-[10px] text-muted-foreground">
+                        <span className="truncate text-[9px] text-muted-foreground">
                           {formatBytes(cell.size)}
                         </span>
                       </span>
@@ -191,12 +190,41 @@ export function StorageTreemap({
             )}
             {scanning ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/70 px-2 py-1 text-center text-[10px] text-muted-foreground">
-                Updating sizes…
+                Updating file index…
               </div>
             ) : null}
           </div>
         )}
       </div>
+
+      {kindTotals.length > 0 ? (
+        <div className="shrink-0 border-t border-border px-3 py-2">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            By type
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {kindTotals.map((item) => (
+              <div
+                key={item.kind}
+                className="flex items-center gap-1.5 rounded-md bg-background/40 px-1.5 py-1 text-[10px] text-muted-foreground"
+                title={`${item.count.toLocaleString()} files · ${formatBytes(item.size)}`}
+              >
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-sm border border-black/30"
+                  style={{ backgroundColor: item.fill }}
+                />
+                <span className="text-foreground/90">{item.label}</span>
+                <span>{formatBytes(item.size)}</span>
+              </div>
+            ))}
+          </div>
+          {scan?.truncated ? (
+            <p className="mt-1.5 text-[10px] text-muted-foreground">
+              Showing largest files; smaller ones are grouped as Other.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
