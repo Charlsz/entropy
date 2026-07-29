@@ -45,7 +45,7 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 |---|---|---|
 | Notebook | Obsidian | Markdown meaning; references to real paths; inline media |
 | File Inventory Content View | Refern | Grid/list of the current folder with rich previews |
-| File Inventory Treemap | GrandPerspective / KDirStat | Size map of the active scan root |
+| File Inventory Treemap | GrandPerspective / KDirStat + Google Maps | Size map with folder zoom; hover answers meaning questions |
 | Context panel | — | Metadata / properties / previews; hide if empty |
 | Top bar | — | Minimal: workspace, icon actions, window controls |
 | Canvas | — | Future spatial refs; hidden in v1 |

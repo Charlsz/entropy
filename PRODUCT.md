@@ -58,7 +58,7 @@ The filesystem is the single source of truth. Entropy never owns, duplicates, or
 ## Layout contract
 
 - **Notebook:** three-column desktop — sidebar | editor | context. Context hides when empty. No Linked / extra notebook-only side panels.
-- **File Inventory:** Content View (~50%) | Treemap (~50%), resizable and persisted. App icon rail is the only left nav. Content View keeps gallery previews for media; non-preview items use full icons. Treemap maps individual files by type (GrandPerspective spirit).
+- **File Inventory:** Global titlebar path (`← →` + `Home › …`) beside panel toggles, before search. Content (~50%) | Treemap (~50%). Gallery keeps location/filter/sort/view. Treemap is map-style folder zoom (double-click); hover shows kind, size, location, note refs, duplicates, and delete-safety hints.
 - Use horizontal space deliberately; maximize the working surface.
 - Performance over decoration.
 
