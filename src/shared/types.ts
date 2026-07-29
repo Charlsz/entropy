@@ -100,6 +100,11 @@ export interface AppSession {
       main: number;
       context: number;
     };
+    inventoryPanelLayout?: {
+      sidebar: number;
+      main: number;
+      context: number;
+    };
   };
 }
 

@@ -12,6 +12,8 @@ export interface WorkspaceSettings {
   contextCollapsed: boolean;
   filesView: "list" | "grid";
   panelLayout: PanelLayoutState;
+  /** File Inventory: Nav | Content | Treemap */
+  inventoryPanelLayout: PanelLayoutState;
 }
 
 export interface WorkspaceState {
@@ -29,23 +31,34 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
   context: 18,
 };
 
+export const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
+  sidebar: 20,
+  main: 40,
+  context: 40,
+};
+
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
   theme: "dark",
   sidebarCollapsed: false,
   contextCollapsed: false,
   filesView: "grid",
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
+  inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
 };
 
-export function normalizePanelLayout(value: unknown): PanelLayoutState {
-  if (!value || typeof value !== "object") return { ...DEFAULT_PANEL_LAYOUT };
+export function normalizePanelLayout(
+  value: unknown,
+  fallback: PanelLayoutState = DEFAULT_PANEL_LAYOUT,
+): PanelLayoutState {
+  if (!value || typeof value !== "object") return { ...fallback };
   const record = value as Record<string, unknown>;
-  let sidebar = typeof record.sidebar === "number" ? record.sidebar : DEFAULT_PANEL_LAYOUT.sidebar;
-  let main = typeof record.main === "number" ? record.main : DEFAULT_PANEL_LAYOUT.main;
-  let context = typeof record.context === "number" ? record.context : DEFAULT_PANEL_LAYOUT.context;
+  let sidebar = typeof record.sidebar === "number" ? record.sidebar : fallback.sidebar;
+  let main = typeof record.main === "number" ? record.main : fallback.main;
+  let context = typeof record.context === "number" ? record.context : fallback.context;
 
   // Migrate the previous default proportions toward a larger main pane.
   if (
+    fallback === DEFAULT_PANEL_LAYOUT &&
     Math.abs(sidebar - 22) < 0.5 &&
     Math.abs(main - 58) < 0.5 &&
     Math.abs(context - 20) < 0.5
@@ -92,6 +105,6 @@ export function createWorkspaceState(workspacePath: string): WorkspaceState {
     currentFolder: normalized,
     currentSection: "notebook",
     recentFiles: [],
-    settings: { ...DEFAULT_SETTINGS, panelLayout: { ...DEFAULT_PANEL_LAYOUT } },
+    settings: { ...DEFAULT_SETTINGS, panelLayout: { ...DEFAULT_PANEL_LAYOUT }, inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT } },
   };
 }

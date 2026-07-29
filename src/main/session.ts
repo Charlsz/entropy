@@ -14,6 +14,7 @@ export interface AppSettings {
   sidebarCollapsed: boolean;
   contextCollapsed: boolean;
   panelLayout: PanelLayoutState;
+  inventoryPanelLayout: PanelLayoutState;
 }
 
 export interface AppSession {
@@ -27,25 +28,35 @@ const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
   context: 18,
 };
 
+const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
+  sidebar: 20,
+  main: 40,
+  context: 40,
+};
+
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "dark",
   filesView: "grid",
   sidebarCollapsed: false,
   contextCollapsed: false,
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
+  inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
 };
 
 function sessionPath(): string {
   return path.join(app.getPath("userData"), "session.json");
 }
 
-function normalizePanelLayout(value: unknown): PanelLayoutState {
-  if (!value || typeof value !== "object") return { ...DEFAULT_PANEL_LAYOUT };
+function normalizePanelLayout(
+  value: unknown,
+  fallback: PanelLayoutState = DEFAULT_PANEL_LAYOUT,
+): PanelLayoutState {
+  if (!value || typeof value !== "object") return { ...fallback };
   const record = value as Record<string, unknown>;
   return {
-    sidebar: typeof record.sidebar === "number" ? record.sidebar : DEFAULT_PANEL_LAYOUT.sidebar,
-    main: typeof record.main === "number" ? record.main : DEFAULT_PANEL_LAYOUT.main,
-    context: typeof record.context === "number" ? record.context : DEFAULT_PANEL_LAYOUT.context,
+    sidebar: typeof record.sidebar === "number" ? record.sidebar : fallback.sidebar,
+    main: typeof record.main === "number" ? record.main : fallback.main,
+    context: typeof record.context === "number" ? record.context : fallback.context,
   };
 }
 
@@ -61,10 +72,21 @@ export async function loadSession(): Promise<AppSession> {
         sidebarCollapsed: Boolean(parsed.settings?.sidebarCollapsed),
         contextCollapsed: Boolean(parsed.settings?.contextCollapsed),
         panelLayout: normalizePanelLayout(parsed.settings?.panelLayout),
+        inventoryPanelLayout: normalizePanelLayout(
+          parsed.settings?.inventoryPanelLayout,
+          DEFAULT_INVENTORY_PANEL_LAYOUT,
+        ),
       },
     };
   } catch {
-    return { lastWorkspace: null, settings: { ...DEFAULT_SETTINGS, panelLayout: { ...DEFAULT_PANEL_LAYOUT } } };
+    return {
+      lastWorkspace: null,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        panelLayout: { ...DEFAULT_PANEL_LAYOUT },
+        inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
+      },
+    };
   }
 }
 
