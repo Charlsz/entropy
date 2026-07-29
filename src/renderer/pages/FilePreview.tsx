@@ -156,22 +156,21 @@ function VideoClip({ url, compact }: { url: string; compact: boolean }) {
     let timer = 0;
     let cancelled = false;
 
+    function clearTimer(): void {
+      window.clearTimeout(timer);
+      timer = 0;
+    }
+
     async function playClip(): Promise<void> {
       const el = videoRef.current;
-      if (!el) return;
+      if (!el || cancelled) return;
       try {
         el.currentTime = 0;
         await el.play();
         if (cancelled) return;
+        clearTimer();
         timer = window.setTimeout(() => {
-          const current = videoRef.current;
-          if (!current) return;
-          current.pause();
-          try {
-            current.currentTime = 0.05;
-          } catch {
-            // Ignore.
-          }
+          if (!cancelled) void playClip();
         }, VIDEO_CLIP_SECONDS * 1000);
       } catch {
         // Keep poster frame.
@@ -187,7 +186,7 @@ function VideoClip({ url, compact }: { url: string; compact: boolean }) {
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      clearTimer();
       video.removeEventListener("loadeddata", onLoaded);
       video.pause();
     };

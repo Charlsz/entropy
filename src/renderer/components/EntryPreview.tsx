@@ -180,6 +180,8 @@ const VIDEO_PREVIEW_SECONDS = 4;
 
 function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const previewLoopRef = useRef(false);
+  const previewTimerRef = useRef(0);
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -197,8 +199,32 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
     const video = videoRef.current;
     if (!video || !url) return;
 
-    let timer = 0;
     let cancelled = false;
+    let timer = 0;
+
+    function clearTimer(): void {
+      window.clearTimeout(timer);
+      timer = 0;
+    }
+
+    function loopClip(): void {
+      const el = videoRef.current;
+      if (!el || cancelled || size === "sm") return;
+      clearTimer();
+      void (async () => {
+        try {
+          el.currentTime = 0;
+          await el.play();
+          if (cancelled) return;
+          timer = window.setTimeout(() => {
+            if (cancelled) return;
+            loopClip();
+          }, VIDEO_PREVIEW_SECONDS * 1000);
+        } catch {
+          // Keep still frame.
+        }
+      })();
+    }
 
     function onLoaded(): void {
       const el = videoRef.current;
@@ -208,52 +234,43 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
       } catch {
         // Ignore seek failures.
       }
-      if (size === "sm") return;
-      void (async () => {
-        try {
-          el.currentTime = 0;
-          await el.play();
-          if (cancelled) return;
-          timer = window.setTimeout(() => {
-            el.pause();
-            try {
-              el.currentTime = 0.05;
-            } catch {
-              // Ignore.
-            }
-          }, VIDEO_PREVIEW_SECONDS * 1000);
-        } catch {
-          // Keep still frame.
-        }
-      })();
+      if (size !== "sm") loopClip();
     }
 
     video.addEventListener("loadeddata", onLoaded);
+    if (video.readyState >= 2) onLoaded();
+
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      clearTimer();
       video.removeEventListener("loadeddata", onLoaded);
+      video.pause();
     };
   }, [url, size]);
 
   async function playPreview(): Promise<void> {
     const video = videoRef.current;
     if (!video) return;
-    try {
-      video.currentTime = 0;
-      await video.play();
-      window.setTimeout(() => {
-        if (videoRef.current === video) {
-          video.pause();
-          video.currentTime = 0.05;
-        }
-      }, VIDEO_PREVIEW_SECONDS * 1000);
-    } catch {
-      // Keep still frame.
-    }
+    stopPreview();
+    previewLoopRef.current = true;
+    const run = async (): Promise<void> => {
+      if (!previewLoopRef.current || videoRef.current !== video) return;
+      try {
+        video.currentTime = 0;
+        await video.play();
+        previewTimerRef.current = window.setTimeout(() => {
+          void run();
+        }, VIDEO_PREVIEW_SECONDS * 1000);
+      } catch {
+        // Keep still frame.
+      }
+    };
+    void run();
   }
 
   function stopPreview(): void {
+    previewLoopRef.current = false;
+    window.clearTimeout(previewTimerRef.current);
     const video = videoRef.current;
     if (!video) return;
     video.pause();
