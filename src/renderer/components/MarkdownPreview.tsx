@@ -58,7 +58,9 @@ export function MarkdownPreview({
             if (seen.has(raw)) continue;
             seen.add(raw);
             try {
-              const absolute = await window.entropy.fs.join(noteDir, raw);
+              const absolute = isAbsolutePath(raw)
+                ? raw
+                : await window.entropy.fs.join(noteDir, raw);
               if (!(await window.entropy.fs.exists(absolute))) continue;
               const info = await window.entropy.fs.stat(absolute);
               map.set(raw, absolute);
@@ -147,4 +149,8 @@ export function MarkdownPreview({
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isAbsolutePath(value: string): boolean {
+  return /^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(value);
 }

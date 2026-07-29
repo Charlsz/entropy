@@ -241,8 +241,11 @@ function MediaEmbedBlock({
       }
 
       try {
-        const noteDir = await window.entropy.fs.dirname(notePath);
-        const absolute = await window.entropy.fs.join(noteDir, src);
+        let absolute = src;
+        if (!/^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(src)) {
+          const noteDir = await window.entropy.fs.dirname(notePath);
+          absolute = await window.entropy.fs.join(noteDir, src);
+        }
         if (!(await window.entropy.fs.exists(absolute))) {
           if (!cancelled) {
             setUrl(null);
