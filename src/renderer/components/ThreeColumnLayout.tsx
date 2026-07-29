@@ -130,8 +130,8 @@ export function ThreeColumnLayout({
             id="sidebar"
             panelRef={sidebarRef}
             className="min-h-0 min-w-0 bg-ink-2"
-            minSize={isInventory ? "88px" : "140px"}
-            maxSize={isInventory ? "16%" : "34%"}
+            minSize={isInventory ? "10%" : "140px"}
+            maxSize={isInventory ? "22%" : "34%"}
             collapsible
             collapsedSize={0}
             defaultSize={`${defaultLayout.sidebar}%`}
@@ -145,7 +145,7 @@ export function ThreeColumnLayout({
       <Panel
         id="main"
         className="min-h-0 min-w-0 bg-background"
-        minSize={isInventory ? "240px" : "420px"}
+        minSize={isInventory ? "18%" : "28%"}
         defaultSize={`${defaultLayout.main}%`}
       >
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{main}</div>
@@ -158,8 +158,8 @@ export function ThreeColumnLayout({
             id="context"
             panelRef={contextRef}
             className="min-h-0 min-w-0 bg-ink-2"
-            minSize={isInventory ? "240px" : "160px"}
-            maxSize={isInventory ? "70%" : "30%"}
+            minSize={isInventory ? "22%" : "14%"}
+            maxSize={isInventory ? "72%" : "36%"}
             collapsible={!isInventory}
             collapsedSize={0}
             defaultSize={`${defaultLayout.context}%`}

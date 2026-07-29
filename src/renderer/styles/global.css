@@ -347,10 +347,120 @@
   box-shadow: 0 6px 16px color-mix(in srgb, var(--ink) 55%, transparent);
 }
 
+/* Gallery: more columns on wider panels; tiles stay a stable size instead of ballooning. */
+.entropy-gallery {
+  container-type: inline-size;
+  container-name: gallery;
+}
+
+.entropy-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 9.5rem));
+  gap: 0.85rem 0.85rem;
+  justify-content: start;
+}
+
+@container gallery (min-width: 36rem) {
+  .entropy-gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(8rem, 10rem));
+    gap: 1rem 1rem;
+  }
+}
+
+@container gallery (min-width: 52rem) {
+  .entropy-gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 10.5rem));
+    gap: 1.1rem 1.1rem;
+  }
+}
+
+@container gallery (min-width: 68rem) {
+  .entropy-gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 11rem));
+  }
+}
+
+.entropy-gallery-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.entropy-gallery-face {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+
+.entropy-gallery-face--icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.entropy-gallery-face--icon svg {
+  width: 42%;
+  height: 42%;
+  max-width: 3.5rem;
+  max-height: 3.5rem;
+}
+
+.entropy-gallery-label {
+  min-width: 0;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entropy-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  row-gap: 0.5rem;
+}
+
+.entropy-toolbar-trail {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.entropy-list-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 8.5rem) 4.5rem 4rem 1.75rem;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+@container gallery (max-width: 28rem) {
+  .entropy-list-table {
+    grid-template-columns: minmax(0, 1fr) 4.5rem 1.75rem;
+  }
+
+  .entropy-list-hide-narrow {
+    display: none;
+  }
+}
+
 .entropy-resize-handle {
-  width: 1px;
-  background: transparent;
+  position: relative;
+  width: 1px !important;
+  flex: 0 0 1px !important;
+  margin: 0;
+  background: color-mix(in srgb, var(--border) 80%, transparent);
   transition: background-color var(--motion) var(--ease-out);
+}
+
+/* Wider invisible hit target without eating layout space. */
+.entropy-resize-handle::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+  cursor: col-resize;
 }
 
 .entropy-resize-handle:hover,

@@ -508,7 +508,7 @@ export function FilesPage() {
             onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
             onDrop={(event) => void onDrop(event, workspace.currentFolder)}
           >
-            <div className="flex items-center gap-2 px-4 py-3">
+            <div className="entropy-toolbar px-4 py-3">
               <Select
                 value={activeRoot?.path ?? scanRoot}
                 onValueChange={(value) => {
@@ -525,7 +525,7 @@ export function FilesPage() {
                   selectRootPath(value);
                 }}
               >
-                <SelectTrigger className="h-8 w-[132px] shrink-0" aria-label="Location">
+                <SelectTrigger className="h-8 w-[7.5rem] shrink-0 sm:w-[8.25rem]" aria-label="Location">
                   <SelectValue placeholder="Location" />
                 </SelectTrigger>
                 <SelectContent>
@@ -561,7 +561,7 @@ export function FilesPage() {
                 <TooltipContent>Add folder…</TooltipContent>
               </Tooltip>
 
-              <Breadcrumb className="min-w-0 flex-1">
+              <Breadcrumb className="entropy-toolbar-trail">
                 <BreadcrumbList>
                   <BreadcrumbItem>
                     {crumbs.length === 0 ? (
@@ -607,10 +607,10 @@ export function FilesPage() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 aria-label="Filter files"
-                className="h-8 w-36 border-border bg-transparent"
+                className="h-8 w-full max-w-[9rem] border-border bg-transparent sm:max-w-[11rem]"
               />
               <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
-                <SelectTrigger className="h-8 w-[110px]" aria-label="Sort by">
+                <SelectTrigger className="h-8 w-[6.5rem] shrink-0" aria-label="Sort by">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -671,8 +671,8 @@ export function FilesPage() {
             </div>
 
             <ScrollArea className="min-h-0 flex-1">
-              <div className="px-4 pb-6">
-                {error ? <p className="mb-3 text-xs text-paper-2">{error}</p> : null}
+              <div className="entropy-gallery px-4 pb-6">
+                {error ? <p className="mb-3 text-xs text-muted-foreground">{error}</p> : null}
 
                 {recentEntries.length > 0 ? (
                   <section className="mb-6" aria-label="Recent files">
@@ -684,7 +684,7 @@ export function FilesPage() {
                         {recentEntries.length}
                       </span>
                     </div>
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-3 gap-y-4">
+                    <div className="entropy-gallery-grid">
                       {recentEntries.map((entry) => (
                         <FileGridCard
                           key={`recent-${entry.path}`}
@@ -701,9 +701,9 @@ export function FilesPage() {
                 ) : null}
 
                 {loading ? (
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-4">
-                    {Array.from({ length: 6 }).map((_, index) => (
-                      <Skeleton key={index} className="aspect-[4/3] w-full rounded-xl" />
+                  <div className="entropy-gallery-grid">
+                    {Array.from({ length: 8 }).map((_, index) => (
+                      <Skeleton key={index} className="aspect-square w-full rounded-xl" />
                     ))}
                   </div>
                 ) : null}
@@ -727,13 +727,13 @@ export function FilesPage() {
                 {view === "list" ? (
                   <div className="space-y-0.5" role="table" aria-label="Files">
                     <div
-                      className="grid grid-cols-[minmax(0,1fr)_140px_72px_64px_28px] gap-2 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
+                      className="entropy-list-table px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
                       role="row"
                     >
                       <span>Name</span>
-                      <span>Modified</span>
+                      <span className="entropy-list-hide-narrow">Modified</span>
                       <span>Size</span>
-                      <span>Type</span>
+                      <span className="entropy-list-hide-narrow">Type</span>
                       <span className="sr-only">Actions</span>
                     </div>
                     {rendered.map((entry) => (
@@ -742,7 +742,7 @@ export function FilesPage() {
                         role="row"
                         draggable
                         className={cn(
-                          "grid w-full grid-cols-[minmax(0,1fr)_140px_72px_64px_28px] items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent",
+                          "entropy-list-table w-full rounded-lg px-2 py-1.5 text-sm hover:bg-accent",
                           selected?.path === entry.path && "bg-accent",
                           entry.isDirectory && dragOverPath === entry.path && "ring-1 ring-ring",
                         )}
@@ -759,13 +759,13 @@ export function FilesPage() {
                           <EntryPreview entry={entry} size="sm" />
                           <span className="truncate">{entry.name}</span>
                         </span>
-                        <span className="truncate text-xs text-muted-foreground">
+                        <span className="entropy-list-hide-narrow truncate text-xs text-muted-foreground">
                           {formatDate(entry.modifiedAt)}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {entry.isDirectory ? "—" : formatBytes(entry.size)}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="entropy-list-hide-narrow text-xs text-muted-foreground">
                           {entry.isDirectory ? "Folder" : entry.extension || "File"}
                         </span>
                         <ItemActionsMenu label={entry.name} actions={fileActions(entry)} />
@@ -776,7 +776,7 @@ export function FilesPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-x-4 gap-y-6">
+                  <div className="entropy-gallery-grid">
                     {rendered.map((entry) => (
                       <FileGridCard
                         key={entry.path}
@@ -881,7 +881,7 @@ const FileGridCard = memo(function FileGridCard({
   return (
     <div
       draggable
-      className={cn("group flex min-w-0 cursor-pointer flex-col gap-2", dropTarget && "opacity-70")}
+      className={cn("entropy-gallery-card group cursor-pointer", dropTarget && "opacity-70")}
       onClick={onOpen}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
@@ -889,9 +889,9 @@ const FileGridCard = memo(function FileGridCard({
     >
       <div
         className={cn(
-          "aspect-square overflow-hidden",
+          "entropy-gallery-face",
           face === "preview" && "entropy-media-card rounded-xl",
-          face === "icon" && "flex items-center justify-center",
+          face === "icon" && "entropy-gallery-face--icon",
           face === "loading" && "rounded-xl bg-ink-2/50",
           selected && face === "preview" && "outline outline-1 outline-offset-2 outline-ring",
           selected && face === "icon" && "rounded-xl ring-1 ring-ring",
@@ -899,9 +899,9 @@ const FileGridCard = memo(function FileGridCard({
       >
         {face === "icon" ? (
           entry.isDirectory ? (
-            <Folder className="h-14 w-14 text-muted-foreground/75" strokeWidth={1.15} />
+            <Folder className="text-muted-foreground/75" strokeWidth={1.15} />
           ) : (
-            <FileText className="h-14 w-14 text-muted-foreground/75" strokeWidth={1.15} />
+            <FileText className="text-muted-foreground/75" strokeWidth={1.15} />
           )
         ) : face === "preview" ? (
           <EntryPreview entry={entry} size="lg" />
@@ -909,7 +909,7 @@ const FileGridCard = memo(function FileGridCard({
       </div>
 
       <div className="flex min-w-0 items-center gap-1">
-        <p className="min-w-0 flex-1 truncate text-[13px] text-foreground" title={entry.name}>
+        <p className="entropy-gallery-label flex-1" title={entry.name}>
           {entry.name}
           {entry.isDirectory ? (
             <span className="ml-1.5 inline-flex items-center gap-1 align-middle text-[11px] text-muted-foreground">
