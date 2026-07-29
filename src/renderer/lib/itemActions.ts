@@ -35,6 +35,13 @@ export function buildEntryActions(options: {
   onMoveTo: () => void;
   onDelete: () => void;
 }): ItemAction[] {
+  const revealLabel =
+    window.entropy.platform === "darwin"
+      ? "Show in Finder"
+      : window.entropy.platform === "win32"
+        ? "Show in Explorer"
+        : "Show in file manager";
+
   const actions: ItemAction[] = [
     { label: "Rename", onSelect: options.onRename },
   ];
@@ -43,7 +50,7 @@ export function buildEntryActions(options: {
   }
   actions.push(
     { label: "Copy path", onSelect: options.onCopyPath },
-    { label: "Show in Explorer", onSelect: options.onReveal },
+    { label: revealLabel, onSelect: options.onReveal },
     { label: "Move to…", onSelect: options.onMoveTo },
     { label: "Delete", destructive: true, onSelect: options.onDelete },
   );
