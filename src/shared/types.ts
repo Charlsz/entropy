@@ -12,6 +12,10 @@ export interface TreemapFileLeaf {
   size: number;
   extension: string;
   kind: import("./fileKinds").FileKindId;
+  isDirectory?: boolean;
+  /** Parent folder name for hover intel. */
+  location?: string;
+  modifiedAt?: number;
 }
 
 export interface TreemapScanResult {
@@ -107,6 +111,9 @@ export interface EntropyApi {
     measurePath: (targetPath: string) => Promise<number>;
     measureChildren: (dirPath: string) => Promise<Array<{ path: string; size: number }>>;
     scanTreemapFiles: (dirPath: string, maxLeaves?: number) => Promise<TreemapScanResult>;
+    scanTreemapLevel: (dirPath: string) => Promise<TreemapScanResult>;
+    findFileReferences: (workspacePath: string, filePath: string) => Promise<NoteSearchResult[]>;
+    findDuplicates: (rootPath: string, filePath: string) => Promise<FileEntry[]>;
   };
   canvas: {
     load: (workspacePath: string) => Promise<CanvasDocument | null>;

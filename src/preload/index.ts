@@ -58,6 +58,10 @@ const api: EntropyApi = {
       ipcRenderer.invoke("fs:searchMarkdown", rootPath, query),
     findBacklinks: (rootPath, notePath) =>
       ipcRenderer.invoke("fs:findBacklinks", rootPath, notePath),
+    findFileReferences: (workspacePath, filePath) =>
+      ipcRenderer.invoke("fs:findFileReferences", workspacePath, filePath),
+    findDuplicates: (rootPath, filePath) =>
+      ipcRenderer.invoke("fs:findDuplicates", rootPath, filePath),
     createNote: (dirPath, name) => ipcRenderer.invoke("fs:createNote", dirPath, name),
     join: (...parts) => ipcRenderer.invoke("fs:join", ...parts),
     dirname: (filePath) => ipcRenderer.invoke("fs:dirname", filePath),
@@ -76,6 +80,7 @@ const api: EntropyApi = {
     measureChildren: (dirPath) => ipcRenderer.invoke("fs:measureChildren", dirPath),
     scanTreemapFiles: (dirPath, maxLeaves) =>
       ipcRenderer.invoke("fs:scanTreemapFiles", dirPath, maxLeaves),
+    scanTreemapLevel: (dirPath) => ipcRenderer.invoke("fs:scanTreemapLevel", dirPath),
   },
   canvas: {
     load: (workspacePath) => ipcRenderer.invoke("canvas:load", workspacePath),

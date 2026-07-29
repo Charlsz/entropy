@@ -381,6 +381,78 @@ export async function findBacklinks(
   return results;
 }
 
+/** Notes that link to any file (same resolution rules as note backlinks). */
+export async function findFileReferences(
+  workspacePath: string,
+  filePath: string,
+): Promise<NoteSearchResult[]> {
+  return findBacklinks(workspacePath, filePath);
+}
+
+const DUP_MAX_DEPTH = 10;
+const DUP_MAX_RESULTS = 24;
+
+/** Same basename + size under root (bounded walk). Excludes the target itself. */
+export async function findDuplicates(
+  rootPath: string,
+  filePath: string,
+): Promise<FileEntry[]> {
+  const target = path.resolve(filePath);
+  let targetStat;
+  try {
+    targetStat = await fs.stat(target);
+  } catch {
+    return [];
+  }
+  if (!targetStat.isFile()) return [];
+
+  const targetName = path.basename(target).toLowerCase();
+  const targetSize = targetStat.size;
+  const targetKey = normalizePathKey(target);
+  const found: FileEntry[] = [];
+
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (depth > DUP_MAX_DEPTH || found.length >= DUP_MAX_RESULTS) return;
+    let dirents;
+    try {
+      dirents = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const dirent of dirents) {
+      if (found.length >= DUP_MAX_RESULTS) return;
+      if (dirent.name === "." || dirent.name === "..") continue;
+      if (dirent.name.startsWith(".")) continue;
+      const full = path.join(dir, dirent.name);
+      try {
+        const link = await fs.lstat(full);
+        if (link.isSymbolicLink()) continue;
+        if (link.isDirectory()) {
+          await walk(full, depth + 1);
+          continue;
+        }
+        if (!link.isFile()) continue;
+        if (dirent.name.toLowerCase() !== targetName) continue;
+        if (link.size !== targetSize) continue;
+        if (normalizePathKey(full) === targetKey) continue;
+        found.push({
+          name: dirent.name,
+          path: full,
+          isDirectory: false,
+          size: link.size,
+          modifiedAt: link.mtimeMs,
+          extension: path.extname(dirent.name).toLowerCase(),
+        });
+      } catch {
+        // Skip inaccessible.
+      }
+    }
+  }
+
+  await walk(path.normalize(rootPath), 0);
+  return found;
+}
+
 export function joinPath(...parts: string[]): string {
   return path.join(...parts);
 }

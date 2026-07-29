@@ -282,6 +282,7 @@ async function walkFiles(
     return;
   }
 
+  const location = path.basename(dirPath);
   for (const dirent of dirents) {
     if (dirent.name === "." || dirent.name === "..") continue;
     if (SKIP_DIRS.has(dirent.name)) continue;
@@ -302,9 +303,81 @@ async function walkFiles(
         size: link.size,
         extension,
         kind: kindFromExtension(extension),
+        isDirectory: false,
+        location,
+        modifiedAt: link.mtimeMs,
       });
     } catch {
       // Skip inaccessible entries.
     }
   }
+}
+
+/**
+ * One-level map scan: folders + files at this depth (Google Maps–style zoom).
+ * Folder sizes are recursive totals so double-click can drill in.
+ */
+export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResult> {
+  const root = path.normalize(dirPath);
+  const location = path.basename(root);
+  let dirents;
+  try {
+    dirents = await fs.readdir(root, { withFileTypes: true });
+  } catch {
+    return { files: [], totalSize: 0, fileCount: 0, truncated: false };
+  }
+
+  const files: TreemapFileLeaf[] = [];
+  for (const dirent of dirents) {
+    if (dirent.name === "." || dirent.name === "..") continue;
+    if (SKIP_DIRS.has(dirent.name)) continue;
+    if (dirent.name.startsWith(".")) continue;
+    const fullPath = path.join(root, dirent.name);
+    try {
+      const link = await fs.lstat(fullPath);
+      if (link.isSymbolicLink()) continue;
+
+      if (link.isDirectory()) {
+        const size = await measurePath(fullPath);
+        if (size <= 0) continue;
+        files.push({
+          path: fullPath,
+          name: dirent.name,
+          size,
+          extension: "",
+          kind: "other",
+          isDirectory: true,
+          location,
+          modifiedAt: link.mtimeMs,
+        });
+        continue;
+      }
+
+      if (!link.isFile() || link.size <= 0) continue;
+      const extension = path.extname(dirent.name).toLowerCase();
+      files.push({
+        path: fullPath,
+        name: dirent.name,
+        size: link.size,
+        extension,
+        kind: kindFromExtension(extension),
+        isDirectory: false,
+        location,
+        modifiedAt: link.mtimeMs,
+      });
+    } catch {
+      // Skip inaccessible entries.
+    }
+  }
+
+  let totalSize = 0;
+  for (const file of files) totalSize += file.size;
+  files.sort((a, b) => b.size - a.size);
+
+  return {
+    files,
+    totalSize,
+    fileCount: files.length,
+    truncated: false,
+  };
 }

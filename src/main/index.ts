@@ -145,6 +145,12 @@ function registerIpc(): void {
   ipcMain.handle("fs:findBacklinks", (_event, rootPath: string, notePath: string) =>
     filesystem.findBacklinks(rootPath, notePath),
   );
+  ipcMain.handle("fs:findFileReferences", (_event, workspacePath: string, filePath: string) =>
+    filesystem.findFileReferences(workspacePath, filePath),
+  );
+  ipcMain.handle("fs:findDuplicates", (_event, rootPath: string, filePath: string) =>
+    filesystem.findDuplicates(rootPath, filePath),
+  );
   ipcMain.handle("fs:createNote", (_event, dirPath: string, name?: string) =>
     filesystem.createNote(dirPath, name),
   );
@@ -180,6 +186,9 @@ function registerIpc(): void {
   );
   ipcMain.handle("fs:scanTreemapFiles", (_event, dirPath: string, maxLeaves?: number) =>
     inventory.scanTreemapFiles(dirPath, maxLeaves),
+  );
+  ipcMain.handle("fs:scanTreemapLevel", (_event, dirPath: string) =>
+    inventory.scanTreemapLevel(dirPath),
   );
 
   ipcMain.handle("canvas:load", (_event, workspacePath: string) => loadCanvas(workspacePath));
