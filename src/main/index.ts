@@ -164,7 +164,14 @@ function registerIpc(): void {
     filesystem.openExternal(targetPath),
   );
   ipcMain.handle("fs:getHomePath", () => inventory.getHomePath());
-  ipcMain.handle("fs:getInventoryRoots", () => inventory.getInventoryRoots());
+  ipcMain.handle("fs:getInventoryRoots", (_event, extraPaths?: string[]) =>
+    inventory.getInventoryRoots(extraPaths ?? []),
+  );
+  ipcMain.handle("fs:listMountRoots", () => inventory.listMountRoots());
+  ipcMain.handle("fs:pickInventoryFolder", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return inventory.pickInventoryFolder(win);
+  });
   ipcMain.handle("fs:measurePath", (_event, targetPath: string) =>
     inventory.measurePath(targetPath),
   );

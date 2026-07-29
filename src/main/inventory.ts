@@ -1,5 +1,6 @@
-import { app } from "electron";
+import { app, BrowserWindow, dialog } from "electron";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import type { InventoryRoot } from "../shared/types";
 
@@ -19,7 +20,79 @@ const SKIP_DIRS = new Set([
 
 const sizeCache = new Map<string, { size: number; mtimeMs: number }>();
 
-export async function getInventoryRoots(): Promise<InventoryRoot[]> {
+async function pushIfDir(
+  roots: InventoryRoot[],
+  seen: Set<string>,
+  candidate: { id: string; name: string; path: string },
+): Promise<void> {
+  const normalized = path.normalize(candidate.path);
+  const key = normalized.toLowerCase();
+  if (seen.has(key)) return;
+  try {
+    const info = await fs.stat(normalized);
+    if (!info.isDirectory()) return;
+    seen.add(key);
+    roots.push({ ...candidate, path: normalized });
+  } catch {
+    // Skip missing paths.
+  }
+}
+
+/** Discover attached drives / volumes without scanning them by default. */
+export async function listMountRoots(): Promise<InventoryRoot[]> {
+  const roots: InventoryRoot[] = [];
+  const seen = new Set<string>();
+
+  if (process.platform === "win32") {
+    for (const letter of "CDEFGHIJKLMNOPQRSTUVWXYZ") {
+      await pushIfDir(roots, seen, {
+        id: `drive-${letter.toLowerCase()}`,
+        name: `${letter}:`,
+        path: `${letter}:\\`,
+      });
+    }
+    return roots;
+  }
+
+  if (process.platform === "darwin") {
+    try {
+      const entries = await fs.readdir("/Volumes");
+      for (const name of entries) {
+        await pushIfDir(roots, seen, {
+          id: `volume-${name}`,
+          name,
+          path: path.join("/Volumes", name),
+        });
+      }
+    } catch {
+      // No Volumes folder.
+    }
+    return roots;
+  }
+
+  // Linux and others: common mount points under /media and /mnt.
+  const user = os.userInfo().username;
+  for (const base of [path.join("/media", user), "/media", "/mnt"]) {
+    try {
+      const entries = await fs.readdir(base);
+      for (const name of entries) {
+        await pushIfDir(roots, seen, {
+          id: `mount-${base}-${name}`,
+          name,
+          path: path.join(base, name),
+        });
+      }
+    } catch {
+      // Skip inaccessible mount bases.
+    }
+  }
+  return roots;
+}
+
+export async function getInventoryRoots(extraPaths: string[] = []): Promise<InventoryRoot[]> {
+  const roots: InventoryRoot[] = [];
+  const seen = new Set<string>();
+
   const candidates: Array<{ id: string; name: string; path: string }> = [
     { id: "home", name: "Home", path: app.getPath("home") },
     { id: "desktop", name: "Desktop", path: app.getPath("desktop") },
@@ -30,23 +103,35 @@ export async function getInventoryRoots(): Promise<InventoryRoot[]> {
     { id: "videos", name: "Videos", path: app.getPath("videos") },
   ];
 
-  const roots: InventoryRoot[] = [];
-  const seen = new Set<string>();
-
   for (const candidate of candidates) {
-    const normalized = path.normalize(candidate.path);
-    if (seen.has(normalized.toLowerCase())) continue;
-    try {
-      const info = await fs.stat(normalized);
-      if (!info.isDirectory()) continue;
-      seen.add(normalized.toLowerCase());
-      roots.push({ ...candidate, path: normalized });
-    } catch {
-      // Skip missing special folders on this platform.
-    }
+    await pushIfDir(roots, seen, candidate);
+  }
+
+  for (const extra of extraPaths) {
+    const normalized = path.normalize(extra);
+    const name = path.basename(normalized) || normalized;
+    await pushIfDir(roots, seen, {
+      id: `extra-${normalized.toLowerCase()}`,
+      name,
+      path: normalized,
+    });
   }
 
   return roots;
+}
+
+export async function pickInventoryFolder(
+  browserWindow: BrowserWindow | null,
+): Promise<string | null> {
+  const options = {
+    title: "Add folder to File Inventory",
+    properties: ["openDirectory" as const],
+  };
+  const result = browserWindow
+    ? await dialog.showOpenDialog(browserWindow, options)
+    : await dialog.showOpenDialog(options);
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return path.normalize(result.filePaths[0]);
 }
 
 export function getHomePath(): string {

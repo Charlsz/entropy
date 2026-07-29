@@ -84,7 +84,9 @@ export interface EntropyApi {
     reveal: (targetPath: string) => Promise<void>;
     openExternal: (targetPath: string) => Promise<void>;
     getHomePath: () => Promise<string>;
-    getInventoryRoots: () => Promise<InventoryRoot[]>;
+    getInventoryRoots: (extraPaths?: string[]) => Promise<InventoryRoot[]>;
+    listMountRoots: () => Promise<InventoryRoot[]>;
+    pickInventoryFolder: () => Promise<string | null>;
     measurePath: (targetPath: string) => Promise<number>;
     measureChildren: (dirPath: string) => Promise<Array<{ path: string; size: number }>>;
   };
@@ -115,6 +117,7 @@ export interface AppSession {
       main: number;
       context: number;
     };
+    inventoryExtraRoots?: string[];
   };
 }
 
