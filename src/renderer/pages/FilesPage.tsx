@@ -71,7 +71,8 @@ function pickRoot(folder: string, roots: InventoryRoot[]): InventoryRoot | null 
 }
 
 export function FilesPage() {
-  const { workspace, setCurrentFolder, updateSettings, addRecentFile } = useWorkspace();
+  const { workspace, setCurrentFolder, updateSettings, addRecentFile, referenceInNote } =
+    useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
   const [scanRoot, setScanRoot] = useState<string>("");
   const [tree, setTree] = useState<TreeNode[]>([]);
@@ -370,13 +371,18 @@ export function FilesPage() {
   function fileActions(entry: FileEntry) {
     return [
       ...buildEntryActions({
-        canReference: false,
+        canReference: true,
         onRename: () => void handleRename(entry),
+        onReference: () => referenceInNote(entry.path),
         onCopyPath: () => void copyPath(entry.path),
         onReveal: () => void revealPath(entry.path),
         onMoveTo: () => setMovingEntry(entry),
         onDelete: () => requestDelete(entry),
       }),
+      {
+        label: "Open",
+        onSelect: () => void window.entropy.fs.openExternal(entry.path),
+      },
       { label: "Duplicate", onSelect: () => void handleDuplicate(entry) },
     ];
   }

@@ -22,9 +22,13 @@ import { cn } from "../lib/utils";
 export function NotebookPage({
   pendingNote,
   onPendingNoteHandled,
+  pendingReference,
+  onPendingReferenceHandled,
 }: {
   pendingNote?: string | null;
   onPendingNoteHandled?: () => void;
+  pendingReference?: string | null;
+  onPendingReferenceHandled?: () => void;
 } = {}) {
   const { workspace, addRecentFile, closeWorkspace } = useWorkspace();
   const [notes, setNotes] = useState<FileEntry[]>([]);
@@ -65,6 +69,45 @@ export function NotebookPage({
     setActivePath(pendingNote);
     onPendingNoteHandled?.();
   }, [pendingNote, onPendingNoteHandled]);
+
+  useEffect(() => {
+    if (!pendingReference) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const entry = await window.entropy.fs.stat(pendingReference);
+        if (cancelled) return;
+        if (!activePath) {
+          setError("Open a note before referencing a file.");
+          setPreviewEntry(entry);
+          return;
+        }
+        const noteDir = await window.entropy.fs.dirname(activePath);
+        const relative = await window.entropy.fs.relative(noteDir, entry.path);
+        const hrefSource =
+          /[:/\\]/.test(relative) && relative.includes(":")
+            ? entry.path
+            : relative || entry.path;
+        const href = hrefSource.replace(/\\/g, "/");
+        const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
+        const insert = isMediaLike(entry)
+          ? `![${label}](${/\s/.test(href) ? `<${href}>` : href})`
+          : `[${label}](${/\s/.test(href) ? `<${href}>` : href})`;
+        editorRef.current?.insertMarkdown(insert);
+        setPreviewEntry(entry);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to reference file");
+        }
+      } finally {
+        if (!cancelled) onPendingReferenceHandled?.();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingReference, activePath, onPendingReferenceHandled]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -185,7 +228,7 @@ export function NotebookPage({
       const relative = await window.entropy.fs.relative(noteDir, entry.path);
       const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
       const href = relative.replace(/\\/g, "/");
-      const insert = isImageLike(entry) ? `![${label}](${href})` : `[${label}](${href})`;
+      const insert = isMediaLike(entry) ? `![${label}](${href})` : `[${label}](${href})`;
       editorRef.current?.insertMarkdown(insert);
       setPreviewEntry(entry);
       setError(null);
@@ -475,7 +518,22 @@ export function NotebookPage({
   );
 }
 
-function isImageLike(entry: FileEntry): boolean {
+function isMediaLike(entry: FileEntry): boolean {
   const ext = entry.extension.toLowerCase();
-  return [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"].includes(ext);
+  return [
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".svg",
+    ".avif",
+    ".mp4",
+    ".webm",
+    ".ogg",
+    ".mov",
+    ".mkv",
+    ".m4v",
+  ].includes(ext);
 }
