@@ -41,6 +41,20 @@ const api: EntropyApi = {
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
   },
+  duplicates: {
+    openWindow: (rootPath) => ipcRenderer.invoke("duplicates:openWindow", rootPath),
+    scan: (rootPath) => ipcRenderer.invoke("duplicates:scan", rootPath),
+    cancel: () => ipcRenderer.invoke("duplicates:cancel"),
+    onProgress: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: import("../shared/types").DuplicateScanProgress) => {
+        callback(progress);
+      };
+      ipcRenderer.on("duplicates:progress", listener);
+      return () => {
+        ipcRenderer.removeListener("duplicates:progress", listener);
+      };
+    },
+  },
   fs: {
     listDir: (dirPath) => ipcRenderer.invoke("fs:listDir", dirPath),
     readText: (filePath) => ipcRenderer.invoke("fs:readText", filePath),

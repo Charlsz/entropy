@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
 import path from "node:path";
 import * as filesystem from "./fs";
 import * as inventory from "./inventory";
+import { findExactDuplicates } from "./duplicates";
+import type { DuplicateScanProgress } from "./duplicates";
 import { FILE_PROTOCOL, registerFileProtocol, toEntropyThumbUrl, toEntropyUrl } from "./protocol";
 import { loadCanvas, saveCanvas, type PersistedCanvas } from "./canvasStore";
 import { loadSession, saveSession, type AppSession } from "./session";
@@ -17,6 +19,8 @@ import {
 const isDev = process.env.ENTROPY_DEV === "1";
 let allowQuit = false;
 let mainWindow: BrowserWindow | null = null;
+let duplicatesWindow: BrowserWindow | null = null;
+const duplicateAbortBySender = new Map<number, AbortController>();
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -36,29 +40,7 @@ function isAppNavigation(url: string): boolean {
   return /[/\\]renderer[/\\]index\.html(?:[?#]|$)/i.test(url);
 }
 
-function createWindow(): BrowserWindow {
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 720,
-    minHeight: 520,
-    show: true,
-    backgroundColor: "#212121",
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-    webPreferences: {
-      preload: path.join(__dirname, "../preload/index.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-
-  mainWindow = win;
-  win.on("closed", () => {
-    if (mainWindow === win) mainWindow = null;
-  });
-
-  // Markdown/preview links must never navigate the app shell away from index.html.
+function attachShellGuards(win: BrowserWindow): void {
   win.webContents.on("will-navigate", (event, url) => {
     if (isAppNavigation(url)) return;
     event.preventDefault();
@@ -73,11 +55,36 @@ function createWindow(): BrowserWindow {
     }
     return { action: "deny" };
   });
+}
+
+function createWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 720,
+    minHeight: 520,
+    show: true,
+    backgroundColor: "#212121",
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/index.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      plugins: true,
+    },
+  });
+
+  mainWindow = win;
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
+  });
+
+  attachShellGuards(win);
 
   win.webContents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
     if (!isMainFrame) return;
     console.error("Failed to load window:", { code, description, url });
-    // Recover if a bad in-app navigation slipped through.
     if (!isAppNavigation(url)) {
       if (isDev) void win.loadURL("http://localhost:5173");
       else void win.loadFile(path.join(__dirname, "../renderer/index.html"));
@@ -88,6 +95,56 @@ function createWindow(): BrowserWindow {
     void win.loadURL("http://localhost:5173");
   } else {
     void win.loadFile(path.join(__dirname, "../renderer/index.html"));
+  }
+
+  return win;
+}
+
+function createDuplicatesWindow(rootPath: string): BrowserWindow {
+  if (duplicatesWindow && !duplicatesWindow.isDestroyed()) {
+    duplicatesWindow.focus();
+    void duplicatesWindow.webContents.executeJavaScript(
+      `window.dispatchEvent(new CustomEvent("entropy:duplicates-root", { detail: ${JSON.stringify(rootPath)} }))`,
+    );
+    return duplicatesWindow;
+  }
+
+  const win = new BrowserWindow({
+    width: 920,
+    height: 720,
+    minWidth: 640,
+    minHeight: 480,
+    show: true,
+    backgroundColor: "#212121",
+    title: "Duplicate files — Entropy",
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/index.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      plugins: true,
+    },
+  });
+
+  duplicatesWindow = win;
+  win.on("closed", () => {
+    if (duplicatesWindow === win) duplicatesWindow = null;
+  });
+
+  attachShellGuards(win);
+
+  const query = new URLSearchParams({
+    window: "duplicates",
+    root: rootPath,
+  }).toString();
+
+  if (isDev) {
+    void win.loadURL(`http://localhost:5173/?${query}`);
+  } else {
+    void win.loadFile(path.join(__dirname, "../renderer/index.html"), {
+      search: query,
+    });
   }
 
   return win;
@@ -154,9 +211,10 @@ function registerIpc(): void {
   ipcMain.handle("fs:findDuplicates", (_event, rootPath: string, filePath: string) =>
     filesystem.findDuplicates(rootPath, filePath),
   );
-  ipcMain.handle("fs:findDuplicateGroups", (_event, rootPath: string) =>
-    filesystem.findDuplicateGroups(rootPath),
-  );
+  ipcMain.handle("fs:findDuplicateGroups", async (_event, rootPath: string) => {
+    const result = await findExactDuplicates(rootPath);
+    return result.groups;
+  });
   ipcMain.handle("fs:createNote", (_event, dirPath: string, name?: string) =>
     filesystem.createNote(dirPath, name),
   );
@@ -197,6 +255,36 @@ function registerIpc(): void {
     inventory.scanTreemapLevel(dirPath),
   );
 
+  ipcMain.handle("duplicates:openWindow", (_event, rootPath: string) => {
+    createDuplicatesWindow(rootPath);
+  });
+
+  ipcMain.handle("duplicates:scan", async (event, rootPath: string) => {
+    const senderId = event.sender.id;
+    duplicateAbortBySender.get(senderId)?.abort();
+    const controller = new AbortController();
+    duplicateAbortBySender.set(senderId, controller);
+
+    try {
+      return await findExactDuplicates(rootPath, {
+        signal: controller.signal,
+        onProgress: (progress: DuplicateScanProgress) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send("duplicates:progress", progress);
+          }
+        },
+      });
+    } finally {
+      if (duplicateAbortBySender.get(senderId) === controller) {
+        duplicateAbortBySender.delete(senderId);
+      }
+    }
+  });
+
+  ipcMain.handle("duplicates:cancel", (event) => {
+    duplicateAbortBySender.get(event.sender.id)?.abort();
+  });
+
   ipcMain.handle("canvas:load", (_event, workspacePath: string) => loadCanvas(workspacePath));
   ipcMain.handle("canvas:save", (_event, doc: PersistedCanvas) => saveCanvas(doc));
 
@@ -236,7 +324,8 @@ app.whenReady().then(() => {
 
 app.on("before-quit", (event) => {
   if (allowQuit) return;
-  const win = BrowserWindow.getAllWindows()[0];
+  const win =
+    mainWindow && !mainWindow.isDestroyed() ? mainWindow : BrowserWindow.getAllWindows()[0];
   if (!win || win.isDestroyed()) {
     allowQuit = true;
     return;
@@ -256,4 +345,3 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
-

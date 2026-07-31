@@ -64,6 +64,33 @@ export interface DuplicateGroup {
   keepPath: string;
 }
 
+export type DuplicateScanPhase =
+  | "scanning"
+  | "size"
+  | "partial"
+  | "full"
+  | "verify"
+  | "done"
+  | "cancelled"
+  | "error";
+
+export interface DuplicateScanProgress {
+  phase: DuplicateScanPhase;
+  progress: number;
+  message: string;
+  filesSeen: number;
+  candidateFiles: number;
+  groupsFound: number;
+  errors: number;
+}
+
+export interface DuplicateScanResult {
+  groups: DuplicateGroup[];
+  errors: Array<{ path: string; error: string }>;
+  filesScanned: number;
+  durationMs: number;
+}
+
 export interface EntropyApi {
   platform: string;
   versions: {
@@ -92,6 +119,12 @@ export interface EntropyApi {
     maximize: () => Promise<void>;
     close: () => Promise<void>;
     isMaximized: () => Promise<boolean>;
+  };
+  duplicates: {
+    openWindow: (rootPath: string) => Promise<void>;
+    scan: (rootPath: string) => Promise<DuplicateScanResult>;
+    cancel: () => Promise<void>;
+    onProgress: (callback: (progress: DuplicateScanProgress) => void) => () => void;
   };
   fs: {
     listDir: (dirPath: string) => Promise<FileEntry[]>;

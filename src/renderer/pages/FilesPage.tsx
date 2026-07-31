@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, memo } from "react";
-import { FileText, Folder } from "lucide-react";
+import {
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
+  Copy,
+  FileText,
+  Folder,
+} from "lucide-react";
 import type { FileEntry, InventoryRoot, TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
+import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { StatusBar } from "../components/StatusBar";
 import { ItemActionsMenu, type ItemAction } from "../components/ItemActionsMenu";
@@ -10,12 +17,22 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { StorageTreemap } from "../components/StorageTreemap";
 import { InventoryContextBar } from "../components/InventoryContextBar";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isPreviewableEntry } from "../lib/media";
 import { cn } from "../lib/utils";
+
+type SortKey = "name" | "modified" | "size" | "type";
 
 function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
@@ -63,6 +80,8 @@ export function FilesPage() {
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<FileEntry | null>(null);
   const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortAsc, setSortAsc] = useState(true);
   const [renderedCount, setRenderedCount] = useState(60);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const homeBootstrapped = useRef(false);
@@ -254,9 +273,14 @@ export function FilesPage() {
   const visible = useMemo(() => {
     return [...sizedEntries].sort((a, b) => {
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      let cmp = 0;
+      if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      if (sortKey === "modified") cmp = a.modifiedAt - b.modifiedAt;
+      if (sortKey === "size") cmp = a.size - b.size;
+      if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
+      return sortAsc ? cmp : -cmp;
     });
-  }, [sizedEntries]);
+  }, [sizedEntries, sortAsc, sortKey]);
 
   const rendered = useMemo(
     () => visible.slice(0, renderedCount),
@@ -265,7 +289,7 @@ export function FilesPage() {
 
   useEffect(() => {
     setRenderedCount(60);
-  }, [workspace.currentFolder]);
+  }, [workspace.currentFolder, sortKey, sortAsc]);
 
   useEffect(() => {
     const node = loadMoreRef.current;
@@ -421,6 +445,62 @@ export function FilesPage() {
               onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
               onDrop={(event) => void onDrop(event, workspace.currentFolder)}
             >
+              <div className="entropy-toolbar px-4 py-3">
+                <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
+                  <SelectTrigger className="h-8 w-[7.5rem] shrink-0" aria-label="Sort by">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="modified">Modified</SelectItem>
+                    <SelectItem value="size">Size</SelectItem>
+                    <SelectItem value="type">Type</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "h-8 w-8 text-muted-foreground",
+                        !sortAsc && "bg-ink-2 text-paper",
+                      )}
+                      aria-label={sortAsc ? "Sort ascending" : "Sort descending"}
+                      aria-pressed={!sortAsc}
+                      onClick={() => setSortAsc((value) => !value)}
+                    >
+                      {sortAsc ? (
+                        <ArrowUpNarrowWide className="h-4 w-4" strokeWidth={1.75} />
+                      ) : (
+                        <ArrowDownWideNarrow className="h-4 w-4" strokeWidth={1.75} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{sortAsc ? "Ascending" : "Descending"}</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground"
+                      onClick={() =>
+                        void window.entropy.duplicates.openWindow(
+                          scanRoot || workspace.currentFolder,
+                        )
+                      }
+                    >
+                      <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      Duplicates
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Find exact duplicate files in a new window</TooltipContent>
+                </Tooltip>
+              </div>
+
               <ScrollArea className="min-h-0 flex-1">
                 <div className="entropy-gallery px-4 py-4 pb-6">
                   {error ? <p className="mb-3 text-sm text-muted-foreground">{error}</p> : null}
