@@ -8,6 +8,7 @@ import { DuplicateHashCache } from "./cache";
 import { byteEqual, fullHash, mapPool, partialHash } from "./hasher";
 import { groupBySize, collapseHardLinks, scanFiles } from "./scanner";
 import {
+  PARTIAL_CHUNK,
   toFileEntry,
   type DuplicateScanProgress,
   type DuplicateScanResult,
@@ -111,15 +112,27 @@ export async function findExactDuplicates(
       try {
         const cached = cache.get(file.path, file.size, file.mtimeMs, file.ino);
         let partial = cached?.partialHash ?? null;
+        const tiny = file.size <= PARTIAL_CHUNK * 3;
         if (!partial) {
           partial = await partialHash(file.path, file.size);
+          // Tiny files: partialHash already streamed the whole file — reuse as full.
           cache.set({
             path: file.path,
             size: file.size,
             mtimeMs: file.mtimeMs,
             ino: file.ino,
             partialHash: partial,
-            fullHash: cached?.fullHash ?? null,
+            fullHash: tiny ? partial : (cached?.fullHash ?? null),
+            updatedAt: Date.now(),
+          });
+        } else if (tiny && !cached?.fullHash) {
+          cache.set({
+            path: file.path,
+            size: file.size,
+            mtimeMs: file.mtimeMs,
+            ino: file.ino,
+            partialHash: partial,
+            fullHash: partial,
             updatedAt: Date.now(),
           });
         }
