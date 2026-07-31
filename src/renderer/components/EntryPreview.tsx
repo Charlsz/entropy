@@ -1,9 +1,9 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { FileText, Folder } from "lucide-react";
 import type { FileEntry } from "../../shared/types";
 import { useInView } from "../hooks/useInView";
 import { isMediaEntry, mediaKind } from "../lib/media";
-import { getFileUrl, getThumbUrl } from "../lib/urlCache";
+import { getThumbUrl } from "../lib/urlCache";
 import { withVideoSlot } from "../lib/videoSlot";
 import { createSlot } from "../lib/asyncSlot";
 import { cn } from "../lib/utils";
@@ -185,19 +185,20 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
-    void getFileUrl(path)
-      .then((next) => {
+    void withImageSlot(async () => {
+      try {
+        const next = await getThumbUrl(path);
         if (!cancelled) setUrl(next);
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setFailed(true);
-      });
+      }
+    });
     return () => {
       cancelled = true;
     };
   }, [path]);
 
-  if (failed || !url) {
+  if (failed) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-ink-2">
         <FileText className="h-6 w-6 text-muted-foreground/70" strokeWidth={1.25} />
@@ -210,18 +211,19 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
     );
   }
 
-  // First page only; chrome PDF toolbar hidden when supported.
-  const src = `${url}#page=1&view=FitH&toolbar=0&navpanes=0`;
+  if (!url) return <QuietFace />;
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink-2">
-      <iframe
-        title="PDF preview"
-        src={src}
-        className="pointer-events-none absolute inset-0 h-[140%] w-full origin-top border-0 bg-ink-2"
-        tabIndex={-1}
+      <img
+        src={url}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        className="h-full w-full object-cover"
       />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent px-2 py-1.5">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/70 px-2 py-1">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-paper-2">PDF</span>
       </div>
     </div>
@@ -229,16 +231,16 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
 }
 
 function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
+    // Prefer OS shell thumbnail (JPEG) — reliable for video faces in the grid.
     void withVideoSlot(async () => {
       try {
-        const next = await getFileUrl(path);
+        const next = await getThumbUrl(path);
         if (!cancelled) setUrl(next);
       } catch {
         if (!cancelled) setFailed(true);
@@ -248,36 +250,6 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
       cancelled = true;
     };
   }, [path]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !url) return;
-
-    function onLoaded(): void {
-      const el = videoRef.current;
-      if (!el) return;
-      try {
-        // Seek slightly so Chromium paints a real frame (not black).
-        el.currentTime = 0.1;
-      } catch {
-        // Ignore seek failures.
-      }
-    }
-
-    function onError(): void {
-      setFailed(true);
-    }
-
-    video.addEventListener("loadeddata", onLoaded);
-    video.addEventListener("error", onError);
-    if (video.readyState >= 2) onLoaded();
-
-    return () => {
-      video.removeEventListener("loadeddata", onLoaded);
-      video.removeEventListener("error", onError);
-      video.pause();
-    };
-  }, [url]);
 
   if (failed) {
     return (
@@ -296,15 +268,16 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
   if (!url) return <QuietFace />;
 
   return (
-    <video
-      ref={videoRef}
-      src={url}
-      muted
-      playsInline
-      preload="metadata"
-      draggable={false}
-      className="h-full w-full object-cover"
-    />
+    <div className="relative h-full w-full overflow-hidden bg-ink-2">
+      <img
+        src={url}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        className="h-full w-full object-cover"
+      />
+    </div>
   );
 }
 

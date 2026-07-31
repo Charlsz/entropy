@@ -1,14 +1,25 @@
-import { app, nativeImage, net, protocol } from "electron";
+import { app, nativeImage, protocol } from "electron";
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { Readable } from "node:stream";
 
 export const FILE_PROTOCOL = "entropy";
 
 const THUMB_MAX_EDGE = 320;
 const thumbJobs = new Map<string, Promise<{ body: Buffer; type: string }>>();
 const PASS_THROUGH = new Set([".gif", ".svg"]);
+const OS_THUMB_EXT = new Set([
+  ".pdf",
+  ".mp4",
+  ".m4v",
+  ".mov",
+  ".webm",
+  ".mkv",
+  ".avi",
+  ".wmv",
+]);
 
 export function registerFileProtocol(): void {
   protocol.handle(FILE_PROTOCOL, async (request) => {
@@ -27,9 +38,8 @@ export function registerFileProtocol(): void {
           },
         });
       } catch {
-        // Last resort: stream original so GIF/odd formats still preview.
         try {
-          return await fetchLocal(filePath);
+          return await serveFile(filePath, request);
         } catch {
           return new Response("Not found", { status: 404 });
         }
@@ -43,7 +53,7 @@ export function registerFileProtocol(): void {
     const encoded = request.url.slice(localPrefix.length).split("?")[0] ?? "";
     const filePath = decodeURIComponent(encoded);
     try {
-      return await fetchLocal(filePath);
+      return await serveFile(filePath, request);
     } catch {
       return new Response("Not found", { status: 404 });
     }
@@ -58,20 +68,59 @@ export function toEntropyThumbUrl(filePath: string): string {
   return `${FILE_PROTOCOL}://thumb/${encodeURIComponent(filePath)}`;
 }
 
-async function fetchLocal(filePath: string): Promise<Response> {
-  const response = await net.fetch(pathToFileURL(filePath).href);
-  const ext = path.extname(filePath).toLowerCase();
-  const type = contentTypeFor(ext);
-  if (!type) return response;
+/** Stream a local file with Range support (required for video seek / PDF viewers). */
+async function serveFile(filePath: string, request: Request): Promise<Response> {
+  const stat = await fs.stat(filePath);
+  if (!stat.isFile()) return new Response("Not found", { status: 404 });
 
-  // Ensure Chromium gets a usable MIME for video/PDF/audio under the custom scheme.
-  const headers = new Headers(response.headers);
-  headers.set("Content-Type", type);
-  headers.set("Accept-Ranges", "bytes");
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
+  const size = stat.size;
+  const ext = path.extname(filePath).toLowerCase();
+  const type = contentTypeFor(ext) ?? "application/octet-stream";
+  const rangeHeader = request.headers.get("Range") ?? request.headers.get("range");
+
+  if (rangeHeader) {
+    const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+    if (!match) {
+      return new Response("Invalid range", { status: 416 });
+    }
+    const start = match[1] ? Number(match[1]) : 0;
+    const end = match[2] ? Number(match[2]) : size - 1;
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      start < 0 ||
+      end < start ||
+      start >= size
+    ) {
+      return new Response("Invalid range", {
+        status: 416,
+        headers: { "Content-Range": `bytes */${size}` },
+      });
+    }
+    const safeEnd = Math.min(end, size - 1);
+    const chunkSize = safeEnd - start + 1;
+    const nodeStream = createReadStream(filePath, { start, end: safeEnd });
+    return new Response(Readable.toWeb(nodeStream) as any, {
+      status: 206,
+      headers: {
+        "Content-Type": type,
+        "Content-Length": String(chunkSize),
+        "Content-Range": `bytes ${start}-${safeEnd}/${size}`,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "no-cache",
+      },
+    });
+  }
+
+  const nodeStream = createReadStream(filePath);
+  return new Response(Readable.toWeb(nodeStream) as any, {
+    status: 200,
+    headers: {
+      "Content-Type": type,
+      "Content-Length": String(size),
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "no-cache",
+    },
   });
 }
 
@@ -91,6 +140,8 @@ function contentTypeFor(ext: string): string | null {
       return "video/quicktime";
     case ".mkv":
       return "video/x-matroska";
+    case ".avi":
+      return "video/x-msvideo";
     case ".mp3":
       return "audio/mpeg";
     case ".wav":
@@ -138,7 +189,6 @@ async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type:
   const ext = path.extname(filePath).toLowerCase();
   const info = await fs.stat(filePath);
 
-  // Animated / vector formats: serve original bytes (nativeImage often fails on GIF).
   if (PASS_THROUGH.has(ext)) {
     return { body: await fs.readFile(filePath), type: mimeFor(ext) };
   }
@@ -157,9 +207,26 @@ async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type:
   let job = thumbJobs.get(cachePath);
   if (!job) {
     job = (async () => {
+      // Prefer OS shell thumbnails for video/PDF (Windows/macOS).
+      if (OS_THUMB_EXT.has(ext)) {
+        try {
+          const osThumb = await nativeImage.createThumbnailFromPath(filePath, {
+            width: THUMB_MAX_EDGE,
+            height: THUMB_MAX_EDGE,
+          });
+          if (!osThumb.isEmpty()) {
+            const jpeg = Buffer.from(osThumb.toJPEG(78));
+            await fs.mkdir(path.dirname(cachePath), { recursive: true });
+            await fs.writeFile(cachePath, jpeg);
+            return { body: jpeg, type: "image/jpeg" };
+          }
+        } catch {
+          // Fall through to nativeImage / raw.
+        }
+      }
+
       const image = nativeImage.createFromPath(filePath);
       if (image.isEmpty()) {
-        // Fallback to original file bytes.
         return { body: await fs.readFile(filePath), type: mimeFor(ext) };
       }
 

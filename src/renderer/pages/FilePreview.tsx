@@ -45,6 +45,7 @@ interface FilePreviewProps {
 export function FilePreview({ file, compact = false }: FilePreviewProps) {
   const kind = detectKind(file);
   const [url, setUrl] = useState<string | null>(null);
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,11 +58,21 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
       setError(null);
       setText(null);
       setUrl(null);
+      setThumbUrl(null);
 
       try {
         if (kind === "text") {
           const content = await window.entropy.fs.readText(file.path);
           if (!cancelled) setText(content.slice(0, 20_000));
+        } else if (kind === "pdf" || kind === "video") {
+          const [full, thumb] = await Promise.all([
+            window.entropy.fs.toUrl(file.path),
+            window.entropy.fs.toThumbUrl(file.path).catch(() => null),
+          ]);
+          if (!cancelled) {
+            setUrl(full);
+            setThumbUrl(thumb);
+          }
         } else if (kind !== "unsupported") {
           const next = await window.entropy.fs.toUrl(file.path);
           if (!cancelled) setUrl(next);
@@ -113,19 +124,35 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
     );
   }
 
-  if (kind === "pdf" && url) {
-    const src = `${url}#toolbar=0&navpanes=0&scrollbar=0`;
-    return (
-      <div className={frame}>
-        <iframe title={file.name} src={src} className="h-full min-h-[12rem] w-full border-0" />
-      </div>
-    );
+  if (kind === "pdf") {
+    if (compact && thumbUrl) {
+      return (
+        <div className={frame}>
+          <img src={thumbUrl} alt={file.name} className="max-h-40 w-full object-cover" />
+        </div>
+      );
+    }
+    if (url) {
+      const src = `${url}#toolbar=0&navpanes=0`;
+      return (
+        <div className={cn(frame, !compact && "min-h-[16rem]")}>
+          <iframe title={file.name} src={src} className="h-full min-h-[16rem] w-full border-0" />
+        </div>
+      );
+    }
+    if (thumbUrl) {
+      return (
+        <div className={frame}>
+          <img src={thumbUrl} alt={file.name} className="w-full object-contain" />
+        </div>
+      );
+    }
   }
 
   if (kind === "video" && url) {
     return (
       <div className={frame}>
-        <VideoStill url={url} compact={compact} />
+        <VideoPlayer url={url} poster={thumbUrl} compact={compact} />
       </div>
     );
   }
@@ -145,33 +172,23 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
   return <p className="text-sm text-muted-foreground">Unable to preview this file.</p>;
 }
 
-function VideoStill({ url, compact }: { url: string; compact: boolean }) {
+function VideoPlayer({
+  url,
+  poster,
+  compact,
+}: {
+  url: string;
+  poster: string | null;
+  compact: boolean;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    function onLoaded(): void {
-      const el = videoRef.current;
-      if (!el) return;
-      try {
-        el.currentTime = 0.1;
-      } catch {
-        // Keep default frame.
-      }
-    }
-
-    video.addEventListener("loadeddata", onLoaded);
-    if (video.readyState >= 2) onLoaded();
-    return () => video.removeEventListener("loadeddata", onLoaded);
-  }, [url]);
 
   return (
     <video
       ref={videoRef}
       src={url}
-      muted
+      poster={poster ?? undefined}
+      muted={compact}
       playsInline
       preload="metadata"
       controls={!compact}
