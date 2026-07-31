@@ -28,6 +28,7 @@ import {
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { StorageTreemap } from "../components/StorageTreemap";
 import { InventoryContextBar } from "../components/InventoryContextBar";
+import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isPreviewableEntry } from "../lib/media";
@@ -508,6 +509,8 @@ export function FilesPage() {
                   <TooltipContent>Find exact duplicate files in this location</TooltipContent>
                 </Tooltip>
               </div>
+
+              <InventoryBreadcrumb />
 
               <ScrollArea className="min-h-0 flex-1">
                 <div className="entropy-gallery px-4 py-4 pb-6">
