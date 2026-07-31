@@ -81,6 +81,12 @@ function applyEntry(prev: WorkspaceState, entry: NavEntry): WorkspaceState {
     ...prev,
     currentSection: entry.section,
     currentFolder: entry.folderPath ?? prev.currentFolder,
+    activeNotePath:
+      entry.kind === "note"
+        ? entry.notePath ?? prev.activeNotePath
+        : entry.section === "notebook"
+          ? prev.activeNotePath
+          : prev.activeNotePath,
     inventoryFocusPath:
       entry.kind === "preview"
         ? entry.previewPath ?? null
@@ -161,9 +167,9 @@ export function WorkspaceProvider({
   const visitSection = useCallback((section: SectionId) => {
     const next = (section as string) === "files" ? "inventory" : section;
     setWorkspace((prev) => {
-      // Record inventory as the current folder so Back restores the place, not a blank section.
+      // Inventory: record the folder you're actually in (not always the scan root).
       if (next === "inventory") {
-        const folder = prev.inventoryScanRoot || prev.currentFolder;
+        const folder = prev.currentFolder || prev.inventoryScanRoot;
         if (folder) {
           const label =
             prev.inventoryScanRoot && samePath(folder, prev.inventoryScanRoot)
@@ -171,6 +177,10 @@ export function WorkspaceProvider({
               : undefined;
           return pushEntry(prev, navFolder(folder, label), "push");
         }
+      }
+      // Notebook: restore the last note so Back/Forward bridges writing ↔ files.
+      if (next === "notebook" && prev.activeNotePath) {
+        return pushEntry(prev, navNote(prev.activeNotePath), "push");
       }
       return pushEntry(prev, navSection(next as SectionId), "push");
     });
@@ -189,7 +199,8 @@ export function WorkspaceProvider({
             : undefined;
         const entry = navFolder(folderPath, label);
         const next = pushEntry(prev, entry, mode);
-        if (!opts?.activate && prev.currentSection !== "inventory") {
+        // Folder navigation always belongs to Inventory unless caller opts out.
+        if (opts?.activate === false && prev.currentSection !== "inventory") {
           return { ...next, currentSection: prev.currentSection };
         }
         return next;
@@ -314,7 +325,10 @@ export function WorkspaceProvider({
   const visitNote = useCallback(
     (notePath: string) => {
       addRecentFile(notePath);
-      setWorkspace((prev) => pushEntry(prev, navNote(notePath), "push"));
+      setWorkspace((prev) => {
+        const next = pushEntry(prev, navNote(notePath), "push");
+        return { ...next, activeNotePath: notePath };
+      });
       setPendingNote(notePath);
     },
     [addRecentFile],

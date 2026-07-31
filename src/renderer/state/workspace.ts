@@ -45,6 +45,8 @@ export interface WorkspaceState {
   inventoryRootLabel: string;
   /** Selected inventory file when history points at a preview. */
   inventoryFocusPath: string | null;
+  /** Last note opened — used so section switches restore writing context. */
+  activeNotePath: string | null;
   /** Chronological navigation across notes, folders, previews, and sections. */
   navHistory: NavEntry[];
   navHistoryIndex: number;
@@ -200,6 +202,7 @@ export function createWorkspaceState(workspacePath: string): WorkspaceState {
     inventoryScanRoot: "",
     inventoryRootLabel: "Home",
     inventoryFocusPath: null,
+    activeNotePath: null,
     navHistory: [start],
     navHistoryIndex: 0,
   };
