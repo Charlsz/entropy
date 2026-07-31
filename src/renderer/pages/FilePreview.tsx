@@ -183,6 +183,51 @@ function VideoPlayer({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  useEffect(() => {
+    if (!compact) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const CLIP_SECONDS = 4;
+    let timer = 0;
+    let cancelled = false;
+
+    function clearTimer(): void {
+      window.clearTimeout(timer);
+      timer = 0;
+    }
+
+    async function playClip(): Promise<void> {
+      const el = videoRef.current;
+      if (!el || cancelled) return;
+      try {
+        el.currentTime = 0;
+        await el.play();
+        if (cancelled) return;
+        clearTimer();
+        timer = window.setTimeout(() => {
+          if (!cancelled) void playClip();
+        }, CLIP_SECONDS * 1000);
+      } catch {
+        // Keep poster when autoplay is blocked.
+      }
+    }
+
+    function onLoaded(): void {
+      void playClip();
+    }
+
+    video.addEventListener("loadeddata", onLoaded);
+    if (video.readyState >= 2) onLoaded();
+
+    return () => {
+      cancelled = true;
+      clearTimer();
+      video.removeEventListener("loadeddata", onLoaded);
+      video.pause();
+    };
+  }, [compact, url]);
+
   return (
     <video
       ref={videoRef}
@@ -192,6 +237,7 @@ function VideoPlayer({
       playsInline
       preload="metadata"
       controls={!compact}
+      autoPlay={compact}
       className={cn("h-full w-full object-cover", compact && "max-h-40")}
     />
   );

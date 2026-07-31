@@ -1,12 +1,14 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { FileText, Folder } from "lucide-react";
 import type { FileEntry } from "../../shared/types";
 import { useInView } from "../hooks/useInView";
 import { isMediaEntry, mediaKind } from "../lib/media";
-import { getThumbUrl } from "../lib/urlCache";
+import { getFileUrl, getThumbUrl } from "../lib/urlCache";
 import { withVideoSlot } from "../lib/videoSlot";
 import { createSlot } from "../lib/asyncSlot";
 import { cn } from "../lib/utils";
+
+const VIDEO_CLIP_SECONDS = 4;
 
 export interface FolderPreviewData {
   media: FileEntry[];
@@ -179,16 +181,25 @@ function ImageThumb({ path, alt }: { path: string; alt: string }) {
 }
 
 function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
-  const [url, setUrl] = useState<string | null>(null);
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
+    setThumbUrl(null);
+    setFileUrl(null);
     void withImageSlot(async () => {
       try {
-        const next = await getThumbUrl(path);
-        if (!cancelled) setUrl(next);
+        const [thumb, file] = await Promise.all([
+          getThumbUrl(path).catch(() => null),
+          size === "lg" ? getFileUrl(path).catch(() => null) : Promise.resolve(null),
+        ]);
+        if (cancelled) return;
+        if (thumb) setThumbUrl(thumb);
+        if (file) setFileUrl(file);
+        if (!thumb && !(size === "lg" && file)) setFailed(true);
       } catch {
         if (!cancelled) setFailed(true);
       }
@@ -196,7 +207,7 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, size]);
 
   if (failed) {
     return (
@@ -211,12 +222,29 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
     );
   }
 
-  if (!url) return <QuietFace />;
+  // Large cards: live first page (same idea as the video clip face).
+  if (size === "lg" && fileUrl) {
+    return (
+      <div className="relative h-full w-full overflow-hidden bg-ink-2">
+        <iframe
+          title="PDF preview"
+          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+          className="pointer-events-none h-[140%] w-full border-0 bg-ink-2"
+          tabIndex={-1}
+        />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/70 px-2 py-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-paper-2">PDF</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!thumbUrl) return <QuietFace />;
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink-2">
       <img
-        src={url}
+        src={thumbUrl}
         alt=""
         loading="lazy"
         decoding="async"
@@ -232,16 +260,25 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
 
 function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [poster, setPoster] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
-    // Prefer OS shell thumbnail (JPEG) — reliable for video faces in the grid.
+    setUrl(null);
+    setPoster(null);
     void withVideoSlot(async () => {
       try {
-        const next = await getThumbUrl(path);
-        if (!cancelled) setUrl(next);
+        const [fileUrl, thumb] = await Promise.all([
+          getFileUrl(path),
+          getThumbUrl(path).catch(() => null),
+        ]);
+        if (!cancelled) {
+          setUrl(fileUrl);
+          setPoster(thumb);
+        }
       } catch {
         if (!cancelled) setFailed(true);
       }
@@ -250,6 +287,49 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
       cancelled = true;
     };
   }, [path]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !url) return;
+
+    let timer = 0;
+    let cancelled = false;
+
+    function clearTimer(): void {
+      window.clearTimeout(timer);
+      timer = 0;
+    }
+
+    async function playClip(): Promise<void> {
+      const el = videoRef.current;
+      if (!el || cancelled) return;
+      try {
+        el.currentTime = 0;
+        await el.play();
+        if (cancelled) return;
+        clearTimer();
+        timer = window.setTimeout(() => {
+          if (!cancelled) void playClip();
+        }, VIDEO_CLIP_SECONDS * 1000);
+      } catch {
+        // Keep poster frame when autoplay is blocked.
+      }
+    }
+
+    function onLoaded(): void {
+      void playClip();
+    }
+
+    video.addEventListener("loadeddata", onLoaded);
+    if (video.readyState >= 2) onLoaded();
+
+    return () => {
+      cancelled = true;
+      clearTimer();
+      video.removeEventListener("loadeddata", onLoaded);
+      video.pause();
+    };
+  }, [url]);
 
   if (failed) {
     return (
@@ -269,11 +349,13 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink-2">
-      <img
+      <video
+        ref={videoRef}
         src={url}
-        alt=""
-        loading="lazy"
-        decoding="async"
+        poster={poster ?? undefined}
+        muted
+        playsInline
+        preload="metadata"
         draggable={false}
         className="h-full w-full object-cover"
       />
