@@ -1,11 +1,5 @@
-import { useEffect, useMemo, type ReactNode } from "react";
-import {
-  Group,
-  Panel,
-  Separator,
-  usePanelRef,
-  type Layout,
-} from "react-resizable-panels";
+import { useMemo, type ReactNode } from "react";
+import { Group, Panel, Separator, type Layout } from "react-resizable-panels";
 import { useWorkspace } from "../state/useWorkspace";
 import { layoutFromGroup } from "../state/workspace";
 import { cn } from "../lib/utils";
@@ -23,20 +17,6 @@ interface ThreeColumnLayoutProps {
   className?: string;
 }
 
-function syncCollapsed(
-  panel: { isCollapsed: () => boolean; collapse: () => void; expand: () => void } | null,
-  shouldCollapse: boolean,
-): void {
-  if (!panel) return;
-  try {
-    const collapsed = panel.isCollapsed();
-    if (shouldCollapse && !collapsed) panel.collapse();
-    if (!shouldCollapse && collapsed) panel.expand();
-  } catch {
-    // Panel group may still be initializing; ignore transient constraint errors.
-  }
-}
-
 export function ThreeColumnLayout({
   id,
   sidebar = null,
@@ -47,13 +27,9 @@ export function ThreeColumnLayout({
   className,
 }: ThreeColumnLayoutProps) {
   const { workspace, updateSettings } = useWorkspace();
-  const sidebarRef = usePanelRef();
-  const contextRef = usePanelRef();
   const hasSidebar = sidebar != null;
   const hasContext = context != null;
   const layoutKey = `${id}-${hasSidebar ? "side" : "noside"}-${hasContext ? "context" : "main"}`;
-  const sidebarCollapsed = workspace.settings.sidebarCollapsed;
-  const contextCollapsed = workspace.settings.contextCollapsed;
   const isInventory = variant === "inventory";
   const savedLayout = isInventory
     ? workspace.settings.inventoryPanelLayout
@@ -83,23 +59,6 @@ export function ThreeColumnLayout({
     };
   }, [hasContext, hasSidebar, savedLayout]);
 
-  useEffect(() => {
-    if (!persistLayout || !hasSidebar) return;
-    const frame = window.requestAnimationFrame(() => {
-      syncCollapsed(sidebarRef.current, sidebarCollapsed);
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [sidebarCollapsed, sidebarRef, layoutKey, persistLayout, hasSidebar]);
-
-  useEffect(() => {
-    if (!persistLayout || !hasContext) return;
-    if (isInventory) return;
-    const frame = window.requestAnimationFrame(() => {
-      syncCollapsed(contextRef.current, contextCollapsed);
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [contextCollapsed, contextRef, hasContext, layoutKey, persistLayout, isInventory]);
-
   return (
     <Group
       id={layoutKey}
@@ -128,12 +87,9 @@ export function ThreeColumnLayout({
         <>
           <Panel
             id="sidebar"
-            panelRef={sidebarRef}
             className="min-h-0 min-w-0 bg-ink-2"
             minSize={isInventory ? "10%" : "140px"}
             maxSize={isInventory ? "22%" : "34%"}
-            collapsible
-            collapsedSize={0}
             defaultSize={`${defaultLayout.sidebar}%`}
           >
             <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{sidebar}</div>
@@ -156,12 +112,9 @@ export function ThreeColumnLayout({
           <Separator className="entropy-resize-handle" />
           <Panel
             id="context"
-            panelRef={contextRef}
             className="min-h-0 min-w-0 bg-ink-2"
             minSize={isInventory ? "22%" : "14%"}
             maxSize={isInventory ? "72%" : "36%"}
-            collapsible={!isInventory}
-            collapsedSize={0}
             defaultSize={`${defaultLayout.context}%`}
           >
             <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{context}</div>

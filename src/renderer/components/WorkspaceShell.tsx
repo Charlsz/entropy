@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Titlebar } from "./Titlebar";
 import { IconRail } from "./IconRail";
 import { ContentArea } from "./ContentArea";
@@ -15,7 +15,10 @@ export function WorkspaceShell() {
     visitSection,
     closeWorkspace,
     openNote,
-    updateSettings,
+    goBack,
+    goForward,
+    canGoBack,
+    canGoForward,
   } = useWorkspace();
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -27,32 +30,51 @@ export function WorkspaceShell() {
     function onKeyDown(event: KeyboardEvent): void {
       const key = event.key.toLowerCase();
       const mod = event.ctrlKey || event.metaKey;
-      if (!mod || key !== "k") return;
-      event.preventDefault();
-      setSearchOpen(true);
+
+      if (mod && key === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+        return;
+      }
+
+      // Browser-style history: Alt+← / Alt+→ (and macOS Cmd+[ / Cmd+]).
+      if (event.altKey && (key === "arrowleft" || key === "arrowright")) {
+        event.preventDefault();
+        if (key === "arrowleft" && canGoBack) goBack();
+        if (key === "arrowright" && canGoForward) goForward();
+        return;
+      }
+      if (mod && !event.altKey && (event.key === "[" || event.key === "]")) {
+        event.preventDefault();
+        if (event.key === "[" && canGoBack) goBack();
+        if (event.key === "]" && canGoForward) goForward();
+      }
+    }
+
+    function onMouseUp(event: MouseEvent): void {
+      // Mouse back / forward buttons.
+      if (event.button === 3 && canGoBack) {
+        event.preventDefault();
+        goBack();
+      }
+      if (event.button === 4 && canGoForward) {
+        event.preventDefault();
+        goForward();
+      }
     }
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
-  const toggleSidebar = useCallback(() => {
-    updateSettings({ sidebarCollapsed: !workspace.settings.sidebarCollapsed });
-  }, [updateSettings, workspace.settings.sidebarCollapsed]);
-
-  const toggleContext = useCallback(() => {
-    updateSettings({ contextCollapsed: !workspace.settings.contextCollapsed });
-  }, [updateSettings, workspace.settings.contextCollapsed]);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [canGoBack, canGoForward, goBack, goForward]);
 
   return (
     <div className="flex h-full flex-col bg-background" data-theme={workspace.settings.theme}>
       <Titlebar
         workspaceName={workspace.name}
-        showPanelToggles
-        sidebarCollapsed={workspace.settings.sidebarCollapsed}
-        contextCollapsed={workspace.settings.contextCollapsed}
-        onToggleSidebar={toggleSidebar}
-        onToggleContext={toggleContext}
         onCloseWorkspace={closeWorkspace}
         onOpenSearch={() => setSearchOpen(true)}
         onOpenSettings={() => visitSection("settings")}

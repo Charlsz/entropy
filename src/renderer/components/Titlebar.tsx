@@ -1,13 +1,5 @@
 import { Fragment, useContext } from "react";
-import {
-  ArrowLeft,
-  ArrowLeftRight,
-  ArrowRight,
-  PanelLeft,
-  PanelRight,
-  Search,
-  Settings,
-} from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, ArrowRight, Search, Settings } from "lucide-react";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import {
@@ -24,11 +16,6 @@ import { cn } from "../lib/utils";
 
 interface TitlebarProps {
   workspaceName?: string;
-  sidebarCollapsed?: boolean;
-  contextCollapsed?: boolean;
-  showPanelToggles?: boolean;
-  onToggleSidebar?: () => void;
-  onToggleContext?: () => void;
   onCloseWorkspace?: () => void;
   onOpenSearch?: () => void;
   onOpenSettings?: () => void;
@@ -36,43 +23,19 @@ interface TitlebarProps {
 
 export function Titlebar({
   workspaceName,
-  sidebarCollapsed = false,
-  contextCollapsed = false,
-  showPanelToggles = false,
-  onToggleSidebar,
-  onToggleContext,
   onCloseWorkspace,
   onOpenSearch,
   onOpenSettings,
 }: TitlebarProps) {
   const workspaceCtx = useContext(WorkspaceContext);
   const rootLabel = workspaceCtx?.workspace.inventoryRootLabel || "Home";
-  const hasTrail = Boolean(workspaceCtx?.workspace.inventoryScanRoot);
+  const onInventory = workspaceCtx?.workspace.currentSection === "inventory";
+  const hasTrail = Boolean(onInventory && workspaceCtx?.workspace.inventoryScanRoot);
   const inventoryCrumbs = workspaceCtx?.inventoryCrumbs ?? [];
 
   return (
     <header className="drag-region flex h-10 shrink-0 items-center gap-1 border-b border-border bg-ink pl-2 pr-0">
       <div className="no-drag flex min-w-0 flex-1 items-center gap-0.5 pl-[env(titlebar-area-x,0px)]">
-        {showPanelToggles ? (
-          <>
-            <TitlebarIconButton
-              label="Toggle left sidebar"
-              pressed={!sidebarCollapsed}
-              onClick={onToggleSidebar}
-            >
-              <PanelLeft strokeWidth={1.75} />
-            </TitlebarIconButton>
-            <TitlebarIconButton
-              label="Toggle right sidebar"
-              pressed={!contextCollapsed}
-              onClick={onToggleContext}
-            >
-              <PanelRight strokeWidth={1.75} />
-            </TitlebarIconButton>
-            <div className="mx-1 h-4 w-px bg-border" aria-hidden />
-          </>
-        ) : null}
-
         {workspaceCtx ? (
           <>
             <TitlebarIconButton
@@ -90,17 +53,17 @@ export function Titlebar({
 
             {hasTrail ? (
               <Breadcrumb className="ml-1 min-w-0 max-w-[min(42vw,28rem)]">
-                <BreadcrumbList className="flex-nowrap gap-1 text-[12px] font-medium text-foreground/55">
+                <BreadcrumbList className="flex-nowrap gap-1 text-sm font-medium text-foreground/55">
                   <BreadcrumbItem className="min-w-0">
                     {inventoryCrumbs.length === 0 ? (
-                      <BreadcrumbPage className="truncate text-[12px] font-semibold tracking-tight text-foreground">
+                      <BreadcrumbPage className="truncate text-sm font-semibold tracking-tight text-foreground">
                         {rootLabel}
                       </BreadcrumbPage>
                     ) : (
                       <BreadcrumbLink asChild>
                         <button
                           type="button"
-                          className="truncate text-[12px] font-medium text-foreground/70 hover:text-foreground"
+                          className="truncate text-sm font-medium text-foreground/70 hover:text-foreground"
                           onClick={() => void workspaceCtx.goToInventoryCrumb(-1)}
                         >
                           {rootLabel}
@@ -111,20 +74,20 @@ export function Titlebar({
                   {inventoryCrumbs.map((part, index) => (
                     <Fragment key={`${part}-${index}`}>
                       <BreadcrumbSeparator className="mx-0.5 text-foreground/35 [&>svg]:hidden">
-                        <span aria-hidden="true" className="text-[11px] font-normal">
+                        <span aria-hidden="true" className="text-xs font-normal">
                           ›
                         </span>
                       </BreadcrumbSeparator>
                       <BreadcrumbItem className="min-w-0">
                         {index === inventoryCrumbs.length - 1 ? (
-                          <BreadcrumbPage className="truncate text-[12px] font-semibold tracking-tight text-foreground">
+                          <BreadcrumbPage className="truncate text-sm font-semibold tracking-tight text-foreground">
                             {part}
                           </BreadcrumbPage>
                         ) : (
                           <BreadcrumbLink asChild>
                             <button
                               type="button"
-                              className="truncate text-[12px] font-medium text-foreground/70 hover:text-foreground"
+                              className="truncate text-sm font-medium text-foreground/70 hover:text-foreground"
                               onClick={() => void workspaceCtx.goToInventoryCrumb(index)}
                             >
                               {part}
@@ -186,13 +149,11 @@ export function Titlebar({
 function TitlebarIconButton({
   label,
   onClick,
-  pressed,
   className,
   children,
 }: {
   label: string;
   onClick?: () => void;
-  pressed?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -203,13 +164,8 @@ function TitlebarIconButton({
           type="button"
           variant="ghost"
           size="icon"
-          className={cn(
-            "h-7 w-7 shrink-0 text-muted-foreground",
-            pressed && "bg-ink-2 text-paper",
-            className,
-          )}
+          className={cn("h-7 w-7 shrink-0 text-muted-foreground", className)}
           aria-label={label}
-          aria-pressed={pressed}
           onClick={onClick}
           disabled={!onClick}
         >
