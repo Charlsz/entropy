@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, FilePlus2 } from "lucide-react";
+import { FilePlus2 } from "lucide-react";
 import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { MarkdownEditor, type MarkdownEditorHandle } from "../pages/MarkdownEditor";
@@ -30,7 +30,7 @@ export function NotebookPage({
   pendingReference?: string | null;
   onPendingReferenceHandled?: () => void;
 } = {}) {
-  const { workspace, addRecentFile, closeWorkspace, visitNote } = useWorkspace();
+  const { workspace, addRecentFile, visitNote } = useWorkspace();
   const [notes, setNotes] = useState<FileEntry[]>([]);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<NoteSearchResult[] | null>(null);
@@ -318,38 +318,30 @@ export function NotebookPage({
         context={context}
         sidebar={
           <div className="flex h-full min-h-0 flex-col">
-            <div className="flex items-center justify-between px-4 py-3">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Notebook
-              </span>
+            <div className="flex items-center justify-between gap-2 px-4 py-3">
+              <Input
+                type="search"
+                placeholder="Filter notes…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                aria-label="Filter notes"
+                className="h-8 min-w-0 flex-1 bg-background"
+              />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 shrink-0"
                 title="New note"
+                aria-label="New note"
                 onClick={() => void handleCreate()}
               >
                 <FilePlus2 className="h-4 w-4" strokeWidth={1.75} />
               </Button>
             </div>
 
-            <div className="px-4 pb-3">
-              <Input
-                type="search"
-                placeholder="Filter notes…"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                className="h-8 bg-background"
-              />
-            </div>
-
             <ScrollArea className="min-h-0 flex-1 px-3">
-              <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Notes
-              </p>
-
-              {error ? <p className="px-2 pb-2 text-xs text-paper-2">{error}</p> : null}
+              {error ? <p className="px-2 pb-2 text-sm text-paper-2">{error}</p> : null}
               {loading ? (
                 <div className="space-y-2 px-2">
                   <Skeleton className="h-9 w-full" />
@@ -417,9 +409,6 @@ export function NotebookPage({
 
               <Separator className="my-2" />
 
-              <p className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Files
-              </p>
               <NotebookLibrary
                 rootPath={workspace.path}
                 rootName={workspace.name}
@@ -453,18 +442,6 @@ export function NotebookPage({
                 }}
               />
             </ScrollArea>
-
-            <div className="border-t border-border px-3 py-2">
-              <button
-                type="button"
-                className="flex min-w-0 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                onClick={closeWorkspace}
-                title="Switch workspace"
-              >
-                <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
-                <span className="truncate">{workspace.name}</span>
-              </button>
-            </div>
           </div>
         }
         main={
@@ -473,9 +450,8 @@ export function NotebookPage({
             openPaths={openPaths}
             activePath={activePath}
             onActiveChange={(notePath) => {
-              setOpenPaths((prev) => (prev.includes(notePath) ? prev : [...prev, notePath]));
-              setActivePath(notePath);
-              addRecentFile(notePath);
+              openNoteLocal(notePath);
+              visitNote(notePath);
             }}
             onCloseTab={closeTab}
             onStatsChange={setStatusRight}
