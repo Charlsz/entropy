@@ -6,7 +6,7 @@ import {
 } from "../../shared/duplicateScopes";
 import { DuplicateHashCache } from "./cache";
 import { byteEqual, fullHash, mapPool, partialHash } from "./hasher";
-import { groupBySize, scanFiles } from "./scanner";
+import { groupBySize, collapseHardLinks, scanFiles } from "./scanner";
 import {
   toFileEntry,
   type DuplicateScanProgress,
@@ -87,7 +87,7 @@ export async function findExactDuplicates(
     filesSeen: files.length,
   });
 
-  const bySize = groupBySize(files);
+  const bySize = groupBySize(collapseHardLinks(files));
   const sizeCandidates: ScannedFile[] = [];
   for (const list of bySize.values()) sizeCandidates.push(...list);
 

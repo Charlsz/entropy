@@ -8,6 +8,8 @@ export interface ScannedFile {
   size: number;
   mtimeMs: number;
   ctimeMs: number;
+  /** Filesystem device id (with ino, identifies hard links). */
+  dev: number | null;
   ino: number | null;
   extension: string;
 }

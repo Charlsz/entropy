@@ -78,6 +78,7 @@ export async function scanFiles(
           size: link.size,
           mtimeMs: link.mtimeMs,
           ctimeMs: link.ctimeMs,
+          dev: typeof link.dev === "number" ? link.dev : null,
           ino: typeof link.ino === "number" ? link.ino : null,
           extension,
         };
@@ -109,4 +110,22 @@ export function groupBySize(files: ScannedFile[]): Map<number, ScannedFile[]> {
     if (list.length < 2) map.delete(size);
   }
   return map;
+}
+
+/**
+ * Collapse hard links (same device + inode) to one path per physical file.
+ * Extra hard-link paths are not reclaimable disk waste.
+ */
+export function collapseHardLinks(files: ScannedFile[]): ScannedFile[] {
+  const seen = new Set<string>();
+  const out: ScannedFile[] = [];
+  for (const file of files) {
+    if (file.dev != null && file.ino != null) {
+      const key = `${file.dev}:${file.ino}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    out.push(file);
+  }
+  return out;
 }
