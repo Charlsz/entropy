@@ -29,6 +29,16 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)} s`;
 }
 
+function formatEta(ms: number | null | undefined): string | null {
+  if (ms == null || ms < 0) return null;
+  if (ms < 1000) return "<1s left";
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `~${seconds}s left`;
+  const minutes = Math.floor(seconds / 60);
+  const rem = seconds % 60;
+  return rem === 0 ? `~${minutes}m left` : `~${minutes}m ${rem}s left`;
+}
+
 interface InventoryDuplicatesPanelProps {
   rootPath: string;
   onBack: () => void;
@@ -79,6 +89,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
   const groups: DuplicateGroup[] = result?.groups ?? [];
   const recoverable = groups.reduce((sum, group) => sum + group.recoverableBytes, 0);
   const percent = Math.round((progress?.progress ?? (running ? 0.05 : result ? 1 : 0)) * 100);
+  const etaLabel = running ? formatEta(progress?.etaMs) : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background" aria-label="Duplicate files">
@@ -152,7 +163,10 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
           <span className="min-w-0 truncate text-muted-foreground">
             {progress?.message ?? (running ? "Starting…" : error ? error : "Ready")}
           </span>
-          <span className="shrink-0 tabular-nums text-muted-foreground">{percent}%</span>
+          <span className="shrink-0 tabular-nums text-muted-foreground">
+            {etaLabel ? `${etaLabel} · ` : ""}
+            {percent}%
+          </span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-ink-2">
           <div

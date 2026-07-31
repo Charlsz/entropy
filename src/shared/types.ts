@@ -82,6 +82,8 @@ export interface DuplicateScanProgress {
   candidateFiles: number;
   groupsFound: number;
   errors: number;
+  /** Estimated remaining time in ms once throughput is known; null while warming up. */
+  etaMs?: number | null;
 }
 
 export interface DuplicateScanResult {
