@@ -81,11 +81,9 @@ export function StorageTreemap({
 }: StorageTreemapProps) {
   const [frameEl, setFrameEl] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [zoomPulse, setZoomPulse] = useState(false);
   const [hover, setHover] = useState<HoverState | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverToken = useRef(0);
-  const prevScanKey = useRef<string>("");
 
   useEffect(() => {
     if (!frameEl) return;
@@ -105,18 +103,6 @@ export function StorageTreemap({
   const files = scan?.files ?? [];
   const total = scan?.totalSize ?? 0;
   const showMap = files.length > 0 && total > 0;
-  const scanKey = `${scanRoot ?? ""}:${files.map((f) => f.path).join("|").slice(0, 200)}:${total}`;
-
-  useEffect(() => {
-    if (!showMap) return;
-    if (prevScanKey.current && prevScanKey.current !== scanKey) {
-      setZoomPulse(true);
-      const timer = setTimeout(() => setZoomPulse(false), 320);
-      prevScanKey.current = scanKey;
-      return () => clearTimeout(timer);
-    }
-    prevScanKey.current = scanKey;
-  }, [scanKey, showMap]);
 
   useEffect(() => {
     return () => {
@@ -254,10 +240,7 @@ export function StorageTreemap({
         ) : (
           <div
             ref={setFrameEl}
-            className={cn(
-              "relative h-full min-h-[160px] overflow-hidden rounded-xl bg-ink",
-              zoomPulse && "entropy-treemap-zoom",
-            )}
+            className="relative h-full min-h-[160px] overflow-hidden rounded-xl bg-ink"
             role="list"
             aria-label="Storage size map"
             onPointerLeave={clearHover}
@@ -269,19 +252,24 @@ export function StorageTreemap({
             ) : (
               layout.map((cell) => {
                 const selected = selectedPath === cell.path;
-                const showLabel = cell.width > 64 && cell.height > 36 && !isAggregateLeaf(cell);
-                const label = kindLabelFor(cell);
+                const isHovered = Boolean(hover && samePathKey(hover.leaf.path, cell.path));
+                // Hide the in-cell name while the hover card is up — avoids duplicate "Downloads".
+                const showLabel =
+                  cell.width > 64 &&
+                  cell.height > 36 &&
+                  !isAggregateLeaf(cell) &&
+                  !isHovered;
                 return (
                   <button
                     key={cell.path}
                     type="button"
                     role="listitem"
-                    title={`${cell.name} · ${label} · ${formatBytes(cell.size)}${
-                      cell.isDirectory ? " · Double-click to zoom" : ""
+                    aria-label={`${cell.name}, ${kindLabelFor(cell)}, ${formatBytes(cell.size)}${
+                      cell.isDirectory ? ", double-click to zoom" : ""
                     }`}
                     className={cn(
-                      "absolute overflow-hidden border border-black/30 p-1 text-left transition-[filter,box-shadow] hover:brightness-110 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                      selected && "z-10 ring-1 ring-ring brightness-110",
+                      "absolute overflow-hidden border border-black/30 p-1 text-left focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      selected && "z-10 ring-1 ring-ring",
                       isAggregateLeaf(cell) ? "cursor-default opacity-80" : "cursor-pointer",
                     )}
                     style={{
@@ -430,7 +418,7 @@ function HoverCard({
 
   return (
     <div
-      className="pointer-events-none absolute z-20 w-[220px] rounded-lg border border-border bg-[#1c1c1c]/95 p-3 shadow-xl backdrop-blur-sm"
+      className="pointer-events-none absolute z-20 w-[220px] rounded-lg border border-border bg-ink p-3"
       style={{ left, top }}
       role="tooltip"
     >
