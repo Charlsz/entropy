@@ -34,8 +34,8 @@ export function Titlebar({
   const inventoryCrumbs = workspaceCtx?.inventoryCrumbs ?? [];
 
   return (
-    <header className="drag-region flex h-10 shrink-0 items-center gap-1 border-b border-border bg-ink pl-2 pr-0">
-      <div className="no-drag flex min-w-0 flex-1 items-center gap-0.5 pl-[env(titlebar-area-x,0px)]">
+    <header className="drag-region relative flex h-10 shrink-0 items-center border-b border-border bg-ink pl-2 pr-0">
+      <div className="no-drag z-10 flex min-w-0 flex-1 items-center gap-0.5 pl-[env(titlebar-area-x,0px)]">
         {workspaceCtx ? (
           <>
             <TitlebarIconButton
@@ -52,7 +52,7 @@ export function Titlebar({
             </TitlebarIconButton>
 
             {hasTrail ? (
-              <Breadcrumb className="ml-1 min-w-0 max-w-[min(42vw,28rem)]">
+              <Breadcrumb className="ml-1 min-w-0 max-w-[min(36vw,24rem)]">
                 <BreadcrumbList className="flex-nowrap gap-1 text-sm font-medium text-foreground/55">
                   <BreadcrumbItem className="min-w-0">
                     {inventoryCrumbs.length === 0 ? (
@@ -110,11 +110,12 @@ export function Titlebar({
         ) : null}
       </div>
 
-      <div className="flex min-w-0 shrink-0 items-center justify-center px-2">
+      {/* True center of the titlebar, independent of left/right chrome width. */}
+      <div className="pointer-events-none absolute inset-y-0 left-1/2 z-0 flex -translate-x-1/2 items-center px-2">
         {workspaceName && onCloseWorkspace ? (
           <button
             type="button"
-            className="no-drag group inline-flex max-w-[12rem] items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-ink-2 sm:max-w-[16rem]"
+            className="no-drag pointer-events-auto group inline-flex max-w-[12rem] items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-ink-2 sm:max-w-[16rem]"
             onClick={onCloseWorkspace}
             title="Switch workspace"
           >
@@ -134,7 +135,7 @@ export function Titlebar({
         )}
       </div>
 
-      <div className="no-drag flex shrink-0 items-center gap-0.5 pr-1">
+      <div className="no-drag z-10 flex shrink-0 items-center gap-0.5 pr-1">
         {onOpenSettings ? (
           <TitlebarIconButton label="Settings" onClick={onOpenSettings}>
             <Settings strokeWidth={1.75} />
