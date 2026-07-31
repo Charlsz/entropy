@@ -35,6 +35,7 @@ export function ThreeColumnLayout({
     ? workspace.settings.inventoryPanelLayout
     : workspace.settings.panelLayout;
 
+  // Percentages only — panels grow/shrink with the window instead of locking to px.
   const defaultLayout = useMemo<Layout>(() => {
     if (!hasSidebar && hasContext) {
       const total = (savedLayout.main + savedLayout.context) || 100;
@@ -88,8 +89,8 @@ export function ThreeColumnLayout({
           <Panel
             id="sidebar"
             className="min-h-0 min-w-0 bg-ink-2"
-            minSize={isInventory ? "10%" : "140px"}
-            maxSize={isInventory ? "22%" : "34%"}
+            minSize="12%"
+            maxSize={isInventory ? "28%" : "36%"}
             defaultSize={`${defaultLayout.sidebar}%`}
           >
             <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{sidebar}</div>
@@ -101,7 +102,7 @@ export function ThreeColumnLayout({
       <Panel
         id="main"
         className="min-h-0 min-w-0 bg-background"
-        minSize={isInventory ? "18%" : "28%"}
+        minSize="20%"
         defaultSize={`${defaultLayout.main}%`}
       >
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{main}</div>
@@ -114,7 +115,7 @@ export function ThreeColumnLayout({
             id="context"
             className="min-h-0 min-w-0 bg-ink-2"
             minSize={isInventory ? "22%" : "14%"}
-            maxSize={isInventory ? "72%" : "36%"}
+            maxSize={isInventory ? "70%" : "40%"}
             defaultSize={`${defaultLayout.context}%`}
           >
             <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{context}</div>
