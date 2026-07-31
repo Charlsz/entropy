@@ -1,10 +1,10 @@
-import { cpus } from "node:os";
 import {
   DEFAULT_DUPLICATE_SCAN_SCOPE,
   extensionsForScope,
   type DuplicateScanScopeId,
 } from "../../shared/duplicateScopes";
 import { DuplicateHashCache } from "./cache";
+import { chooseHashWorkers } from "./concurrency";
 import { fullHash, mapPool, partialHash } from "./hasher";
 import { groupBySize, collapseHardLinks, scanFiles } from "./scanner";
 import {
@@ -39,7 +39,6 @@ export async function findExactDuplicates(
   const signal = options.signal;
   const scope = options.scope ?? DEFAULT_DUPLICATE_SCAN_SCOPE;
   const extensions = extensionsForScope(scope);
-  const workers = Math.max(1, Math.min(4, cpus().length || 2));
 
   const report = (partial: Partial<DuplicateScanProgress> & Pick<DuplicateScanProgress, "phase" | "message">) => {
     onProgress?.({
@@ -91,6 +90,7 @@ export async function findExactDuplicates(
   const bySize = groupBySize(collapseHardLinks(files));
   const sizeCandidates: ScannedFile[] = [];
   for (const list of bySize.values()) sizeCandidates.push(...list);
+  const workers = chooseHashWorkers(sizeCandidates);
 
   report({
     phase: "partial",
