@@ -28,6 +28,7 @@ import {
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { StorageTreemap } from "../components/StorageTreemap";
 import { InventoryContextBar } from "../components/InventoryContextBar";
+import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isPreviewableEntry } from "../lib/media";
 import { cn } from "../lib/utils";
@@ -82,9 +83,14 @@ export function FilesPage() {
   const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
+  const [duplicatesMode, setDuplicatesMode] = useState(false);
   const [renderedCount, setRenderedCount] = useState(60);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const homeBootstrapped = useRef(false);
+
+  useEffect(() => {
+    setDuplicatesMode(false);
+  }, [workspace.currentFolder]);
 
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
@@ -421,6 +427,12 @@ export function FilesPage() {
   return (
     <div className="flex h-full min-h-0 w-full flex-col" aria-label="File Inventory">
       <div className="min-h-0 flex-1">
+        {duplicatesMode ? (
+          <InventoryDuplicatesPanel
+            rootPath={scanRoot || workspace.currentFolder}
+            onBack={() => setDuplicatesMode(false)}
+          />
+        ) : (
         <ThreeColumnLayout
           id="inventory-layout-v3"
           variant="inventory"
@@ -487,17 +499,13 @@ export function FilesPage() {
                       variant="ghost"
                       size="sm"
                       className="h-8 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground"
-                      onClick={() =>
-                        void window.entropy.duplicates.openWindow(
-                          scanRoot || workspace.currentFolder,
-                        )
-                      }
+                      onClick={() => setDuplicatesMode(true)}
                     >
                       <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
                       Duplicates
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Find exact duplicate files in a new window</TooltipContent>
+                  <TooltipContent>Find exact duplicate files in this location</TooltipContent>
                 </Tooltip>
               </div>
 
@@ -560,11 +568,14 @@ export function FilesPage() {
             </section>
           }
         />
+        )}
       </div>
-      <StatusBar
-        left={workspace.currentFolder}
-        right={`${visible.length} items${selected ? ` · ${selected.name}` : ""}`}
-      />
+      {!duplicatesMode ? (
+        <StatusBar
+          left={workspace.currentFolder}
+          right={`${visible.length} items${selected ? ` · ${selected.name}` : ""}`}
+        />
+      ) : null}
       <ConfirmDialog
         open={pendingDelete !== null}
         title="Move to trash?"
