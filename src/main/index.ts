@@ -24,7 +24,6 @@ import {
 const isDev = process.env.ENTROPY_DEV === "1";
 let allowQuit = false;
 let mainWindow: BrowserWindow | null = null;
-let duplicatesWindow: BrowserWindow | null = null;
 const duplicateAbortBySender = new Map<number, AbortController>();
 
 protocol.registerSchemesAsPrivileged([
@@ -100,56 +99,6 @@ function createWindow(): BrowserWindow {
     void win.loadURL("http://localhost:5173");
   } else {
     void win.loadFile(path.join(__dirname, "../renderer/index.html"));
-  }
-
-  return win;
-}
-
-function createDuplicatesWindow(rootPath: string): BrowserWindow {
-  if (duplicatesWindow && !duplicatesWindow.isDestroyed()) {
-    duplicatesWindow.focus();
-    void duplicatesWindow.webContents.executeJavaScript(
-      `window.dispatchEvent(new CustomEvent("entropy:duplicates-root", { detail: ${JSON.stringify(rootPath)} }))`,
-    );
-    return duplicatesWindow;
-  }
-
-  const win = new BrowserWindow({
-    width: 920,
-    height: 720,
-    minWidth: 640,
-    minHeight: 480,
-    show: true,
-    backgroundColor: "#212121",
-    title: "Duplicate files — Entropy",
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-    webPreferences: {
-      preload: path.join(__dirname, "../preload/index.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      plugins: true,
-    },
-  });
-
-  duplicatesWindow = win;
-  win.on("closed", () => {
-    if (duplicatesWindow === win) duplicatesWindow = null;
-  });
-
-  attachShellGuards(win);
-
-  const query = new URLSearchParams({
-    window: "duplicates",
-    root: rootPath,
-  }).toString();
-
-  if (isDev) {
-    void win.loadURL(`http://localhost:5173/?${query}`);
-  } else {
-    void win.loadFile(path.join(__dirname, "../renderer/index.html"), {
-      search: query,
-    });
   }
 
   return win;
@@ -259,10 +208,6 @@ function registerIpc(): void {
   ipcMain.handle("fs:scanTreemapLevel", (_event, dirPath: string) =>
     inventory.scanTreemapLevel(dirPath),
   );
-
-  ipcMain.handle("duplicates:openWindow", (_event, rootPath: string) => {
-    createDuplicatesWindow(rootPath);
-  });
 
   ipcMain.handle("duplicates:scan", async (event, rootPath: string, scope?: string) => {
     const senderId = event.sender.id;

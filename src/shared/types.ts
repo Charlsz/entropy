@@ -131,7 +131,6 @@ export interface EntropyApi {
     isMaximized: () => Promise<boolean>;
   };
   duplicates: {
-    openWindow: (rootPath: string) => Promise<void>;
     scan: (rootPath: string, options?: DuplicateScanOptions) => Promise<DuplicateScanResult>;
     cancel: () => Promise<void>;
     onProgress: (callback: (progress: DuplicateScanProgress) => void) => () => void;

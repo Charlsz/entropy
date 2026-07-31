@@ -3,26 +3,16 @@ import { Titlebar } from "./components/Titlebar";
 import { WorkspaceSelector } from "./components/WorkspaceSelector";
 import { WorkspaceShell } from "./components/WorkspaceShell";
 import { WorkspaceProvider } from "./state/WorkspaceContext";
-import { DuplicatesWindow } from "./pages/DuplicatesWindow";
 import { flushAll } from "./state/flushRegistry";
 import { fromSessionSettings, toSessionSettings } from "./state/sessionSettings";
 import type { WorkspaceSettings } from "./state/workspace";
 import { DEFAULT_SETTINGS } from "./state/workspace";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-function readWindowMode(): { kind: "duplicates"; root: string } | { kind: "main" } {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("window") === "duplicates") {
-    return { kind: "duplicates", root: params.get("root") ?? "" };
-  }
-  return { kind: "main" };
-}
-
 export function App() {
-  const mode = readWindowMode();
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [initialSettings, setInitialSettings] = useState<WorkspaceSettings | null>(null);
-  const [booting, setBooting] = useState(mode.kind === "main");
+  const [booting, setBooting] = useState(true);
   const saveTimer = useRef<number | null>(null);
   const latestSettings = useRef<WorkspaceSettings | null>(null);
   const latestWorkspace = useRef<string | null>(null);
@@ -41,8 +31,6 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (mode.kind === "duplicates") return;
-
     let cancelled = false;
 
     void (async () => {
@@ -84,7 +72,7 @@ export function App() {
       if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
       unsubscribe();
     };
-  }, [mode.kind]);
+  }, []);
 
   const openWorkspace = useCallback(
     async (nextPath: string) => {
@@ -109,14 +97,6 @@ export function App() {
     latestWorkspace.current = null;
     setWorkspacePath(null);
   }, [initialSettings]);
-
-  if (mode.kind === "duplicates") {
-    return (
-      <TooltipProvider delayDuration={200}>
-        <DuplicatesWindow initialRoot={mode.root} />
-      </TooltipProvider>
-    );
-  }
 
   let content: ReactNode;
 

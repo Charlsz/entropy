@@ -42,7 +42,6 @@ const api: EntropyApi = {
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
   },
   duplicates: {
-    openWindow: (rootPath) => ipcRenderer.invoke("duplicates:openWindow", rootPath),
     scan: (rootPath, options) =>
       ipcRenderer.invoke("duplicates:scan", rootPath, options?.scope),
     cancel: () => ipcRenderer.invoke("duplicates:cancel"),
