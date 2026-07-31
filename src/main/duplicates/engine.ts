@@ -5,7 +5,7 @@ import {
   type DuplicateScanScopeId,
 } from "../../shared/duplicateScopes";
 import { DuplicateHashCache } from "./cache";
-import { byteEqual, fullHash, mapPool, partialHash } from "./hasher";
+import { fullHash, mapPool, partialHash } from "./hasher";
 import { groupBySize, collapseHardLinks, scanFiles } from "./scanner";
 import {
   PARTIAL_CHUNK,
@@ -20,9 +20,9 @@ export type ProgressCallback = (progress: DuplicateScanProgress) => void;
 
 /**
  * Exact duplicate detection pipeline:
- * scan → size groups → partial BLAKE3 → full BLAKE3 → byte verify → groups
+ * scan → size groups → partial BLAKE3 → full BLAKE3 → groups
  *
- * Correctness is never traded for speed: a duplicate always means every byte matches.
+ * Byte-for-byte verify is deferred to destructive actions (delete), not the listing scan.
  * Extension scopes only limit which files enter the pipeline.
  */
 export async function findExactDuplicates(
@@ -218,7 +218,7 @@ export async function findExactDuplicates(
         if (fullDone % 20 === 0 || fullDone === partialCandidates.length) {
           report({
             phase: "full",
-            progress: 0.55 + (0.25 * fullDone) / Math.max(partialCandidates.length, 1),
+            progress: 0.55 + (0.4 * fullDone) / Math.max(partialCandidates.length, 1),
             message: `Full hashing… ${fullDone.toLocaleString()}/${partialCandidates.length.toLocaleString()}`,
             filesSeen: files.length,
             candidateFiles: partialCandidates.length,
@@ -236,70 +236,19 @@ export async function findExactDuplicates(
     return emptyResult(started, errors, files.length);
   }
 
-  report({
-    phase: "verify",
-    progress: 0.82,
-    message: "Verifying byte-for-byte…",
-    filesSeen: files.length,
-    candidateFiles: partialCandidates.length,
-    errors: errors.length,
-  });
-
   const groups: ExactDuplicateGroup[] = [];
-  const hashGroups = [...byFull.entries()].filter(([, list]) => list.length >= 2);
-  let verified = 0;
-
-  for (const [key, list] of hashGroups) {
-    if (signal?.aborted) break;
+  for (const [key, list] of byFull) {
+    if (list.length < 2) continue;
     const size = list[0].size;
     const hash = key.slice(key.indexOf(":") + 1);
-
-    // Build equivalence classes via byte verification against representatives.
-    const classes: ScannedFile[][] = [];
-    for (const file of list) {
-      let placed = false;
-      for (const group of classes) {
-        try {
-          const equal = await byteEqual(group[0].path, file.path, size);
-          if (equal) {
-            group.push(file);
-            placed = true;
-            break;
-          }
-        } catch (err) {
-          errors.push({
-            path: file.path,
-            error: err instanceof Error ? err.message : "Byte verify failed",
-          });
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) classes.push([file]);
-    }
-
-    for (const group of classes) {
-      if (group.length < 2) continue;
-      const copies = group.map(toFileEntry).sort((a, b) => b.modifiedAt - a.modifiedAt);
-      groups.push({
-        hash,
-        size,
-        paths: copies.map((c) => c.path),
-        copies,
-        recoverableBytes: size * (copies.length - 1),
-        keepPath: copies[0].path,
-      });
-    }
-
-    verified += 1;
-    report({
-      phase: "verify",
-      progress: 0.82 + (0.15 * verified) / Math.max(hashGroups.length, 1),
-      message: `Verifying… ${verified}/${hashGroups.length}`,
-      filesSeen: files.length,
-      candidateFiles: partialCandidates.length,
-      groupsFound: groups.length,
-      errors: errors.length,
+    const copies = list.map(toFileEntry).sort((a, b) => b.modifiedAt - a.modifiedAt);
+    groups.push({
+      hash,
+      size,
+      paths: copies.map((c) => c.path),
+      copies,
+      recoverableBytes: size * (copies.length - 1),
+      keepPath: copies[0].path,
     });
   }
 
