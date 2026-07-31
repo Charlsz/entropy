@@ -4,6 +4,11 @@ import * as filesystem from "./fs";
 import * as inventory from "./inventory";
 import { findExactDuplicates } from "./duplicates";
 import type { DuplicateScanProgress } from "./duplicates";
+import {
+  DEFAULT_DUPLICATE_SCAN_SCOPE,
+  DUPLICATE_SCAN_SCOPES,
+  type DuplicateScanScopeId,
+} from "../shared/duplicateScopes";
 import { FILE_PROTOCOL, registerFileProtocol, toEntropyThumbUrl, toEntropyUrl } from "./protocol";
 import { loadCanvas, saveCanvas, type PersistedCanvas } from "./canvasStore";
 import { loadSession, saveSession, type AppSession } from "./session";
@@ -259,15 +264,20 @@ function registerIpc(): void {
     createDuplicatesWindow(rootPath);
   });
 
-  ipcMain.handle("duplicates:scan", async (event, rootPath: string) => {
+  ipcMain.handle("duplicates:scan", async (event, rootPath: string, scope?: string) => {
     const senderId = event.sender.id;
     duplicateAbortBySender.get(senderId)?.abort();
     const controller = new AbortController();
     duplicateAbortBySender.set(senderId, controller);
 
+    const resolvedScope: DuplicateScanScopeId = DUPLICATE_SCAN_SCOPES.some((item) => item.id === scope)
+      ? (scope as DuplicateScanScopeId)
+      : DEFAULT_DUPLICATE_SCAN_SCOPE;
+
     try {
       return await findExactDuplicates(rootPath, {
         signal: controller.signal,
+        scope: resolvedScope,
         onProgress: (progress: DuplicateScanProgress) => {
           if (!event.sender.isDestroyed()) {
             event.sender.send("duplicates:progress", progress);

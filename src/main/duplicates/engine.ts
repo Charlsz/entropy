@@ -1,4 +1,9 @@
 import { cpus } from "node:os";
+import {
+  DEFAULT_DUPLICATE_SCAN_SCOPE,
+  extensionsForScope,
+  type DuplicateScanScopeId,
+} from "../../shared/duplicateScopes";
 import { DuplicateHashCache } from "./cache";
 import { byteEqual, fullHash, mapPool, partialHash } from "./hasher";
 import { groupBySize, scanFiles } from "./scanner";
@@ -17,18 +22,22 @@ export type ProgressCallback = (progress: DuplicateScanProgress) => void;
  * scan → size groups → partial BLAKE3 → full BLAKE3 → byte verify → groups
  *
  * Correctness is never traded for speed: a duplicate always means every byte matches.
+ * Extension scopes only limit which files enter the pipeline.
  */
 export async function findExactDuplicates(
   rootPath: string,
   options: {
     signal?: AbortSignal;
     onProgress?: ProgressCallback;
+    scope?: DuplicateScanScopeId;
   } = {},
 ): Promise<DuplicateScanResult> {
   const started = Date.now();
   const errors: Array<{ path: string; error: string }> = [];
   const onProgress = options.onProgress;
   const signal = options.signal;
+  const scope = options.scope ?? DEFAULT_DUPLICATE_SCAN_SCOPE;
+  const extensions = extensionsForScope(scope);
   const workers = Math.max(1, Math.min(4, cpus().length || 2));
 
   const report = (partial: Partial<DuplicateScanProgress> & Pick<DuplicateScanProgress, "phase" | "message">) => {
@@ -42,13 +51,18 @@ export async function findExactDuplicates(
     });
   };
 
-  report({ phase: "scanning", progress: 0.02, message: "Scanning filesystem…" });
+  report({
+    phase: "scanning",
+    progress: 0.02,
+    message: extensions ? `Scanning ${scope}…` : "Scanning filesystem…",
+  });
 
   const cache = new DuplicateHashCache(rootPath);
   await cache.load();
 
   const { files, errors: scanErrors } = await scanFiles(rootPath, {
     signal,
+    extensions,
     onFile: (_file, seen) => {
       if (seen % 250 === 0) {
         report({

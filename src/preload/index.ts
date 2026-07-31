@@ -43,7 +43,8 @@ const api: EntropyApi = {
   },
   duplicates: {
     openWindow: (rootPath) => ipcRenderer.invoke("duplicates:openWindow", rootPath),
-    scan: (rootPath) => ipcRenderer.invoke("duplicates:scan", rootPath),
+    scan: (rootPath, options) =>
+      ipcRenderer.invoke("duplicates:scan", rootPath, options?.scope),
     cancel: () => ipcRenderer.invoke("duplicates:cancel"),
     onProgress: (callback) => {
       const listener = (_event: Electron.IpcRendererEvent, progress: import("../shared/types").DuplicateScanProgress) => {

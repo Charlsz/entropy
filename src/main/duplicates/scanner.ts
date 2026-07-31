@@ -19,6 +19,8 @@ export interface ScanOptions {
   signal?: AbortSignal;
   onFile?: (file: ScannedFile, seen: number) => void;
   maxDepth?: number;
+  /** When set, only files with these extensions (lowercase, with dot) are collected. */
+  extensions?: ReadonlySet<string> | null;
 }
 
 /**
@@ -67,6 +69,9 @@ export async function scanFiles(
 
         if (!link.isFile() || link.size <= 0) continue;
 
+        const extension = path.extname(dirent.name).toLowerCase();
+        if (options.extensions && !options.extensions.has(extension)) continue;
+
         const file: ScannedFile = {
           path: full,
           name: dirent.name,
@@ -74,7 +79,7 @@ export async function scanFiles(
           mtimeMs: link.mtimeMs,
           ctimeMs: link.ctimeMs,
           ino: typeof link.ino === "number" ? link.ino : null,
-          extension: path.extname(dirent.name).toLowerCase(),
+          extension,
         };
         files.push(file);
         seen += 1;

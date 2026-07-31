@@ -91,6 +91,14 @@ export interface DuplicateScanResult {
   durationMs: number;
 }
 
+import type { DuplicateScanScopeId } from "./duplicateScopes";
+
+export type { DuplicateScanScopeId } from "./duplicateScopes";
+
+export interface DuplicateScanOptions {
+  scope?: DuplicateScanScopeId;
+}
+
 export interface EntropyApi {
   platform: string;
   versions: {
@@ -122,7 +130,7 @@ export interface EntropyApi {
   };
   duplicates: {
     openWindow: (rootPath: string) => Promise<void>;
-    scan: (rootPath: string) => Promise<DuplicateScanResult>;
+    scan: (rootPath: string, options?: DuplicateScanOptions) => Promise<DuplicateScanResult>;
     cancel: () => Promise<void>;
     onProgress: (callback: (progress: DuplicateScanProgress) => void) => () => void;
   };

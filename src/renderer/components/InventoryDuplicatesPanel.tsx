@@ -1,8 +1,20 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Copy, FolderOpen, Square } from "lucide-react";
 import type { DuplicateGroup, DuplicateScanProgress, DuplicateScanResult } from "../../shared/types";
+import {
+  DEFAULT_DUPLICATE_SCAN_SCOPE,
+  DUPLICATE_SCAN_SCOPES,
+  type DuplicateScanScopeId,
+} from "../../shared/duplicateScopes";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import { cn } from "../lib/utils";
 
 function formatBytes(size: number): string {
@@ -27,6 +39,7 @@ interface InventoryDuplicatesPanelProps {
  * Does not own a separate BrowserWindow.
  */
 export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicatesPanelProps) {
+  const [scope, setScope] = useState<DuplicateScanScopeId>(DEFAULT_DUPLICATE_SCAN_SCOPE);
   const [scanKey, setScanKey] = useState(0);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<DuplicateScanProgress | null>(null);
@@ -45,7 +58,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     setResult(null);
     setProgress(null);
     void window.entropy.duplicates
-      .scan(rootPath)
+      .scan(rootPath, { scope })
       .then((next) => {
         if (!cancelled) setResult(next);
       })
@@ -61,7 +74,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       cancelled = true;
       void window.entropy.duplicates.cancel();
     };
-  }, [rootPath, scanKey]);
+  }, [rootPath, scope, scanKey]);
 
   const groups: DuplicateGroup[] = result?.groups ?? [];
   const recoverable = groups.reduce((sum, group) => sum + group.recoverableBytes, 0);
@@ -89,6 +102,22 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
             {rootPath}
           </p>
         </div>
+        <Select
+          value={scope}
+          onValueChange={(value) => setScope(value as DuplicateScanScopeId)}
+          disabled={running}
+        >
+          <SelectTrigger className="h-8 w-[9.5rem] shrink-0" aria-label="Scan scope">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {DUPLICATE_SCAN_SCOPES.map((item) => (
+              <SelectItem key={item.id} value={item.id}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {running ? (
           <Button
             type="button"
@@ -132,7 +161,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
           />
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          Byte-identical only. Similar or resized media are never matched.
+          Byte-identical only. Scope limits which files are checked — not how they match.
         </p>
       </div>
 
@@ -142,7 +171,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
             <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center">
               <p className="text-sm text-foreground">No exact duplicates found</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Every file under this location has unique contents.
+                Try another scope, or every matching file under this location is unique.
               </p>
             </div>
           ) : null}
