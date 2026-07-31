@@ -42,8 +42,6 @@ interface FilePreviewProps {
   compact?: boolean;
 }
 
-const VIDEO_CLIP_SECONDS = 4;
-
 export function FilePreview({ file, compact = false }: FilePreviewProps) {
   const kind = detectKind(file);
   const [url, setUrl] = useState<string | null>(null);
@@ -84,18 +82,18 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
   }, [file.path, kind]);
 
   if (loading) {
-    return <p className="text-xs text-muted-foreground">Loading preview…</p>;
+    return <p className="text-sm text-muted-foreground">Loading preview…</p>;
   }
 
   if (error) {
-    return <p className="text-xs text-paper-2">{error}</p>;
+    return <p className="text-sm text-paper-2">{error}</p>;
   }
 
   if (kind === "unsupported") {
     return (
       <div className="rounded-lg border border-border bg-secondary p-3">
         <h3 className="text-sm font-medium">Preview unavailable</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground">
           Entropy can still manage this file, but no in-app preview is available for this type.
         </p>
       </div>
@@ -116,9 +114,10 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
   }
 
   if (kind === "pdf" && url) {
+    const src = `${url}#toolbar=0&navpanes=0&scrollbar=0`;
     return (
       <div className={frame}>
-        <iframe title={file.name} src={url} />
+        <iframe title={file.name} src={src} className="h-full min-h-[12rem] w-full border-0" />
       </div>
     );
   }
@@ -126,7 +125,7 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
   if (kind === "video" && url) {
     return (
       <div className={frame}>
-        <VideoClip url={url} compact={compact} />
+        <VideoStill url={url} compact={compact} />
       </div>
     );
   }
@@ -143,53 +142,29 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
     return <pre className="file-preview file-preview-text">{text}</pre>;
   }
 
-  return <p className="text-xs text-muted-foreground">Unable to preview this file.</p>;
+  return <p className="text-sm text-muted-foreground">Unable to preview this file.</p>;
 }
 
-function VideoClip({ url, compact }: { url: string; compact: boolean }) {
+function VideoStill({ url, compact }: { url: string; compact: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    let timer = 0;
-    let cancelled = false;
-
-    function clearTimer(): void {
-      window.clearTimeout(timer);
-      timer = 0;
-    }
-
-    async function playClip(): Promise<void> {
+    function onLoaded(): void {
       const el = videoRef.current;
-      if (!el || cancelled) return;
+      if (!el) return;
       try {
-        el.currentTime = 0;
-        await el.play();
-        if (cancelled) return;
-        clearTimer();
-        timer = window.setTimeout(() => {
-          if (!cancelled) void playClip();
-        }, VIDEO_CLIP_SECONDS * 1000);
+        el.currentTime = 0.1;
       } catch {
-        // Keep poster frame.
+        // Keep default frame.
       }
     }
 
-    function onLoaded(): void {
-      void playClip();
-    }
-
     video.addEventListener("loadeddata", onLoaded);
-    if (video.readyState >= 2) void playClip();
-
-    return () => {
-      cancelled = true;
-      clearTimer();
-      video.removeEventListener("loadeddata", onLoaded);
-      video.pause();
-    };
+    if (video.readyState >= 2) onLoaded();
+    return () => video.removeEventListener("loadeddata", onLoaded);
   }, [url]);
 
   return (

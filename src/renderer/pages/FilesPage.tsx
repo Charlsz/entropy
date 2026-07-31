@@ -14,7 +14,7 @@ import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { StorageTreemap } from "../components/StorageTreemap";
 import { InventoryContextBar } from "../components/InventoryContextBar";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
-import { isMediaEntry } from "../lib/media";
+import { isPreviewableEntry } from "../lib/media";
 import { cn } from "../lib/utils";
 
 function formatBytes(size: number): string {
@@ -531,13 +531,13 @@ const FileGridCard = memo(function FileGridCard({
   actions: ItemAction[];
 }) {
   const count = useFolderCount(entry.path, entry.isDirectory);
-  const isMedia = isMediaEntry(entry);
+  const isPreviewable = isPreviewableEntry(entry);
   const [face, setFace] = useState<"loading" | "preview" | "icon">(
-    entry.isDirectory || isMedia ? "loading" : "icon",
+    entry.isDirectory || isPreviewable ? "loading" : "icon",
   );
 
   useEffect(() => {
-    if (isMedia) {
+    if (isPreviewable) {
       setFace("preview");
       return;
     }
@@ -553,7 +553,7 @@ const FileGridCard = memo(function FileGridCard({
     return () => {
       cancelled = true;
     };
-  }, [entry.isDirectory, entry.path, isMedia]);
+  }, [entry.isDirectory, entry.path, isPreviewable]);
 
   return (
     <div

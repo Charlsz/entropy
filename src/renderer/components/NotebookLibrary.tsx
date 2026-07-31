@@ -5,7 +5,7 @@ import { EntryPreview } from "../components/EntryPreview";
 import { ItemActionsMenu } from "../components/ItemActionsMenu";
 import { Input } from "../components/ui/input";
 import { cn } from "../lib/utils";
-import { isMediaEntry } from "../lib/media";
+import { isPreviewableEntry } from "../lib/media";
 import { buildEntryActions } from "../lib/itemActions";
 
 const SKIP = new Set(["node_modules", ".git", ".svn", ".hg", "dist", "build", ".next", ".cache"]);
@@ -260,7 +260,7 @@ function LibraryFile({
       selected={selected}
       open={false}
       isFolder={false}
-      showPreview={isMediaEntry(entry)}
+      showPreview={isPreviewableEntry(entry)}
       renaming={renamingPath === entry.path}
       renameValue={renameValue}
       onRenameValueChange={onRenameValueChange}
