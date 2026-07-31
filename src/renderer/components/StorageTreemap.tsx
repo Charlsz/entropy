@@ -11,6 +11,8 @@ import { cn } from "../lib/utils";
 import { squarify } from "../lib/squarify";
 
 const FOLDER_FILL = "#2c3136";
+/** Minimum tile edge so every leaf stays visible and nameable. */
+const MIN_TILE_EDGE = 28;
 
 interface StorageTreemapProps {
   scan?: TreemapScanResult | null;
@@ -131,8 +133,14 @@ export function StorageTreemap({
   const layout = useMemo(() => {
     if (!showMap || size.width < 8 || size.height < 8) return [];
     const gap = 1;
+    const frameArea = Math.max(size.width * size.height, 1);
+    // Byte-equivalent of a minimum pixel tile so tiny leaves still get a rectangle.
+    const floor = Math.max(1, Math.floor((total * (MIN_TILE_EDGE * MIN_TILE_EDGE)) / frameArea));
     const rects = squarify(
-      files.map((file) => ({ id: file.path, size: file.size })),
+      files.map((file) => ({
+        id: file.path,
+        size: Math.max(file.size, floor),
+      })),
       0,
       0,
       size.width,
@@ -145,7 +153,7 @@ export function StorageTreemap({
         if (!file) return null;
         const width = Math.max(rect.width - gap, 0);
         const height = Math.max(rect.height - gap, 0);
-        if (width <= 1.5 || height <= 1.5) return null;
+        if (width < 2 || height < 2) return null;
         return {
           ...file,
           x: rect.x + gap / 2,
@@ -156,7 +164,7 @@ export function StorageTreemap({
         };
       })
       .filter((item): item is NonNullable<typeof item> => item != null);
-  }, [files, showMap, size.height, size.width]);
+  }, [files, showMap, size.height, size.width, total]);
 
   function clearHover(): void {
     if (hoverTimer.current) {
@@ -252,13 +260,12 @@ export function StorageTreemap({
             ) : (
               layout.map((cell) => {
                 const selected = selectedPath === cell.path;
-                const isHovered = Boolean(hover && samePathKey(hover.leaf.path, cell.path));
-                // Hide the in-cell name while the hover card is up — avoids duplicate "Downloads".
-                const showLabel =
-                  cell.width > 64 &&
-                  cell.height > 36 &&
-                  !isAggregateLeaf(cell) &&
-                  !isHovered;
+                // Keep names visible — hover card adds detail, it does not replace the label.
+                const showName =
+                  cell.width >= MIN_TILE_EDGE - 4 &&
+                  cell.height >= 16 &&
+                  !isAggregateLeaf(cell);
+                const showMeta = showName && cell.width >= 52 && cell.height >= 34;
                 return (
                   <button
                     key={cell.path}
@@ -314,14 +321,22 @@ export function StorageTreemap({
                       else onOpen?.(cell);
                     }}
                   >
-                    {showLabel ? (
-                      <span className="flex h-full min-h-0 flex-col justify-between">
-                        <span className="truncate text-[10px] font-medium text-foreground">
+                    {showName ? (
+                      <span className="flex h-full min-h-0 flex-col justify-between gap-0.5">
+                        <span className="truncate text-[10px] font-medium leading-tight text-foreground">
                           {cell.name}
                         </span>
-                        <span className="truncate text-[9px] text-muted-foreground">
-                          {cell.isDirectory ? `Folder · ${formatBytes(cell.size)}` : formatBytes(cell.size)}
-                        </span>
+                        {showMeta ? (
+                          <span className="truncate text-[9px] leading-tight text-muted-foreground">
+                            {cell.isDirectory
+                              ? `Folder · ${formatBytes(cell.size)}`
+                              : formatBytes(cell.size)}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : isAggregateLeaf(cell) && cell.width >= 40 && cell.height >= 16 ? (
+                      <span className="truncate text-[10px] font-medium text-foreground">
+                        {cell.name}
                       </span>
                     ) : null}
                   </button>
@@ -374,14 +389,14 @@ export function StorageTreemap({
           </div>
           {scan?.truncated ? (
             <p className="mt-1.5 text-[10px] text-muted-foreground">
-              Tiny items are grouped as Other so every region stays readable.
+              Extra items beyond the map limit are grouped as Other.
             </p>
           ) : null}
         </div>
       ) : scan?.truncated ? (
         <div className="shrink-0 border-t border-border px-3 py-2">
           <p className="text-[10px] text-muted-foreground">
-            Tiny items are grouped as Other so every region stays readable.
+            Extra items beyond the map limit are grouped as Other.
           </p>
         </div>
       ) : null}

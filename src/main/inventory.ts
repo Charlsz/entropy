@@ -316,7 +316,7 @@ async function walkFiles(
 /**
  * One-level map scan: folders + files at this depth (Google Maps–style zoom).
  * Folder sizes are recursive totals so double-click can drill in.
- * Tiny leaves are folded into an Other region so the map stays clickable.
+ * Only folds into Other when the leaf count would overwhelm the map.
  */
 export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResult> {
   const root = path.normalize(dirPath);
@@ -375,7 +375,7 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
   for (const file of collected) totalSize += file.size;
   collected.sort((a, b) => b.size - a.size);
 
-  const { files, truncated } = aggregateTinyLeaves(collected, totalSize, root, location);
+  const { files, truncated } = capLeafCount(collected, root, location);
 
   return {
     files,
@@ -385,41 +385,25 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
   };
 }
 
-/** Keep leaves large enough to interact with; fold the rest into Other. */
-function aggregateTinyLeaves(
+/**
+ * Keep every sized leaf visible. Only fold into Other when there are simply
+ * too many siblings for a usable map (not because they are small).
+ */
+function capLeafCount(
   collected: TreemapFileLeaf[],
-  totalSize: number,
   root: string,
   location: string,
 ): { files: TreemapFileLeaf[]; truncated: boolean } {
-  if (collected.length === 0 || totalSize <= 0) {
+  if (collected.length === 0) {
     return { files: collected, truncated: false };
   }
 
-  const minSize = Math.max(Math.floor(totalSize * LEVEL_MIN_SHARE), 1);
-  const kept: TreemapFileLeaf[] = [];
-  const rest: TreemapFileLeaf[] = [];
-
-  for (const file of collected) {
-    if (kept.length < LEVEL_MAX_LEAVES && file.size >= minSize) {
-      kept.push(file);
-    } else {
-      rest.push(file);
-    }
+  if (collected.length <= LEVEL_MAX_LEAVES) {
+    return { files: collected, truncated: false };
   }
 
-  // All items tiny: still show the largest handful so the map isn't empty.
-  if (kept.length === 0) {
-    const headCount = Math.min(12, collected.length);
-    kept.push(...collected.slice(0, headCount));
-    rest.length = 0;
-    rest.push(...collected.slice(headCount));
-  }
-
-  if (rest.length === 0) {
-    return { files: kept, truncated: false };
-  }
-
+  const kept = collected.slice(0, LEVEL_MAX_LEAVES - 1);
+  const rest = collected.slice(LEVEL_MAX_LEAVES - 1);
   let restSize = 0;
   for (const file of rest) restSize += file.size;
   kept.push({
@@ -435,8 +419,7 @@ function aggregateTinyLeaves(
   return { files: kept, truncated: true };
 }
 
-const LEVEL_MIN_SHARE = 0.01;
-const LEVEL_MAX_LEAVES = 64;
+const LEVEL_MAX_LEAVES = 120;
 
 const NAME_SEARCH_MAX_DEPTH = 8;
 const NAME_SEARCH_MAX_RESULTS = 40;
