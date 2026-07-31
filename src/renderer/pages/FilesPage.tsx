@@ -1,17 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, memo } from "react";
-import {
-  ArrowDownWideNarrow,
-  ArrowUpNarrowWide,
-  FileText,
-  Folder,
-  LayoutGrid,
-  List,
-  Plus,
-} from "lucide-react";
+import { FileText, Folder } from "lucide-react";
 import type { FileEntry, InventoryRoot, TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { StatusBar } from "../components/StatusBar";
 import { ItemActionsMenu, type ItemAction } from "../components/ItemActionsMenu";
@@ -20,40 +10,18 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { StorageTreemap } from "../components/StorageTreemap";
 import { InventoryContextBar } from "../components/InventoryContextBar";
-import { DuplicateGroupsDialog } from "../components/DuplicateGroupsDialog";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry } from "../lib/media";
-import {
-  INVENTORY_FILTERS,
-  entryMatchesFilters,
-  filtersNeedRelations,
-  type EntryRelationFlags,
-  type InventoryFilterId,
-} from "../lib/inventoryFilters";
 import { cn } from "../lib/utils";
-
-type SortKey = "name" | "modified" | "size" | "type";
 
 function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
-
-function formatDate(value: number): string {
-  return new Date(value).toLocaleString();
+  if (size < 1024 * 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
 function samePath(a: string, b: string): boolean {
@@ -75,15 +43,14 @@ function pickRoot(folder: string, roots: InventoryRoot[]): InventoryRoot | null 
 export function FilesPage() {
   const {
     workspace,
-    updateSettings,
     addRecentFile,
     referenceInNote,
     goToFolder,
     setInventoryRoot,
+    bootstrapInventoryFolder,
     visitPreview,
   } = useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
-  const [mountRoots, setMountRoots] = useState<InventoryRoot[]>([]);
   const [scanRoot, setScanRoot] = useState<string>("");
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [sizeByPath, setSizeByPath] = useState<Record<string, number>>({});
@@ -91,23 +58,15 @@ export function FilesPage() {
   const [scanningTreemap, setScanningTreemap] = useState(false);
   const [pendingSelectPath, setPendingSelectPath] = useState<string | null>(null);
   const [selected, setSelected] = useState<FileEntry | null>(null);
-  const [query, setQuery] = useState("");
-  const [activeFilters, setActiveFilters] = useState<Set<InventoryFilterId>>(() => new Set());
-  const [relationFlags, setRelationFlags] = useState<Record<string, EntryRelationFlags>>({});
-  const [sortKey, setSortKey] = useState<SortKey>("name");
-  const [sortAsc, setSortAsc] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
-  const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
   const [pendingDelete, setPendingDelete] = useState<FileEntry | null>(null);
   const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
-  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [renderedCount, setRenderedCount] = useState(60);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const homeBootstrapped = useRef(false);
 
-  const view = workspace.settings.filesView;
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
 
@@ -118,7 +77,6 @@ export function FilesPage() {
     try {
       const listing = await window.entropy.fs.listDir(workspace.currentFolder);
       setEntries(listing);
-
       setSelected((current) => {
         if (!current) return null;
         return listing.find((entry) => entry.path === current.path) ?? null;
@@ -128,7 +86,7 @@ export function FilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [scanRoot, workspace.currentFolder]);
+  }, [workspace.currentFolder]);
 
   const refresh = useCallback(async () => {
     await refreshListing();
@@ -139,31 +97,28 @@ export function FilesPage() {
     void (async () => {
       try {
         const extra = workspace.settings.inventoryExtraRoots ?? [];
-        const [nextRoots, mounts] = await Promise.all([
-          window.entropy.fs.getInventoryRoots(extra),
-          window.entropy.fs.listMountRoots(),
-        ]);
+        const nextRoots = await window.entropy.fs.getInventoryRoots(extra);
         if (cancelled) return;
         setRoots(nextRoots);
-        setMountRoots(
-          mounts.filter(
-            (mount) =>
-              !nextRoots.some((root) => samePath(root.path, mount.path)) &&
-              !extra.some((path) => samePath(path, mount.path)),
-          ),
-        );
         const home =
           nextRoots.find((root) => root.id === "home")?.path ??
           (await window.entropy.fs.getHomePath());
         if (!homeBootstrapped.current) {
           homeBootstrapped.current = true;
+          const homeRoot = nextRoots.find((root) => root.id === "home");
+          const label = homeRoot?.name ?? "Home";
           setScanRoot(home);
           if (samePath(workspace.currentFolder, workspace.path) || !workspace.currentFolder) {
-            goToFolder(home, "replace");
+            bootstrapInventoryFolder(home, label);
           } else {
             const match = pickRoot(workspace.currentFolder, nextRoots);
-            setScanRoot(match?.path ?? home);
-            goToFolder(workspace.currentFolder, "replace");
+            const rootPath = match?.path ?? home;
+            setScanRoot(rootPath);
+            bootstrapInventoryFolder(
+              workspace.currentFolder,
+              match?.name ?? label,
+              rootPath,
+            );
           }
         }
       } catch {
@@ -175,32 +130,6 @@ export function FilesPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap once; refresh when extra roots change
   }, [workspace.settings.inventoryExtraRoots]);
-
-  async function addFolderRoot(): Promise<void> {
-    const picked = await window.entropy.fs.pickInventoryFolder();
-    if (!picked) return;
-    const existing = workspace.settings.inventoryExtraRoots ?? [];
-    if (existing.some((path) => samePath(path, picked))) {
-      selectRootPath(picked);
-      return;
-    }
-    updateSettings({ inventoryExtraRoots: [...existing, picked] });
-    setScanRoot(picked);
-    goToFolder(picked, "replace");
-  }
-
-  function addMountRoot(root: InventoryRoot): void {
-    const existing = workspace.settings.inventoryExtraRoots ?? [];
-    if (!existing.some((path) => samePath(path, root.path))) {
-      updateSettings({ inventoryExtraRoots: [...existing, root.path] });
-    }
-    selectRoot(root);
-  }
-
-  function selectRootPath(rootPath: string): void {
-    setScanRoot(rootPath);
-    goToFolder(rootPath, "replace");
-  }
 
   useEffect(() => {
     if (!roots.length || !workspace.currentFolder) return;
@@ -281,7 +210,6 @@ export function FilesPage() {
       setPendingSelectPath(null);
       return;
     }
-    // Listing finished without the file (filtered away) — clear pending.
     if (!loading) setPendingSelectPath(null);
   }, [pendingSelectPath, entries, loading]);
 
@@ -314,28 +242,6 @@ export function FilesPage() {
     goToFolder(leaf.path);
   }
 
-  useEffect(() => {
-    let cancelled = false;
-    const paths = workspace.recentFiles.slice(0, 8);
-
-    void (async () => {
-      const loaded: FileEntry[] = [];
-      for (const filePath of paths) {
-        try {
-          if (!(await window.entropy.fs.exists(filePath))) continue;
-          loaded.push(await window.entropy.fs.stat(filePath));
-        } catch {
-          // Skip missing recent entries.
-        }
-      }
-      if (!cancelled) setRecentEntries(loaded);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [workspace.recentFiles]);
-
   const sizedEntries = useMemo(
     () =>
       entries.map((entry) => ({
@@ -346,72 +252,11 @@ export function FilesPage() {
   );
 
   const visible = useMemo(() => {
-    const filtered = sizedEntries.filter((entry) => {
-      if (!entry.name.toLowerCase().includes(query.trim().toLowerCase())) return false;
-      return entryMatchesFilters(
-        entry,
-        activeFilters,
-        workspace.recentFiles,
-        filtersNeedRelations(activeFilters) ? relationFlags : null,
-      );
-    });
-
-    const sorted = [...filtered].sort((a, b) => {
+    return [...sizedEntries].sort((a, b) => {
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-      let cmp = 0;
-      if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-      if (sortKey === "modified") cmp = a.modifiedAt - b.modifiedAt;
-      if (sortKey === "size") cmp = a.size - b.size;
-      if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
-      return sortAsc ? cmp : -cmp;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
     });
-
-    return sorted;
-  }, [
-    sizedEntries,
-    query,
-    sortKey,
-    sortAsc,
-    activeFilters,
-    workspace.recentFiles,
-    relationFlags,
-  ]);
-
-  useEffect(() => {
-    if (!filtersNeedRelations(activeFilters)) return;
-    const files = sizedEntries.filter((entry) => !entry.isDirectory);
-    if (files.length === 0) {
-      setRelationFlags({});
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      const next: Record<string, EntryRelationFlags> = {};
-      for (const file of files.slice(0, 80)) {
-        if (cancelled) return;
-        const [noteRefs, duplicates] = await Promise.all([
-          window.entropy.fs.findFileReferences(workspace.path, file.path).catch(() => []),
-          scanRoot
-            ? window.entropy.fs.findDuplicates(scanRoot, file.path).catch(() => [])
-            : Promise.resolve([]),
-        ]);
-        next[file.path] = { noteRefs: noteRefs.length, duplicates: duplicates.length };
-      }
-      if (!cancelled) setRelationFlags(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeFilters, sizedEntries, workspace.path, scanRoot]);
-
-  function toggleFilter(id: InventoryFilterId): void {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  }, [sizedEntries]);
 
   const rendered = useMemo(
     () => visible.slice(0, renderedCount),
@@ -420,7 +265,7 @@ export function FilesPage() {
 
   useEffect(() => {
     setRenderedCount(60);
-  }, [query, sortKey, sortAsc, workspace.currentFolder]);
+  }, [workspace.currentFolder]);
 
   useEffect(() => {
     const node = loadMoreRef.current;
@@ -434,7 +279,7 @@ export function FilesPage() {
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [visible.length, rendered.length, view, loading]);
+  }, [visible.length, rendered.length, loading]);
 
   async function openEntry(entry: FileEntry): Promise<void> {
     if (entry.isDirectory) {
@@ -444,11 +289,6 @@ export function FilesPage() {
     setSelected(entry);
     addRecentFile(entry.path);
     visitPreview(entry.path, workspace.currentFolder);
-  }
-
-  function selectRoot(root: InventoryRoot): void {
-    setScanRoot(root.path);
-    goToFolder(root.path, "replace");
   }
 
   async function handleRename(entry: FileEntry): Promise<void> {
@@ -511,7 +351,7 @@ export function FilesPage() {
     }
   }
 
-  function fileActions(entry: FileEntry) {
+  function fileActions(entry: FileEntry): ItemAction[] {
     return [
       ...buildEntryActions({
         canReference: true,
@@ -581,203 +421,9 @@ export function FilesPage() {
               onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
               onDrop={(event) => void onDrop(event, workspace.currentFolder)}
             >
-              <div className="entropy-toolbar px-4 py-3">
-                <Select
-                  value={activeRoot?.path ?? scanRoot}
-                  onValueChange={(value) => {
-                    const root = roots.find((item) => item.path === value);
-                    if (root) {
-                      selectRoot(root);
-                      return;
-                    }
-                    const mount = mountRoots.find((item) => item.path === value);
-                    if (mount) {
-                      addMountRoot(mount);
-                      return;
-                    }
-                    selectRootPath(value);
-                  }}
-                >
-                  <SelectTrigger className="h-8 w-[7.5rem] shrink-0 sm:w-[8.25rem]" aria-label="Location">
-                    <SelectValue placeholder="Location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roots.map((root) => (
-                      <SelectItem key={root.id} value={root.path}>
-                        {root.name}
-                      </SelectItem>
-                    ))}
-                    {mountRoots.length > 0 ? (
-                      <>
-                        {mountRoots.map((mount) => (
-                          <SelectItem key={mount.id} value={mount.path}>
-                            Add {mount.name}…
-                          </SelectItem>
-                        ))}
-                      </>
-                    ) : null}
-                  </SelectContent>
-                </Select>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      aria-label="Add folder"
-                      onClick={() => void addFolderRoot()}
-                    >
-                      <Plus className="h-4 w-4" strokeWidth={1.75} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Add folder…</TooltipContent>
-                </Tooltip>
-                <Input
-                  type="search"
-                  placeholder="Filter…"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  aria-label="Filter files"
-                  className="h-8 w-full max-w-[9rem] border-border bg-transparent sm:max-w-[11rem]"
-                />
-                <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
-                  <SelectTrigger className="h-8 w-[6.5rem] shrink-0" aria-label="Sort by">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name">Name</SelectItem>
-                    <SelectItem value="modified">Modified</SelectItem>
-                    <SelectItem value="size">Size</SelectItem>
-                    <SelectItem value="type">Type</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "h-8 w-8 text-muted-foreground",
-                        !sortAsc && "bg-ink-2 text-paper",
-                      )}
-                      aria-label={sortAsc ? "Sort ascending" : "Sort descending"}
-                      aria-pressed={!sortAsc}
-                      onClick={() => setSortAsc((v) => !v)}
-                    >
-                      {sortAsc ? (
-                        <ArrowUpNarrowWide className="h-4 w-4" strokeWidth={1.75} />
-                      ) : (
-                        <ArrowDownWideNarrow className="h-4 w-4" strokeWidth={1.75} />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{sortAsc ? "Ascending" : "Descending"}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 shrink-0 px-2 text-xs text-muted-foreground"
-                      onClick={() => setDuplicatesOpen(true)}
-                    >
-                      Duplicates
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Find content-identical files</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "h-8 w-8 text-muted-foreground",
-                        view === "grid" && "bg-ink-2 text-paper",
-                      )}
-                      aria-label={view === "list" ? "Switch to grid view" : "Switch to list view"}
-                      aria-pressed={view === "grid"}
-                      onClick={() =>
-                        updateSettings({ filesView: view === "list" ? "grid" : "list" })
-                      }
-                    >
-                      {view === "list" ? (
-                        <LayoutGrid className="h-4 w-4" strokeWidth={1.75} />
-                      ) : (
-                        <List className="h-4 w-4" strokeWidth={1.75} />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {view === "list" ? "Grid view" : "List view"}
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2">
-                {INVENTORY_FILTERS.map((filter) => {
-                  const on = activeFilters.has(filter.id);
-                  return (
-                    <button
-                      key={filter.id}
-                      type="button"
-                      aria-pressed={on}
-                      className={cn(
-                        "rounded-md px-2 py-1 text-[11px] transition-colors",
-                        on
-                          ? "bg-ink-2 text-foreground"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                      )}
-                      onClick={() => toggleFilter(filter.id)}
-                    >
-                      {filter.label}
-                    </button>
-                  );
-                })}
-                {activeFilters.size > 0 ? (
-                  <button
-                    type="button"
-                    className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
-                    onClick={() => setActiveFilters(new Set())}
-                  >
-                    Clear
-                  </button>
-                ) : null}
-              </div>
-
               <ScrollArea className="min-h-0 flex-1">
-                <div className="entropy-gallery px-4 pb-6">
-                  {error ? <p className="mb-3 text-xs text-muted-foreground">{error}</p> : null}
-
-                  {recentEntries.length > 0 ? (
-                    <section className="mb-6" aria-label="Recent files">
-                      <div className="mb-3 flex items-center justify-between">
-                        <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                          Recent
-                        </h2>
-                        <span className="text-[11px] text-muted-foreground">
-                          {recentEntries.length}
-                        </span>
-                      </div>
-                      <div className="entropy-gallery-grid">
-                        {recentEntries.map((entry) => (
-                          <FileGridCard
-                            key={`recent-${entry.path}`}
-                            entry={entry}
-                            selected={selected?.path === entry.path}
-                            dropTarget={false}
-                            onOpen={() => void openEntry(entry)}
-                            onDragStart={(event) => onDragStart(event, entry)}
-                            actions={fileActions(entry)}
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  ) : null}
+                <div className="entropy-gallery px-4 py-4 pb-6">
+                  {error ? <p className="mb-3 text-sm text-muted-foreground">{error}</p> : null}
 
                   {loading ? (
                     <div className="entropy-gallery-grid">
@@ -786,75 +432,17 @@ export function FilesPage() {
                       ))}
                     </div>
                   ) : null}
+
                   {!loading && visible.length === 0 ? (
                     <Empty className="py-16">
                       <EmptyTitle>This folder is empty</EmptyTitle>
                       <EmptyDescription>
-                        Drop files here or choose another location from the menu.
+                        Drop files here or open another folder from the path above.
                       </EmptyDescription>
                     </Empty>
                   ) : null}
 
                   {!loading && visible.length > 0 ? (
-                    <div className="mb-3">
-                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Gallery
-                      </h2>
-                    </div>
-                  ) : null}
-
-                  {view === "list" ? (
-                    <div className="space-y-0.5" role="table" aria-label="Files">
-                      <div
-                        className="entropy-list-table px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
-                        role="row"
-                      >
-                        <span>Name</span>
-                        <span className="entropy-list-hide-narrow">Modified</span>
-                        <span>Size</span>
-                        <span className="entropy-list-hide-narrow">Type</span>
-                        <span className="sr-only">Actions</span>
-                      </div>
-                      {rendered.map((entry) => (
-                        <div
-                          key={entry.path}
-                          role="row"
-                          draggable
-                          className={cn(
-                            "entropy-list-table w-full rounded-lg px-2 py-1.5 text-sm hover:bg-accent",
-                            selected?.path === entry.path && "bg-accent",
-                            entry.isDirectory && dragOverPath === entry.path && "ring-1 ring-ring",
-                          )}
-                          onClick={() => void openEntry(entry)}
-                          onDragStart={(event) => onDragStart(event, entry)}
-                          onDragOver={
-                            entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
-                          }
-                          onDrop={
-                            entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
-                          }
-                        >
-                          <span className="flex min-w-0 items-center gap-2 text-foreground">
-                            <EntryPreview entry={entry} size="sm" />
-                            <span className="truncate">{entry.name}</span>
-                          </span>
-                          <span className="entropy-list-hide-narrow truncate text-xs text-muted-foreground">
-                            {formatDate(entry.modifiedAt)}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatBytes(entry.size)}
-                          </span>
-                          <span className="entropy-list-hide-narrow text-xs text-muted-foreground">
-                            {entry.isDirectory ? "Folder" : entry.extension || "File"}
-                          </span>
-                          <ItemActionsMenu label={entry.name} actions={fileActions(entry)} />
-                        </div>
-                      ))}
-                      {rendered.length < visible.length ? (
-                        <div ref={loadMoreRef} className="h-8" aria-hidden />
-                      ) : null}
-                    </div>
-                  ) : (
                     <div className="entropy-gallery-grid">
                       {rendered.map((entry) => (
                         <FileGridCard
@@ -877,7 +465,7 @@ export function FilesPage() {
                         <div ref={loadMoreRef} className="col-span-full h-8" aria-hidden />
                       ) : null}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </ScrollArea>
               {selected ? (
@@ -919,15 +507,9 @@ export function FilesPage() {
         onClose={() => setMovingEntry(null)}
         onMove={(folder) => void handleMoveDialog(folder)}
       />
-      <DuplicateGroupsDialog
-        open={duplicatesOpen}
-        rootPath={scanRoot || workspace.currentFolder}
-        onClose={() => setDuplicatesOpen(false)}
-      />
     </div>
   );
 }
-
 
 const FileGridCard = memo(function FileGridCard({
   entry,
@@ -1009,7 +591,7 @@ const FileGridCard = memo(function FileGridCard({
             {entry.name}
           </p>
           {entry.isDirectory ? (
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">
               <span>{count == null ? "…" : `${count.toLocaleString()} items`}</span>
               {entry.size > 0 ? (
                 <>
@@ -1019,7 +601,7 @@ const FileGridCard = memo(function FileGridCard({
               ) : null}
             </p>
           ) : entry.size > 0 ? (
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">
               {formatBytes(entry.size)}
             </p>
           ) : null}

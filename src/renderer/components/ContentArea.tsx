@@ -7,13 +7,6 @@ import { Button } from "./ui/button";
 import { StatusBar } from "./StatusBar";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Eraser, RotateCcw } from "lucide-react";
 import { cn } from "../lib/utils";
@@ -88,24 +81,6 @@ function SettingsPanel() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-paper">Settings</h1>
             <p className="mt-1 break-all text-xs text-paper-2">{workspace.path}</p>
-          </div>
-
-          <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-ink-2 px-4 py-3">
-            <Label htmlFor="files-view">Inventory view</Label>
-            <Select
-              value={workspace.settings.filesView}
-              onValueChange={(value) =>
-                updateSettings({ filesView: value as "list" | "grid" })
-              }
-            >
-              <SelectTrigger id="files-view" className="w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="list">List</SelectItem>
-                <SelectItem value="grid">Grid</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-ink-2 px-4 py-3">
