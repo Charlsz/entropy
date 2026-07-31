@@ -1,6 +1,6 @@
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
-import { blake3 } from "@noble/hashes/blake3";
+import { blake3 } from "@noble/hashes/blake3.js";
 import { HASH_BUFFER, PARTIAL_CHUNK } from "./types";
 
 function hex(digest: Uint8Array): string {
