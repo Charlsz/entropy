@@ -44,15 +44,16 @@ interface WorkspaceContextValue {
   visitPreview: (filePath: string, folderPath?: string) => void;
   goBack: () => void;
   goForward: () => void;
-  /** @deprecated Prefer goBack — kept for existing call sites during transition. */
-  goBackFolder: () => void;
-  goForwardFolder: () => void;
   goToInventoryCrumb: (index: number) => Promise<void>;
   setInventoryRoot: (scanRoot: string, rootLabel: string) => void;
+  /** Set inventory location without touching app-wide history (keep-alive bootstrap). */
+  bootstrapInventoryFolder: (
+    folderPath: string,
+    rootLabel: string,
+    scanRoot?: string,
+  ) => void;
   canGoBack: boolean;
   canGoForward: boolean;
-  canGoBackFolder: boolean;
-  canGoForwardFolder: boolean;
   inventoryCrumbs: string[];
   addRecentFile: (filePath: string) => void;
   clearRecentFiles: () => void;
@@ -90,11 +91,21 @@ function applyEntry(prev: WorkspaceState, entry: NavEntry): WorkspaceState {
 }
 
 function pushEntry(prev: WorkspaceState, entry: NavEntry, mode: FolderNavMode): WorkspaceState {
+  // Browser-style replace: swap the current entry in place; never wipe the stack.
   if (mode === "replace") {
+    if (prev.navHistory.length === 0 || prev.navHistoryIndex < 0) {
+      return {
+        ...applyEntry(prev, entry),
+        navHistory: [entry],
+        navHistoryIndex: 0,
+      };
+    }
+    const navHistory = [...prev.navHistory];
+    navHistory[prev.navHistoryIndex] = entry;
     return {
       ...applyEntry(prev, entry),
-      navHistory: [entry],
-      navHistoryIndex: 0,
+      navHistory,
+      navHistoryIndex: prev.navHistoryIndex,
     };
   }
   const current = prev.navHistory[prev.navHistoryIndex];
@@ -149,7 +160,20 @@ export function WorkspaceProvider({
 
   const visitSection = useCallback((section: SectionId) => {
     const next = (section as string) === "files" ? "inventory" : section;
-    setWorkspace((prev) => pushEntry(prev, navSection(next as SectionId), "push"));
+    setWorkspace((prev) => {
+      // Record inventory as the current folder so Back restores the place, not a blank section.
+      if (next === "inventory") {
+        const folder = prev.inventoryScanRoot || prev.currentFolder;
+        if (folder) {
+          const label =
+            prev.inventoryScanRoot && samePath(folder, prev.inventoryScanRoot)
+              ? prev.inventoryRootLabel
+              : undefined;
+          return pushEntry(prev, navFolder(folder, label), "push");
+        }
+      }
+      return pushEntry(prev, navSection(next as SectionId), "push");
+    });
   }, []);
 
   const setCurrentFolder = useCallback((folderPath: string) => {
@@ -214,6 +238,27 @@ export function WorkspaceProvider({
       inventoryRootLabel: rootLabel,
     }));
   }, []);
+
+  const bootstrapInventoryFolder = useCallback(
+    (folderPath: string, rootLabel: string, scanRoot?: string) => {
+      setWorkspace((prev) => {
+        // Keep-alive inventory mounts once; do not clobber notebook history.
+        if (prev.inventoryScanRoot) {
+          return {
+            ...prev,
+            inventoryRootLabel: rootLabel || prev.inventoryRootLabel,
+          };
+        }
+        return {
+          ...prev,
+          currentFolder: folderPath,
+          inventoryScanRoot: scanRoot ?? folderPath,
+          inventoryRootLabel: rootLabel,
+        };
+      });
+    },
+    [],
+  );
 
   const goToInventoryCrumb = useCallback(
     async (index: number) => {
@@ -345,14 +390,11 @@ export function WorkspaceProvider({
       visitPreview,
       goBack,
       goForward,
-      goBackFolder: goBack,
-      goForwardFolder: goForward,
       goToInventoryCrumb,
       setInventoryRoot,
+      bootstrapInventoryFolder,
       canGoBack,
       canGoForward,
-      canGoBackFolder: canGoBack,
-      canGoForwardFolder: canGoForward,
       inventoryCrumbs,
       addRecentFile,
       clearRecentFiles,
@@ -380,6 +422,7 @@ export function WorkspaceProvider({
       goForward,
       goToInventoryCrumb,
       setInventoryRoot,
+      bootstrapInventoryFolder,
       canGoBack,
       canGoForward,
       inventoryCrumbs,

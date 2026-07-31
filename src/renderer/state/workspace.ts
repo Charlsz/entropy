@@ -184,6 +184,7 @@ export function layoutFromGroup(
 export function createWorkspaceState(workspacePath: string): WorkspaceState {
   const normalized = workspacePath.replace(/[/\\]+$/, "");
   const name = normalized.split(/[/\\]/).pop() || "Workspace";
+  const start = navSection("notebook");
 
   return {
     path: normalized,
@@ -199,7 +200,7 @@ export function createWorkspaceState(workspacePath: string): WorkspaceState {
     inventoryScanRoot: "",
     inventoryRootLabel: "Home",
     inventoryFocusPath: null,
-    navHistory: [],
-    navHistoryIndex: -1,
+    navHistory: [start],
+    navHistoryIndex: 0,
   };
 }
