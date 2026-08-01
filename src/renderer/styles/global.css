@@ -338,6 +338,27 @@
 }
 
 /* Gallery: tiles share space fluidly as the panel grows/shrinks. */
+/* Clip Chromium PDF viewer chrome (scrollbar) — hash flags alone are unreliable. */
+.entropy-pdf-face {
+  overflow: hidden;
+}
+
+.entropy-pdf-face__frame {
+  display: block;
+  width: calc(100% + 18px);
+  height: 140%;
+  max-width: none;
+  border: 0;
+  transform: translateZ(0);
+}
+
+.file-preview.entropy-pdf-face .entropy-pdf-face__frame {
+  width: calc(100% + 18px);
+  max-width: none;
+  height: 140%;
+  max-height: none;
+}
+
 .entropy-gallery {
   container-type: inline-size;
   container-name: gallery;
