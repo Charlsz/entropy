@@ -45,6 +45,10 @@ export interface DuplicateScanProgress {
   errors: number;
   /** Estimated remaining time in ms once throughput is known; null while warming up. */
   etaMs: number | null;
+  /** Human-readable activity line for the live log. */
+  logLine?: string;
+  /** Newest duplicate group discovered during the scan (streamed). */
+  latestGroup?: ExactDuplicateGroup | null;
 }
 
 export interface ExactDuplicateGroup {

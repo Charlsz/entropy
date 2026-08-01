@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
   DEFAULT_DUPLICATE_SCAN_SCOPE,
   extensionsForScope,
@@ -31,12 +32,25 @@ function etaFromCounts(done: number, total: number, phaseStarted: number): numbe
   return Math.round((total - done) / rate);
 }
 
+function buildGroup(key: string, list: ScannedFile[]): ExactDuplicateGroup {
+  const size = list[0].size;
+  const hash = key.slice(key.indexOf(":") + 1);
+  const copies = list.map(toFileEntry).sort((a, b) => b.modifiedAt - a.modifiedAt);
+  return {
+    hash,
+    size,
+    paths: copies.map((c) => c.path),
+    copies,
+    recoverableBytes: size * (copies.length - 1),
+    keepPath: copies[0].path,
+  };
+}
+
 /**
  * Exact duplicate detection pipeline:
  * scan → size groups → partial BLAKE3 → full BLAKE3 → groups
  *
- * Byte-for-byte verify is deferred to destructive actions (delete), not the listing scan.
- * Extension scopes only limit which files enter the pipeline.
+ * Groups stream to the UI as soon as a full-hash bucket has 2+ files.
  */
 export async function findExactDuplicates(
   rootPath: string,
@@ -55,6 +69,8 @@ export async function findExactDuplicates(
 
   let lastSentAt = 0;
   let lastPhase: DuplicateScanProgress["phase"] | "" = "";
+  const streamedKeys = new Set<string>();
+  let groupsFound = 0;
 
   const report = (
     partial: Partial<DuplicateScanProgress> & Pick<DuplicateScanProgress, "phase" | "message">,
@@ -64,16 +80,24 @@ export async function findExactDuplicates(
       progress: 0,
       filesSeen: 0,
       candidateFiles: 0,
-      groupsFound: 0,
+      groupsFound,
       errors: errors.length,
       etaMs: null,
+      latestGroup: null,
       ...partial,
     };
     const now = Date.now();
     const phaseChanged = payload.phase !== lastPhase;
     const terminal =
       payload.phase === "done" || payload.phase === "cancelled" || payload.phase === "error";
-    if (!force && !phaseChanged && !terminal && now - lastSentAt < PROGRESS_MIN_INTERVAL_MS) {
+    const hasGroup = Boolean(payload.latestGroup);
+    if (
+      !force &&
+      !phaseChanged &&
+      !terminal &&
+      !hasGroup &&
+      now - lastSentAt < PROGRESS_MIN_INTERVAL_MS
+    ) {
       return;
     }
     lastSentAt = now;
@@ -85,6 +109,9 @@ export async function findExactDuplicates(
     phase: "scanning",
     progress: 0.02,
     message: extensions ? `Scanning ${scope}…` : "Scanning filesystem…",
+    logLine: extensions
+      ? `Started ${scope} scan under ${path.basename(rootPath) || rootPath}`
+      : `Started full scan under ${path.basename(rootPath) || rootPath}`,
   });
 
   const cache = new DuplicateHashCache(rootPath);
@@ -100,6 +127,7 @@ export async function findExactDuplicates(
           progress: Math.min(0.2, 0.02 + seen / 50_000),
           message: `Scanning… ${seen.toLocaleString()} files`,
           filesSeen: seen,
+          logLine: `Indexed ${seen.toLocaleString()} files…`,
         });
       }
     },
@@ -115,6 +143,7 @@ export async function findExactDuplicates(
     progress: 0.22,
     message: `Grouping by size… (${files.length.toLocaleString()} files)`,
     filesSeen: files.length,
+    logLine: `Finished listing ${files.length.toLocaleString()} files — grouping by size`,
   });
 
   const bySize = groupBySize(collapseHardLinks(files));
@@ -129,6 +158,7 @@ export async function findExactDuplicates(
     message: `Partial hashing ${sizeCandidates.length.toLocaleString()} candidates…`,
     filesSeen: files.length,
     candidateFiles: sizeCandidates.length,
+    logLine: `${sizeCandidates.length.toLocaleString()} size matches — partial hashing`,
   });
 
   const byPartial = new Map<string, ScannedFile[]>();
@@ -185,6 +215,7 @@ export async function findExactDuplicates(
             candidateFiles: sizeCandidates.length,
             errors: errors.length,
             etaMs: etaFromCounts(partialDone, sizeCandidates.length, partialStarted),
+            logLine: `Partial hash ${partialDone.toLocaleString()}/${sizeCandidates.length.toLocaleString()}`,
           });
         }
       }
@@ -210,6 +241,7 @@ export async function findExactDuplicates(
     filesSeen: files.length,
     candidateFiles: partialCandidates.length,
     errors: errors.length,
+    logLine: `${partialCandidates.length.toLocaleString()} candidates — confirming identical contents`,
   });
 
   const byFull = new Map<string, ScannedFile[]>();
@@ -239,6 +271,31 @@ export async function findExactDuplicates(
         const list = byFull.get(key) ?? [];
         list.push(file);
         byFull.set(key, list);
+
+        if (list.length >= 2) {
+          const group = buildGroup(key, list);
+          const isNew = !streamedKeys.has(key);
+          if (isNew) {
+            streamedKeys.add(key);
+            groupsFound += 1;
+          }
+          report(
+            {
+              phase: "full",
+              progress: 0.55 + (0.4 * (fullDone + 1)) / Math.max(partialCandidates.length, 1),
+              message: `Found ${groupsFound.toLocaleString()} duplicate group${groupsFound === 1 ? "" : "s"}…`,
+              filesSeen: files.length,
+              candidateFiles: partialCandidates.length,
+              errors: errors.length,
+              groupsFound,
+              latestGroup: group,
+              logLine: isNew
+                ? `Found ${group.copies.length} copies of ${group.copies[0].name}`
+                : `Updated ${group.copies[0].name} — now ${group.copies.length} copies`,
+            },
+            true,
+          );
+        }
       } catch (err) {
         errors.push({
           path: file.path,
@@ -254,7 +311,9 @@ export async function findExactDuplicates(
             filesSeen: files.length,
             candidateFiles: partialCandidates.length,
             errors: errors.length,
+            groupsFound,
             etaMs: etaFromCounts(fullDone, partialCandidates.length, fullStarted),
+            logLine: `Full hash ${fullDone.toLocaleString()}/${partialCandidates.length.toLocaleString()}`,
           });
         }
       }
@@ -264,27 +323,13 @@ export async function findExactDuplicates(
 
   await cache.save();
 
-  if (signal?.aborted) {
-    return emptyResult(started, errors, files.length);
-  }
-
   const groups: ExactDuplicateGroup[] = [];
   for (const [key, list] of byFull) {
     if (list.length < 2) continue;
-    const size = list[0].size;
-    const hash = key.slice(key.indexOf(":") + 1);
-    const copies = list.map(toFileEntry).sort((a, b) => b.modifiedAt - a.modifiedAt);
-    groups.push({
-      hash,
-      size,
-      paths: copies.map((c) => c.path),
-      copies,
-      recoverableBytes: size * (copies.length - 1),
-      keepPath: copies[0].path,
-    });
+    groups.push(buildGroup(key, list));
   }
-
   groups.sort((a, b) => b.recoverableBytes - a.recoverableBytes);
+  groupsFound = groups.length;
 
   if (signal?.aborted) {
     report(
@@ -293,30 +338,41 @@ export async function findExactDuplicates(
         progress: 1,
         message: "Cancelled",
         filesSeen: files.length,
-        groupsFound: groups.length,
+        groupsFound,
         errors: errors.length,
         etaMs: 0,
+        logLine: "Scan cancelled",
       },
       true,
     );
-  } else {
-    report(
-      {
-        phase: "done",
-        progress: 1,
-        message:
-          groups.length === 0
-            ? "No exact duplicates found"
-            : `Found ${groups.length.toLocaleString()} duplicate group${groups.length === 1 ? "" : "s"}`,
-        filesSeen: files.length,
-        candidateFiles: partialCandidates.length,
-        groupsFound: groups.length,
-        errors: errors.length,
-        etaMs: 0,
-      },
-      true,
-    );
+    return {
+      groups,
+      errors,
+      filesScanned: files.length,
+      durationMs: Date.now() - started,
+    };
   }
+
+  report(
+    {
+      phase: "done",
+      progress: 1,
+      message:
+        groups.length === 0
+          ? "No exact duplicates found"
+          : `Found ${groups.length.toLocaleString()} duplicate group${groups.length === 1 ? "" : "s"}`,
+      filesSeen: files.length,
+      candidateFiles: partialCandidates.length,
+      groupsFound,
+      errors: errors.length,
+      etaMs: 0,
+      logLine:
+        groups.length === 0
+          ? "Done — no exact duplicates"
+          : `Done — ${groups.length.toLocaleString()} groups`,
+    },
+    true,
+  );
 
   return {
     groups,
