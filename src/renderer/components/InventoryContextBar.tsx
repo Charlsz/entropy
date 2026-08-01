@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, FolderOpen, Link2 } from "lucide-react";
+import { ExternalLink, FolderOpen } from "lucide-react";
 import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { FILE_KIND_LABEL, kindFromExtension } from "../../shared/fileKinds";
 import { Button } from "./ui/button";
@@ -31,7 +31,6 @@ interface InventoryContextBarProps {
   scanRoot: string;
   onOpenExternal: () => void;
   onReveal: () => void;
-  onReference: () => void;
 }
 
 export function InventoryContextBar({
@@ -39,7 +38,6 @@ export function InventoryContextBar({
   scanRoot,
   onOpenExternal,
   onReveal,
-  onReference,
 }: InventoryContextBarProps) {
   const { workspace } = useWorkspace();
   const [noteRefs, setNoteRefs] = useState<NoteSearchResult[]>([]);
@@ -85,10 +83,10 @@ export function InventoryContextBar({
     : loading
       ? null
       : noteRefs.length > 0
-        ? `Referenced by ${noteRefs.length} note${noteRefs.length === 1 ? "" : "s"} — review before deleting`
+        ? `In ${noteRefs.length} note${noteRefs.length === 1 ? "" : "s"} — review before deleting`
         : duplicates.length > 0
           ? `Has ${duplicates.length} duplicate cop${duplicates.length === 1 ? "y" : "ies"} — one may be removable`
-          : "Not referenced in notes";
+          : null;
 
   return (
     <aside
@@ -109,12 +107,6 @@ export function InventoryContextBar({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {!selected.isDirectory ? (
-            <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={onReference}>
-              <Link2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-              Reference
-            </Button>
-          ) : null}
           <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={onReveal}>
             <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
             Reveal
@@ -137,7 +129,7 @@ export function InventoryContextBar({
       {!selected.isDirectory ? (
         <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] sm:grid-cols-4">
           <Meta label="Last opened" value={lastOpened} />
-          <Meta label="Referenced in notes" value={loading ? "…" : String(noteRefs.length)} />
+          <Meta label="In notes" value={loading ? "…" : String(noteRefs.length)} />
           <Meta label="Duplicate copies" value={loading ? "…" : String(duplicates.length)} />
           <Meta
             label="Location"
