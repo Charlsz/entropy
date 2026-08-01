@@ -310,7 +310,7 @@ export function FilesPage() {
 
   useEffect(() => {
     setRenderedCount(60);
-  }, [workspace.currentFolder, sortKey, sortAsc]);
+  }, [workspace.currentFolder]);
 
   useEffect(() => {
     const node = loadMoreRef.current;

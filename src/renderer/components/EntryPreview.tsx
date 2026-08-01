@@ -160,7 +160,7 @@ function ImageThumb({ path, alt }: { path: string; alt: string }) {
     void withImageSlot(async () => {
       const next = await getThumbUrl(path);
       if (!cancelled) setUrl(next);
-    });
+    }, () => cancelled);
     return () => {
       cancelled = true;
     };
@@ -194,20 +194,20 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
       try {
         const [thumb, file] = await Promise.all([
           getThumbUrl(path).catch(() => null),
-          size === "lg" ? getFileUrl(path).catch(() => null) : Promise.resolve(null),
+          getFileUrl(path).catch(() => null),
         ]);
         if (cancelled) return;
         if (thumb) setThumbUrl(thumb);
         if (file) setFileUrl(file);
-        if (!thumb && !(size === "lg" && file)) setFailed(true);
+        if (!thumb && !file) setFailed(true);
       } catch {
         if (!cancelled) setFailed(true);
       }
-    });
+    }, () => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [path, size]);
+  }, [path]);
 
   if (failed) {
     return (
@@ -222,13 +222,13 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
     );
   }
 
-  // Large cards: live first page (same idea as the video clip face).
-  if (size === "lg" && fileUrl) {
+  // Live first page via file URL — OS PDF thumbs are unreliable on Windows.
+  if (fileUrl) {
     return (
       <div className="relative h-full w-full overflow-hidden bg-ink-2">
         <iframe
           title="PDF preview"
-          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0&page=1&view=FitH`}
           className="pointer-events-none h-[140%] w-full border-0 bg-ink-2"
           tabIndex={-1}
         />
@@ -250,6 +250,7 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
         decoding="async"
         draggable={false}
         className="h-full w-full object-cover"
+        onError={() => setFailed(true)}
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/70 px-2 py-1">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-paper-2">PDF</span>
@@ -282,7 +283,7 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
       } catch {
         if (!cancelled) setFailed(true);
       }
-    });
+    }, () => cancelled);
     return () => {
       cancelled = true;
     };

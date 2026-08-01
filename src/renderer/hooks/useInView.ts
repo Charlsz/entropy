@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
-/** Observe element visibility; only activate heavy media work when on-screen. */
-export function useInView<T extends Element>(rootMargin = "80px"): {
+/**
+ * Observe element visibility for lazy media.
+ * Once visible, stays armed so gallery reorders (sort) do not blank previews.
+ */
+export function useInView<T extends Element>(rootMargin = "120px"): {
   ref: React.RefObject<T | null>;
   inView: boolean;
 } {
@@ -10,18 +13,34 @@ export function useInView<T extends Element>(rootMargin = "80px"): {
 
   useEffect(() => {
     const node = ref.current;
-    if (!node) return;
+    if (!node || inView) return;
+
+    function armIfVisible(): void {
+      const el = ref.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const margin = 120;
+      const visible =
+        rect.bottom >= -margin &&
+        rect.top <= (window.innerHeight || document.documentElement.clientHeight) + margin &&
+        rect.right >= -margin &&
+        rect.left <= (window.innerWidth || document.documentElement.clientWidth) + margin;
+      if (visible) setInView(true);
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setInView(Boolean(entry?.isIntersecting));
+        if (entry?.isIntersecting) setInView(true);
       },
-      { root: null, rootMargin, threshold: 0.01 },
+      { root: null, rootMargin, threshold: 0 },
     );
 
     observer.observe(node);
+    armIfVisible();
+    requestAnimationFrame(armIfVisible);
+
     return () => observer.disconnect();
-  }, [rootMargin]);
+  }, [rootMargin, inView]);
 
   return { ref, inView };
 }
