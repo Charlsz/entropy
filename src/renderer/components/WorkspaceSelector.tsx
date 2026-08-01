@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { Empty, EmptyDescription, EmptyTitle } from "./ui/empty";
 import { Skeleton } from "./ui/skeleton";
+import logoUrl from "../assets/entropy-logo.png";
 
 interface WorkspaceSelectorProps {
   onSelect: (workspacePath: string) => void;
@@ -69,9 +70,12 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
     <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-8">
       <div className="w-full max-w-lg space-y-8">
         <div className="space-y-3 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Entropy
-          </p>
+          <img
+            src={logoUrl}
+            alt="Entropy"
+            className="mx-auto h-12 w-12 object-contain"
+            draggable={false}
+          />
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">
             Choose a workspace
           </h1>

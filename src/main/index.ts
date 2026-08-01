@@ -1,4 +1,6 @@
+import "./silenceDeprecations";
 import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
+import fs from "node:fs";
 import path from "node:path";
 import * as filesystem from "./fs";
 import * as inventory from "./inventory";
@@ -26,14 +28,6 @@ const isDev = process.env.ENTROPY_DEV === "1";
 let allowQuit = false;
 let mainWindow: BrowserWindow | null = null;
 const duplicateAbortBySender = new Map<number, AbortController>();
-
-// Electron's asar fs wrapper still constructs fs.Stats (DEP0180) — not Entropy code.
-process.on("warning", (warning) => {
-  if (warning.name === "DeprecationWarning" && /fs\.Stats constructor/i.test(warning.message)) {
-    return;
-  }
-  console.warn(warning);
-});
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -70,7 +64,16 @@ function attachShellGuards(win: BrowserWindow): void {
   });
 }
 
+function appIconPath(): string | undefined {
+  const candidates = [
+    path.join(__dirname, "../../Entropy.png"),
+    path.join(process.cwd(), "Entropy.png"),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
 function createWindow(): BrowserWindow {
+  const icon = appIconPath();
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -78,6 +81,7 @@ function createWindow(): BrowserWindow {
     minHeight: 520,
     show: true,
     backgroundColor: "#212121",
+    ...(icon ? { icon } : {}),
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
