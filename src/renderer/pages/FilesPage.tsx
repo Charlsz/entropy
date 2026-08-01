@@ -543,7 +543,7 @@ export function FilesPage() {
 
               <InventoryBreadcrumb />
 
-              <ScrollArea className="min-h-0 flex-1">
+              <ScrollArea className="min-h-0 flex-1" type="hover">
                 <div className="entropy-gallery px-4 py-4 pb-6">
                   {error ? <p className="mb-3 text-sm text-muted-foreground">{error}</p> : null}
 
