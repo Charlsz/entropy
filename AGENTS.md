@@ -75,3 +75,26 @@ Material Design skins · mobile-first shells · huge colorful CTAs · glassmorph
 Electron + TypeScript · Vite React renderer · Tailwind 3 · shadcn-style Radix primitives under `src/renderer/components/ui/` · Lucide icons · main/preload IPC for filesystem.
 
 Prefer editing existing patterns over new parallel UI systems.
+
+## Commit-per-feature (required)
+
+Every discrete implementation or fix gets its **own git commit**. Do not batch unrelated work.
+
+When shipping a multi-item request (roadmap, “add A, B, and C”):
+
+1. Implement one item
+2. Commit it (`feat:` / `fix:` / `docs:` / `refactor:` — why, not only what)
+3. Only then start the next item
+
+This is how Entropy stays reviewable and undoable in history. See `.cursor/rules/commit-per-feature.mdc`.
+
+## Inventory filter (v1)
+
+Before adding anything to File Inventory, ask:
+
+> Does this help me understand and clean my files faster?
+
+- **Yes** → belongs in Inventory (exact duplicates, browsing, treemap, reclaim, safe delete).
+- **Maybe useful someday / meaning / writing** → Notebook, a future extension, or not at all.
+
+Keep Inventory as Inventory. Do not merge Notebook concepts early (e.g. “Reference in note” from Inventory chrome). Prefer performance and clarity over hover/animation overload. Defer near-duplicates, AI similarity, auto-organize rules, and dashboards.
