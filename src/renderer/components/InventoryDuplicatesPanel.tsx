@@ -214,7 +214,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
               <div className="h-full rounded-full bg-paper-2" style={{ width: `${percent}%` }} />
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              Byte-identical only · scope {scopeLabel}
+              Exact duplicates only · scope {scopeLabel}
             </p>
           </div>
 
@@ -235,9 +235,12 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
                   className="rounded-xl border border-border bg-ink-2 p-4"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h2 className="text-sm font-medium text-foreground">
-                      {group.copies.length} copies · {formatBytes(group.size)} each
-                    </h2>
+                    <div className="min-w-0 space-y-0.5">
+                      <h2 className="text-sm font-medium text-foreground">
+                        {group.copies.length} copies · {formatBytes(group.size)} each
+                      </h2>
+                      <p className="text-[11px] text-muted-foreground">Exact duplicate · identical contents</p>
+                    </div>
                     <p className="text-sm text-muted-foreground">
                       Recover {formatBytes(group.recoverableBytes)}
                     </p>
