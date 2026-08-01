@@ -125,25 +125,26 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
   }
 
   if (kind === "pdf") {
-    if (compact && thumbUrl) {
-      return (
-        <div className={frame}>
-          <img src={thumbUrl} alt={file.name} className="max-h-40 w-full object-cover" />
-        </div>
-      );
-    }
     if (url) {
-      const src = `${url}#toolbar=0&navpanes=0`;
+      const src = `${url}#toolbar=0&navpanes=0&view=FitH`;
       return (
         <div className={cn(frame, !compact && "min-h-[16rem]")}>
-          <iframe title={file.name} src={src} className="h-full min-h-[16rem] w-full border-0" />
+          <iframe
+            title={file.name}
+            src={src}
+            className={cn("h-full w-full border-0", compact ? "max-h-40 min-h-[8rem]" : "min-h-[16rem]")}
+          />
         </div>
       );
     }
     if (thumbUrl) {
       return (
         <div className={frame}>
-          <img src={thumbUrl} alt={file.name} className="w-full object-contain" />
+          <img
+            src={thumbUrl}
+            alt={file.name}
+            className={compact ? "max-h-40 w-full object-cover" : "w-full object-contain"}
+          />
         </div>
       );
     }

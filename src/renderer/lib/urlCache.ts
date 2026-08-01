@@ -1,6 +1,12 @@
 const cache = new Map<string, Promise<string>>();
 const thumbCache = new Map<string, Promise<string>>();
 
+/** Drop in-memory URL cache (e.g. after protocol format changes). */
+export function clearUrlCaches(): void {
+  cache.clear();
+  thumbCache.clear();
+}
+
 export function getFileUrl(filePath: string): Promise<string> {
   let pending = cache.get(filePath);
   if (!pending) {

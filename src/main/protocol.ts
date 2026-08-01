@@ -1,15 +1,27 @@
-import { app, nativeImage, protocol } from "electron";
+import { app, nativeImage, net, protocol } from "electron";
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { Readable } from "node:stream";
+import { pathToFileURL } from "node:url";
 
 export const FILE_PROTOCOL = "entropy";
 
 const THUMB_MAX_EDGE = 320;
 const thumbJobs = new Map<string, Promise<{ body: Buffer; type: string }>>();
 const PASS_THROUGH = new Set([".gif", ".svg"]);
+const IMAGE_EXT = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".bmp",
+  ".svg",
+  ".ico",
+  ".tif",
+  ".tiff",
+  ".avif",
+]);
 const OS_THUMB_EXT = new Set([
   ".pdf",
   ".mp4",
@@ -21,15 +33,53 @@ const OS_THUMB_EXT = new Set([
   ".wmv",
 ]);
 
+function encodePathToken(filePath: string): string {
+  return Buffer.from(filePath, "utf8").toString("base64url");
+}
+
+function decodePathToken(token: string): string | null {
+  try {
+    const decoded = Buffer.from(token, "base64url").toString("utf8");
+    return decoded || null;
+  } catch {
+    return null;
+  }
+}
+
+function filePathFromRequest(requestUrl: string, kind: "local" | "thumb"): string | null {
+  try {
+    const url = new URL(requestUrl);
+    const fromQuery = url.searchParams.get("p") ?? url.searchParams.get("path");
+    if (fromQuery) return fromQuery;
+
+    const prefix = `${FILE_PROTOCOL}://${kind}/`;
+    if (!requestUrl.startsWith(prefix)) return null;
+    const encoded = requestUrl.slice(prefix.length).split("?")[0]?.split("#")[0] ?? "";
+    if (!encoded) return null;
+
+    // Preferred: base64url token (safe across Chromium URL normalization).
+    if (!encoded.includes("%")) {
+      const fromB64 = decodePathToken(encoded);
+      if (fromB64) return fromB64;
+    }
+
+    // Legacy: encodeURIComponent(path) in the pathname.
+    return decodeURIComponent(encoded);
+  } catch {
+    return null;
+  }
+}
+
 export function registerFileProtocol(): void {
   protocol.handle(FILE_PROTOCOL, async (request) => {
-    const thumbPrefix = `${FILE_PROTOCOL}://thumb/`;
-    const localPrefix = `${FILE_PROTOCOL}://local/`;
+    const isThumb = request.url.startsWith(`${FILE_PROTOCOL}://thumb`);
+    const filePath = filePathFromRequest(request.url, isThumb ? "thumb" : "local");
+    if (!filePath) {
+      return new Response("Not found", { status: 404 });
+    }
 
-    if (request.url.startsWith(thumbPrefix)) {
-      const encoded = request.url.slice(thumbPrefix.length).split("?")[0] ?? "";
-      const filePath = decodeURIComponent(encoded);
-      try {
+    try {
+      if (isThumb) {
         const { body, type } = await getOrCreateThumb(filePath);
         return new Response(new Uint8Array(body), {
           headers: {
@@ -37,90 +87,65 @@ export function registerFileProtocol(): void {
             "Cache-Control": "public, max-age=31536000, immutable",
           },
         });
-      } catch {
-        try {
-          return await serveFile(filePath, request);
-        } catch {
-          return new Response("Not found", { status: 404 });
-        }
       }
-    }
-
-    if (!request.url.startsWith(localPrefix)) {
-      return new Response("Not found", { status: 404 });
-    }
-
-    const encoded = request.url.slice(localPrefix.length).split("?")[0] ?? "";
-    const filePath = decodeURIComponent(encoded);
-    try {
       return await serveFile(filePath, request);
     } catch {
+      if (isThumb) {
+        const ext = path.extname(filePath).toLowerCase();
+        // Only fall back to raw bytes for real images — never PDF/video as a fake thumb.
+        if (PASS_THROUGH.has(ext) || IMAGE_EXT.has(ext)) {
+          try {
+            return await serveFile(filePath, request);
+          } catch {
+            return new Response("Not found", { status: 404 });
+          }
+        }
+      }
       return new Response("Not found", { status: 404 });
     }
   });
 }
 
+/** Base64url path token survives Chromium URL normalization on Windows paths. */
 export function toEntropyUrl(filePath: string): string {
-  return `${FILE_PROTOCOL}://local/${encodeURIComponent(filePath)}`;
+  return `${FILE_PROTOCOL}://local/${encodePathToken(filePath)}`;
 }
 
 export function toEntropyThumbUrl(filePath: string): string {
-  return `${FILE_PROTOCOL}://thumb/${encodeURIComponent(filePath)}`;
+  return `${FILE_PROTOCOL}://thumb/${encodePathToken(filePath)}`;
 }
 
-/** Stream a local file with Range support (required for video seek / PDF viewers). */
+/**
+ * Serve a local file via Electron's file:// fetch so Range / PDF / video work
+ * the same as opening the path on disk.
+ */
 async function serveFile(filePath: string, request: Request): Promise<Response> {
   const stat = await fs.stat(filePath);
   if (!stat.isFile()) return new Response("Not found", { status: 404 });
 
-  const size = stat.size;
-  const ext = path.extname(filePath).toLowerCase();
-  const type = contentTypeFor(ext) ?? "application/octet-stream";
-  const rangeHeader = request.headers.get("Range") ?? request.headers.get("range");
+  const headers = new Headers();
+  const range = request.headers.get("Range") ?? request.headers.get("range");
+  if (range) headers.set("Range", range);
 
-  if (rangeHeader) {
-    const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
-    if (!match) {
-      return new Response("Invalid range", { status: 416 });
-    }
-    const start = match[1] ? Number(match[1]) : 0;
-    const end = match[2] ? Number(match[2]) : size - 1;
-    if (
-      !Number.isFinite(start) ||
-      !Number.isFinite(end) ||
-      start < 0 ||
-      end < start ||
-      start >= size
-    ) {
-      return new Response("Invalid range", {
-        status: 416,
-        headers: { "Content-Range": `bytes */${size}` },
-      });
-    }
-    const safeEnd = Math.min(end, size - 1);
-    const chunkSize = safeEnd - start + 1;
-    const nodeStream = createReadStream(filePath, { start, end: safeEnd });
-    return new Response(Readable.toWeb(nodeStream) as any, {
-      status: 206,
-      headers: {
-        "Content-Type": type,
-        "Content-Length": String(chunkSize),
-        "Content-Range": `bytes ${start}-${safeEnd}/${size}`,
-        "Accept-Ranges": "bytes",
-        "Cache-Control": "no-cache",
-      },
-    });
+  const response = await net.fetch(pathToFileURL(filePath).href, { headers });
+  if (!response.ok && response.status !== 206) {
+    return new Response("Not found", { status: 404 });
   }
 
-  const nodeStream = createReadStream(filePath);
-  return new Response(Readable.toWeb(nodeStream) as any, {
-    status: 200,
-    headers: {
-      "Content-Type": type,
-      "Content-Length": String(size),
-      "Accept-Ranges": "bytes",
-      "Cache-Control": "no-cache",
-    },
+  // Ensure PDF/video MIME when the OS guess is wrong.
+  const ext = path.extname(filePath).toLowerCase();
+  const type = contentTypeFor(ext);
+  if (!type) return response;
+
+  const outHeaders = new Headers(response.headers);
+  outHeaders.set("Content-Type", type);
+  outHeaders.set("Accept-Ranges", "bytes");
+  outHeaders.set("Cache-Control", "no-cache");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: outHeaders,
   });
 }
 
@@ -207,7 +232,6 @@ async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type:
   let job = thumbJobs.get(cachePath);
   if (!job) {
     job = (async () => {
-      // Prefer OS shell thumbnails for video/PDF (Windows/macOS).
       if (OS_THUMB_EXT.has(ext)) {
         try {
           const osThumb = await nativeImage.createThumbnailFromPath(filePath, {
@@ -221,13 +245,18 @@ async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type:
             return { body: jpeg, type: "image/jpeg" };
           }
         } catch {
-          // Fall through to nativeImage / raw.
+          // Fall through.
         }
+      }
+
+      // Never return raw PDF/video bytes as a fake JPEG — callers can use the file URL instead.
+      if (ext === ".pdf" || OS_THUMB_EXT.has(ext)) {
+        throw new Error(`No thumbnail for ${ext}`);
       }
 
       const image = nativeImage.createFromPath(filePath);
       if (image.isEmpty()) {
-        return { body: await fs.readFile(filePath), type: mimeFor(ext) };
+        throw new Error("Empty image");
       }
 
       const size = image.getSize();
