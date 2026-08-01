@@ -13,6 +13,7 @@ import {
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { ConfirmDialog, DeletePreviewLists } from "./ConfirmDialog";
+import { TrashUndoBar } from "./TrashUndoBar";
 import { cn } from "../lib/utils";
 
 function formatBytes(size: number): string {
@@ -64,6 +65,10 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(() => new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [undoBatch, setUndoBatch] = useState<{ paths: string[]; reclaimBytes: number } | null>(
+    null,
+  );
+  const [undoBusy, setUndoBusy] = useState(false);
 
   useEffect(() => {
     return window.entropy.duplicates.onProgress(setProgress);
@@ -170,13 +175,16 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     if (deletePaths.length === 0) return;
     setDeleting(true);
     setError(null);
+    const batch = [...deletePaths];
+    const batchReclaim = reclaimBytes;
     try {
-      for (const path of deletePaths) {
+      for (const path of batch) {
         await window.entropy.fs.remove(path);
       }
+      setUndoBatch({ paths: batch, reclaimBytes: batchReclaim });
       setResult((prev) => {
         if (!prev) return prev;
-        const removed = new Set(deletePaths);
+        const removed = new Set(batch);
         const nextGroups: DuplicateGroup[] = [];
         for (const group of prev.groups) {
           const copies = group.copies.filter((copy) => !removed.has(copy.path));
@@ -197,6 +205,28 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     } finally {
       setDeleting(false);
       setConfirmOpen(false);
+    }
+  }
+
+  async function undoCleanup(): Promise<void> {
+    if (!undoBatch) return;
+    setUndoBusy(true);
+    setError(null);
+    try {
+      const result = await window.entropy.fs.undoRemove(undoBatch.paths);
+      if (result.failed.length > 0 && result.restored === 0) {
+        setError("Could not restore automatically — open Trash to recover files.");
+      } else {
+        setUndoBatch(null);
+        // Rescan would be heavy; nudge user to Change scope / Rescan via staying on done with stale groups.
+        // Soft approach: clear results so they re-scan if needed, or reload listing by re-running scan.
+        setPhase("choose");
+        setResult(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Undo failed");
+    } finally {
+      setUndoBusy(false);
     }
   }
 
@@ -399,7 +429,18 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
             </div>
           </ScrollArea>
 
-          <div className="flex shrink-0 flex-col gap-2 border-t border-border px-4 py-3">
+          <div className="flex shrink-0 flex-col gap-0 border-t border-border">
+            {undoBatch ? (
+              <TrashUndoBar
+                fileCount={undoBatch.paths.length}
+                reclaimLabel={formatBytes(undoBatch.reclaimBytes)}
+                busy={undoBusy}
+                onUndo={() => void undoCleanup()}
+                onOpenTrash={() => void window.entropy.fs.openTrash()}
+                onDismiss={() => setUndoBatch(null)}
+              />
+            ) : null}
+            <div className="flex flex-col gap-2 px-4 py-3">
             {deletePaths.length > 0 ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0 text-sm">
@@ -434,6 +475,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
                 </span>
               </div>
             )}
+            </div>
           </div>
         </>
       )}

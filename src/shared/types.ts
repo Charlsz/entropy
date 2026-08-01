@@ -147,6 +147,8 @@ export interface EntropyApi {
     mkdir: (dirPath: string) => Promise<void>;
     rename: (fromPath: string, toPath: string) => Promise<void>;
     remove: (targetPath: string) => Promise<void>;
+    undoRemove: (paths: string[]) => Promise<{ restored: number; failed: string[] }>;
+    openTrash: () => Promise<void>;
     exists: (targetPath: string) => Promise<boolean>;
     stat: (targetPath: string) => Promise<FileEntry>;
     folderTree: (rootPath: string, maxDepth?: number) => Promise<TreeNode[]>;

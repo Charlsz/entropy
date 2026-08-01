@@ -15,6 +15,7 @@ import { ItemActionsMenu, type ItemAction } from "../components/ItemActionsMenu"
 import { EntryPreview, getFolderPreview, useFolderCount } from "../components/EntryPreview";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
+import { TrashUndoBar } from "../components/TrashUndoBar";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
@@ -80,6 +81,10 @@ export function FilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<FileEntry | null>(null);
+  const [undoTrash, setUndoTrash] = useState<{ paths: string[]; name: string; size: number } | null>(
+    null,
+  );
+  const [undoBusy, setUndoBusy] = useState(false);
   const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
@@ -350,10 +355,29 @@ export function FilesPage() {
     setPendingDelete(null);
     try {
       await window.entropy.fs.remove(entry.path);
+      setUndoTrash({ paths: [entry.path], name: entry.name, size: entry.size });
       if (selected?.path === entry.path) setSelected(null);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete");
+    }
+  }
+
+  async function undoTrashAction(): Promise<void> {
+    if (!undoTrash) return;
+    setUndoBusy(true);
+    try {
+      const result = await window.entropy.fs.undoRemove(undoTrash.paths);
+      if (result.restored > 0) {
+        setUndoTrash(null);
+        await refresh();
+      } else {
+        setError("Could not restore automatically — open Trash to recover the file.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Undo failed");
+    } finally {
+      setUndoBusy(false);
     }
   }
 
@@ -570,20 +594,32 @@ export function FilesPage() {
         )}
       </div>
       {!duplicatesMode ? (
-        <StatusBar
-          left={workspace.currentFolder}
-          right={`${visible.length} items${selected ? ` · ${selected.name}` : ""}`}
-        />
+        <>
+          {undoTrash ? (
+            <TrashUndoBar
+              fileCount={1}
+              reclaimLabel={formatBytes(undoTrash.size)}
+              busy={undoBusy}
+              onUndo={() => void undoTrashAction()}
+              onOpenTrash={() => void window.entropy.fs.openTrash()}
+              onDismiss={() => setUndoTrash(null)}
+            />
+          ) : null}
+          <StatusBar
+            left={workspace.currentFolder}
+            right={`${visible.length} items${selected ? ` · ${selected.name}` : ""}`}
+          />
+        </>
       ) : null}
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="Move to trash?"
+        title="Move to Trash?"
         description={
           pendingDelete
-            ? `Move "${pendingDelete.name}" to the system trash?`
-            : "Move this item to the system trash?"
+            ? `Move "${pendingDelete.name}" to Trash? You can Undo until Trash is emptied.`
+            : "Move this item to Trash?"
         }
-        confirmLabel="Delete"
+        confirmLabel="Move to Trash"
         onConfirm={() => void confirmDelete()}
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null);

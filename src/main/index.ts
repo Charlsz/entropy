@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
 import path from "node:path";
 import * as filesystem from "./fs";
 import * as inventory from "./inventory";
+import { openTrash, undoRemoves } from "./trash";
 import { findExactDuplicates } from "./duplicates";
 import type { DuplicateScanProgress } from "./duplicates";
 import {
@@ -142,6 +143,8 @@ function registerIpc(): void {
     filesystem.rename(fromPath, toPath),
   );
   ipcMain.handle("fs:remove", (_event, targetPath: string) => filesystem.remove(targetPath));
+  ipcMain.handle("fs:undoRemove", (_event, paths: string[]) => undoRemoves(paths));
+  ipcMain.handle("fs:openTrash", () => openTrash());
   ipcMain.handle("fs:exists", (_event, targetPath: string) => filesystem.exists(targetPath));
   ipcMain.handle("fs:stat", (_event, targetPath: string) => filesystem.stat(targetPath));
   ipcMain.handle("fs:folderTree", (_event, rootPath: string, maxDepth?: number) =>

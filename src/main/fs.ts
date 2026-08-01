@@ -4,6 +4,7 @@ import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { DuplicateGroup, FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
+import { removeToTrash } from "./trash";
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -171,7 +172,7 @@ export async function rename(fromPath: string, toPath: string): Promise<void> {
 }
 
 export async function remove(targetPath: string): Promise<void> {
-  await shell.trashItem(targetPath);
+  await removeToTrash(targetPath);
 }
 
 export async function exists(targetPath: string): Promise<boolean> {
