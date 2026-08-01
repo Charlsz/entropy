@@ -27,6 +27,14 @@ let allowQuit = false;
 let mainWindow: BrowserWindow | null = null;
 const duplicateAbortBySender = new Map<number, AbortController>();
 
+// Electron's asar fs wrapper still constructs fs.Stats (DEP0180) — not Entropy code.
+process.on("warning", (warning) => {
+  if (warning.name === "DeprecationWarning" && /fs\.Stats constructor/i.test(warning.message)) {
+    return;
+  }
+  console.warn(warning);
+});
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: FILE_PROTOCOL,
