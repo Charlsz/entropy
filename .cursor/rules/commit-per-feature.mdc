@@ -13,8 +13,9 @@ Every discrete implementation or fix in Entropy gets its **own git commit**, eve
 - Prefer a short series of focused commits over one large commit.
 - Commit message style: `feat:` / `fix:` / `docs:` / `refactor:` — explain **why**, match existing repo tone.
 - Never add `Co-authored-by` trailers unless the user asks.
-- Only commit when the user asks to commit, **or** when finishing a discrete implementation the user requested and they have established this commit-per-feature workflow (as now).
-- After each implementation, commit before starting the next feature.
+- When the user asks for multiple features or a roadmap slice, implement **one by one**: finish, commit, then start the next.
+- After each implementation the user requested under this workflow, **commit before starting the next feature** (do not wait for a separate “please commit” if they already asked for commit-per-feature).
+- Only skip committing when the user explicitly says not to commit yet.
 
 ## Examples of separate commits
 
@@ -22,5 +23,7 @@ Every discrete implementation or fix in Entropy gets its **own git commit**, eve
 - Titlebar path navigation
 - Folder card size display
 - Content-hash duplicates
+- Duplicate scope chooser
+- Safe delete preview
 
 Do not combine those into a single commit.
