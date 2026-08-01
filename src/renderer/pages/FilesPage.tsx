@@ -163,6 +163,13 @@ export function FilesPage() {
 
   useEffect(() => {
     if (!roots.length || !workspace.currentFolder) return;
+    const home = roots.find((root) => root.id === "home");
+    // Stay anchored to Home while browsing under it so crumbs stay Home > Desktop > …
+    // Named shortcuts (Desktop, Downloads, …) must not steal the breadcrumb root.
+    if (home && isUnderPath(workspace.currentFolder, home.path)) {
+      if (!samePath(home.path, scanRoot)) setScanRoot(home.path);
+      return;
+    }
     const match = pickRoot(workspace.currentFolder, roots);
     if (match && !samePath(match.path, scanRoot)) {
       setScanRoot(match.path);
@@ -171,10 +178,13 @@ export function FilesPage() {
 
   useEffect(() => {
     if (!scanRoot) return;
+    const home = roots.find((root) => root.id === "home");
     const label =
-      roots.find((root) => samePath(root.path, scanRoot))?.name ??
-      activeRoot?.name ??
-      "Home";
+      home && samePath(scanRoot, home.path)
+        ? home.name
+        : (roots.find((root) => samePath(root.path, scanRoot))?.name ??
+          activeRoot?.name ??
+          "Home");
     setInventoryRoot(scanRoot, label);
   }, [activeRoot?.name, roots, scanRoot, setInventoryRoot]);
 
