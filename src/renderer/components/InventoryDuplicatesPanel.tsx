@@ -1,6 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Copy, FolderOpen, Square } from "lucide-react";
-import type { DuplicateGroup, DuplicateScanProgress, DuplicateScanResult } from "../../shared/types";
+import type {
+  DuplicateGroup,
+  DuplicateScanProgress,
+  DuplicateScanResult,
+} from "../../shared/types";
 import {
   DEFAULT_DUPLICATE_SCAN_SCOPE,
   DUPLICATE_SCAN_SCOPES,
@@ -8,6 +12,7 @@ import {
 } from "../../shared/duplicateScopes";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
+import { ConfirmDialog, DeletePreviewLists } from "./ConfirmDialog";
 import { cn } from "../lib/utils";
 
 function formatBytes(size: number): string {
@@ -32,6 +37,10 @@ function formatEta(ms: number | null | undefined): string | null {
   return rem === 0 ? `~${minutes}m left` : `~${minutes}m ${rem}s left`;
 }
 
+function baseName(filePath: string): string {
+  return filePath.split(/[/\\]/).pop() ?? filePath;
+}
+
 interface InventoryDuplicatesPanelProps {
   rootPath: string;
   onBack: () => void;
@@ -51,6 +60,10 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
   const [progress, setProgress] = useState<DuplicateScanProgress | null>(null);
   const [result, setResult] = useState<DuplicateScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Paths marked for trash (copies). Keep paths stay out. */
+  const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(() => new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     return window.entropy.duplicates.onProgress(setProgress);
@@ -67,6 +80,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       .then((next) => {
         if (!cancelled) {
           setResult(next);
+          setSelectedForDelete(defaultDeleteSelection(next.groups));
           setPhase("done");
         }
       })
@@ -96,11 +110,95 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
 
   const running = phase === "running";
   const groups: DuplicateGroup[] = result?.groups ?? [];
-  const recoverable = groups.reduce((sum, group) => sum + group.recoverableBytes, 0);
+  const sizeByPath = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const group of groups) {
+      for (const copy of group.copies) map.set(copy.path, group.size);
+    }
+    return map;
+  }, [groups]);
+
+  const deletePaths = useMemo(
+    () => [...selectedForDelete].filter((path) => sizeByPath.has(path)),
+    [selectedForDelete, sizeByPath],
+  );
+  const reclaimBytes = useMemo(
+    () => deletePaths.reduce((sum, path) => sum + (sizeByPath.get(path) ?? 0), 0),
+    [deletePaths, sizeByPath],
+  );
+  const keepingNames = useMemo(() => {
+    const names: string[] = [];
+    for (const group of groups) {
+      if (group.copies.some((copy) => selectedForDelete.has(copy.path))) {
+        const keep = group.copies.find((copy) => !selectedForDelete.has(copy.path));
+        if (keep) names.push(baseName(keep.path));
+      }
+    }
+    return names;
+  }, [groups, selectedForDelete]);
+
   const percent = Math.round((progress?.progress ?? (running ? 0.05 : result ? 1 : 0)) * 100);
   const etaLabel = running ? formatEta(progress?.etaMs) : null;
   const scopeLabel =
     DUPLICATE_SCAN_SCOPES.find((item) => item.id === (activeScope ?? scope))?.label ?? "Images";
+
+  function toggleDelete(path: string, group: DuplicateGroup): void {
+    setSelectedForDelete((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+        return next;
+      }
+      // Never mark every copy — leave at least one.
+      const othersSelected = group.copies.filter((c) => c.path !== path && next.has(c.path)).length;
+      const remaining = group.copies.length - othersSelected - 1;
+      if (remaining < 1 && othersSelected === group.copies.length - 1) {
+        return prev;
+      }
+      next.add(path);
+      // If this was the only unselected (keep), ensure another stay unselected.
+      const unselected = group.copies.filter((c) => !next.has(c.path));
+      if (unselected.length === 0) {
+        const fallback = group.copies.find((c) => c.path !== path) ?? group.copies[0];
+        next.delete(fallback.path);
+      }
+      return next;
+    });
+  }
+
+  async function confirmCleanup(): Promise<void> {
+    if (deletePaths.length === 0) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      for (const path of deletePaths) {
+        await window.entropy.fs.remove(path);
+      }
+      setResult((prev) => {
+        if (!prev) return prev;
+        const removed = new Set(deletePaths);
+        const nextGroups: DuplicateGroup[] = [];
+        for (const group of prev.groups) {
+          const copies = group.copies.filter((copy) => !removed.has(copy.path));
+          if (copies.length < 2) continue;
+          nextGroups.push({
+            hash: group.hash,
+            size: group.size,
+            copies,
+            recoverableBytes: group.size * (copies.length - 1),
+            keepPath: copies.find((c) => c.path === group.keepPath)?.path ?? copies[0].path,
+          });
+        }
+        return { ...prev, groups: nextGroups };
+      });
+      setSelectedForDelete(new Set());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to move files to Trash");
+    } finally {
+      setDeleting(false);
+      setConfirmOpen(false);
+    }
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background" aria-label="Duplicate files">
@@ -148,6 +246,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
               setResult(null);
               setProgress(null);
               setError(null);
+              setSelectedForDelete(new Set());
               setPhase("choose");
             }}
           >
@@ -219,7 +318,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
           </div>
 
           <ScrollArea className="min-h-0 flex-1">
-            <div className="space-y-3 p-4">
+            <div className="space-y-3 p-4 pb-28">
               {!running && !error && groups.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center">
                   <p className="text-sm text-foreground">No exact duplicates found</p>
@@ -239,7 +338,9 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
                       <h2 className="text-sm font-medium text-foreground">
                         {group.copies.length} copies · {formatBytes(group.size)} each
                       </h2>
-                      <p className="text-[11px] text-muted-foreground">Exact duplicate · identical contents</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Exact duplicate · identical contents
+                      </p>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       Recover {formatBytes(group.recoverableBytes)}
@@ -247,25 +348,38 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
                   </div>
                   <ul className="mt-3 space-y-1.5">
                     {group.copies.map((copy) => {
-                      const keep = copy.path === group.keepPath;
+                      const marked = selectedForDelete.has(copy.path);
+                      const isKeep = !marked;
                       return (
                         <li key={copy.path} className="flex items-center gap-2 text-sm">
-                          <span
-                            className={cn(
-                              "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium",
-                              keep ? "bg-background text-foreground" : "text-muted-foreground",
-                            )}
-                          >
-                            {keep ? "Keep" : "Copy"}
-                          </span>
-                          <button
-                            type="button"
-                            className="min-w-0 flex-1 truncate text-left text-muted-foreground hover:text-foreground"
-                            title={copy.path}
-                            onClick={() => void window.entropy.fs.reveal(copy.path)}
-                          >
-                            {copy.path}
-                          </button>
+                          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                            <input
+                              type="checkbox"
+                              className="h-3.5 w-3.5 shrink-0 rounded border-border bg-background accent-paper"
+                              checked={marked}
+                              disabled={phase !== "done" || deleting}
+                              onChange={() => toggleDelete(copy.path, group)}
+                              aria-label={
+                                marked
+                                  ? `Delete ${baseName(copy.path)}`
+                                  : `Keep ${baseName(copy.path)}`
+                              }
+                            />
+                            <span
+                              className={cn(
+                                "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium",
+                                isKeep ? "bg-background text-foreground" : "text-muted-foreground",
+                              )}
+                            >
+                              {isKeep ? "Keep" : "Delete"}
+                            </span>
+                            <span
+                              className="min-w-0 flex-1 truncate text-left text-muted-foreground"
+                              title={copy.path}
+                            >
+                              {copy.path}
+                            </span>
+                          </label>
                           <Button
                             type="button"
                             variant="ghost"
@@ -285,22 +399,69 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
             </div>
           </ScrollArea>
 
-          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border px-4 py-2 text-sm text-muted-foreground">
-            <span className="min-w-0 truncate">
-              {result
-                ? `${result.filesScanned.toLocaleString()} files · ${formatDuration(result.durationMs)}`
-                : progress
-                  ? `${progress.filesSeen.toLocaleString()} seen`
-                  : rootPath}
-            </span>
-            <span className="shrink-0">
-              {groups.length > 0
-                ? `${groups.length} groups · ${formatBytes(recoverable)} recoverable`
-                : ""}
-            </span>
+          <div className="flex shrink-0 flex-col gap-2 border-t border-border px-4 py-3">
+            {deletePaths.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 text-sm">
+                  <p className="font-medium text-foreground">
+                    Delete {deletePaths.length.toLocaleString()} file
+                    {deletePaths.length === 1 ? "" : "s"}
+                  </p>
+                  <p className="text-muted-foreground">Reclaim {formatBytes(reclaimBytes)}</p>
+                </div>
+                <Button
+                  type="button"
+                  className="h-8 shrink-0 px-3 text-xs"
+                  disabled={deleting}
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  Review delete
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                <span className="min-w-0 truncate">
+                  {result
+                    ? `${result.filesScanned.toLocaleString()} files · ${formatDuration(result.durationMs)}`
+                    : progress
+                      ? `${progress.filesSeen.toLocaleString()} seen`
+                      : rootPath}
+                </span>
+                <span className="shrink-0">
+                  {groups.length > 0
+                    ? `${groups.length} groups · select copies to reclaim`
+                    : ""}
+                </span>
+              </div>
+            )}
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title={`Delete ${deletePaths.length.toLocaleString()} file${deletePaths.length === 1 ? "" : "s"}?`}
+        confirmLabel="Move to Trash"
+        onConfirm={() => void confirmCleanup()}
+        onOpenChange={setConfirmOpen}
+        description={
+          <DeletePreviewLists
+            deleting={deletePaths.map(baseName)}
+            keeping={keepingNames}
+            reclaimLabel={formatBytes(reclaimBytes)}
+          />
+        }
+      />
     </div>
   );
+}
+
+function defaultDeleteSelection(groups: DuplicateGroup[]): Set<string> {
+  const selected = new Set<string>();
+  for (const group of groups) {
+    for (const copy of group.copies) {
+      if (copy.path !== group.keepPath) selected.add(copy.path);
+    }
+  }
+  return selected;
 }
