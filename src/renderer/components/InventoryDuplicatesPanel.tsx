@@ -81,7 +81,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     return window.entropy.duplicates.onProgress((next) => {
       setProgress(next);
       if (next.logLine) {
-        setLogLines((prev) => [...prev.slice(-80), next.logLine!]);
+        setLogLines((prev) => [...prev.slice(-120), next.logLine!]);
       }
       if (next.latestGroup) {
         setLiveGroups((prev) => upsertGroup(prev, next.latestGroup!));
@@ -90,7 +90,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
   }, []);
 
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    logEndRef.current?.scrollIntoView({ behavior: "auto", block: "nearest" });
   }, [logLines.length]);
 
   useEffect(() => {

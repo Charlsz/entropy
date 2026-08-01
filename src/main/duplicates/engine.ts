@@ -19,7 +19,8 @@ import {
 
 export type ProgressCallback = (progress: DuplicateScanProgress) => void;
 
-const PROGRESS_MIN_INTERVAL_MS = 120;
+const PROGRESS_MIN_INTERVAL_MS = 80;
+const LOG_MIN_INTERVAL_MS = 40;
 
 function etaFromCounts(done: number, total: number, phaseStarted: number): number | null {
   if (total <= 0) return null;
@@ -68,6 +69,7 @@ export async function findExactDuplicates(
   const extensions = extensionsForScope(scope);
 
   let lastSentAt = 0;
+  let lastLogAt = 0;
   let lastPhase: DuplicateScanProgress["phase"] | "" = "";
   const streamedKeys = new Set<string>();
   let groupsFound = 0;
@@ -91,16 +93,24 @@ export async function findExactDuplicates(
     const terminal =
       payload.phase === "done" || payload.phase === "cancelled" || payload.phase === "error";
     const hasGroup = Boolean(payload.latestGroup);
-    if (
+    const hasLog = Boolean(payload.logLine);
+    if (hasLog && !force && !hasGroup && !phaseChanged && !terminal) {
+      if (now - lastLogAt < LOG_MIN_INTERVAL_MS) {
+        // Keep the latest line; drop only if we're flooding faster than ~25Hz.
+        return;
+      }
+    } else if (
       !force &&
       !phaseChanged &&
       !terminal &&
       !hasGroup &&
+      !hasLog &&
       now - lastSentAt < PROGRESS_MIN_INTERVAL_MS
     ) {
       return;
     }
     lastSentAt = now;
+    if (hasLog) lastLogAt = now;
     lastPhase = payload.phase;
     onProgress?.(payload);
   };
@@ -120,14 +130,17 @@ export async function findExactDuplicates(
   const { files, errors: scanErrors } = await scanFiles(rootPath, {
     signal,
     extensions,
-    onFile: (_file, seen) => {
-      if (seen % 250 === 0) {
+    onFile: (file, seen) => {
+      if (seen <= 8 || seen % 5 === 0) {
         report({
           phase: "scanning",
           progress: Math.min(0.2, 0.02 + seen / 50_000),
           message: `Scanning… ${seen.toLocaleString()} files`,
           filesSeen: seen,
-          logLine: `Indexed ${seen.toLocaleString()} files…`,
+          logLine:
+            seen <= 8
+              ? `Found ${file.name}`
+              : `Indexed ${seen.toLocaleString()} files…`,
         });
       }
     },
@@ -206,7 +219,7 @@ export async function findExactDuplicates(
         });
       } finally {
         partialDone += 1;
-        if (partialDone % 8 === 0 || partialDone === sizeCandidates.length) {
+        if (partialDone % 2 === 0 || partialDone === sizeCandidates.length) {
           report({
             phase: "partial",
             progress: 0.28 + (0.25 * partialDone) / Math.max(sizeCandidates.length, 1),
@@ -215,7 +228,7 @@ export async function findExactDuplicates(
             candidateFiles: sizeCandidates.length,
             errors: errors.length,
             etaMs: etaFromCounts(partialDone, sizeCandidates.length, partialStarted),
-            logLine: `Partial hash ${partialDone.toLocaleString()}/${sizeCandidates.length.toLocaleString()}`,
+            logLine: `Checking ${file.name}`,
           });
         }
       }
@@ -303,7 +316,7 @@ export async function findExactDuplicates(
         });
       } finally {
         fullDone += 1;
-        if (fullDone % 4 === 0 || fullDone === partialCandidates.length) {
+        if (fullDone % 1 === 0 || fullDone === partialCandidates.length) {
           report({
             phase: "full",
             progress: 0.55 + (0.4 * fullDone) / Math.max(partialCandidates.length, 1),
@@ -313,7 +326,7 @@ export async function findExactDuplicates(
             errors: errors.length,
             groupsFound,
             etaMs: etaFromCounts(fullDone, partialCandidates.length, fullStarted),
-            logLine: `Full hash ${fullDone.toLocaleString()}/${partialCandidates.length.toLocaleString()}`,
+            logLine: `Confirming ${file.name}`,
           });
         }
       }
