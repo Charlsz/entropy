@@ -54,7 +54,7 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Unload Chromium media for a path briefly so Windows can move the file to Recycle Bin.
- * Gallery video previews otherwise leave the file locked (shell.trashItem → "Operation was aborted").
+ * Gallery video previews otherwise leave the file locked (shell.trashItem -> "Operation was aborted").
  */
 export async function withMediaReleased<T>(
   filePath: string,
@@ -64,8 +64,14 @@ export async function withMediaReleased<T>(
   notify();
   try {
     releaseDomMedia(filePath);
-    // Let Chromium finish tearing down the decoder / file mapping.
-    await sleep(120);
+    // Two frames so React can swap video faces to posters, then a short settle.
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+    await sleep(220);
+    releaseDomMedia(filePath);
     return await task();
   } finally {
     releasing.delete(filePath);

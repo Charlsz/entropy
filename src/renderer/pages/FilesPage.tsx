@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, memo } from "react";
+import { flushSync } from "react-dom";
 import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
@@ -389,14 +390,28 @@ export function FilesPage() {
   }
 
   async function trashEntry(entry: FileEntry): Promise<void> {
+    const targetPath = entry.path;
     try {
-      // Drop selection so context-bar previews unmount before we release handles.
-      if (selected?.path === entry.path) setSelected(null);
-      await withMediaReleased(entry.path, () => window.entropy.fs.remove(entry.path));
-      setUndoTrash({ paths: [entry.path], name: entry.name, size: entry.size });
+      // Commit unmount of this card's video before Windows tries Recycle Bin.
+      flushSync(() => {
+        if (selected?.path === targetPath) setSelected(null);
+        setEntries((prev) => prev.filter((item) => item.path !== targetPath));
+        setSizeByPath((prev) => {
+          if (!(targetPath in prev)) return prev;
+          const next = { ...prev };
+          delete next[targetPath];
+          return next;
+        });
+      });
+
+      await withMediaReleased(targetPath, () => window.entropy.fs.remove(targetPath));
+      setUndoTrash({ paths: [targetPath], name: entry.name, size: entry.size });
+      const parent = await window.entropy.fs.dirname(targetPath).catch(() => "");
+      if (parent) invalidateFolderPreview(parent);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete");
+      await refresh();
     }
   }
 

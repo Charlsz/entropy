@@ -32,7 +32,7 @@ async function pathExists(target: string): Promise<boolean> {
 export async function removeToTrash(targetPath: string): Promise<void> {
   purgeLegacyBin();
   const normalized = path.normalize(targetPath);
-  const attempts = 6;
+  const attempts = 8;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -42,7 +42,7 @@ export async function removeToTrash(targetPath: string): Promise<void> {
     } catch (err) {
       lastError = err;
       if (!isRetryableTrashError(err) || attempt === attempts - 1) break;
-      await sleep(80 * (attempt + 1));
+      await sleep(100 * (attempt + 1));
     }
   }
 
@@ -60,10 +60,10 @@ function friendlyTrashError(targetPath: string, err: unknown): Error {
   const name = path.basename(targetPath);
   if (isRetryableTrashError(err)) {
     return new Error(
-      `Couldn’t move “${name}” to the Recycle Bin — the file is still in use. Close any preview and try again.`,
+      `Couldn't move "${name}" to the Recycle Bin - the file is still in use. Close any preview and try again.`,
     );
   }
-  return err instanceof Error ? err : new Error(`Failed to delete “${name}”`);
+  return err instanceof Error ? err : new Error(`Failed to delete "${name}"`);
 }
 
 function sleep(ms: number): Promise<void> {
