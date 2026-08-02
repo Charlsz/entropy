@@ -113,6 +113,7 @@ export function NotebookPage({
           : `[${label}](${/\s/.test(href) ? `<${href}>` : href})`;
         editorRef.current?.insertMarkdown(insert);
         setPreviewEntry(entry);
+        setContextEpoch((value) => value + 1);
         setError(null);
       } catch (err) {
         if (!cancelled) {
