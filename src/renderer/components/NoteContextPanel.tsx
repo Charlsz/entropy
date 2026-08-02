@@ -19,6 +19,21 @@ function normalizeHref(raw: string): string {
   return trimmed;
 }
 
+/** Prefer a single calm line when alt text duplicates the path/filename. */
+function linkDisplayLabel(link: NoteLink): string {
+  const hrefBase = link.href.split(/[/\\]/).pop() ?? link.href;
+  const label = link.label.trim();
+  if (!label || label === link.href || label === hrefBase) return hrefBase;
+  return label;
+}
+
+function linkHrefAddsInfo(link: NoteLink): boolean {
+  const label = linkDisplayLabel(link);
+  const href = link.href.trim();
+  const hrefBase = href.split(/[/\\]/).pop() ?? href;
+  return href !== label && hrefBase !== label;
+}
+
 interface NoteLink {
   label: string;
   href: string;
@@ -235,10 +250,14 @@ export function NoteContextPanel({
                     className="flex min-w-0 items-start gap-1 rounded-md px-1 py-1"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-foreground">{link.label || link.href}</p>
-                      <p className="truncate text-[11px] text-muted-foreground" title={link.href}>
-                        {link.href}
+                      <p className="truncate text-sm text-foreground">
+                        {linkDisplayLabel(link)}
                       </p>
+                      {linkHrefAddsInfo(link) ? (
+                        <p className="truncate text-[11px] text-muted-foreground" title={link.href}>
+                          {link.href}
+                        </p>
+                      ) : null}
                     </div>
                     <Button
                       type="button"
@@ -281,22 +300,27 @@ export function NoteContextPanel({
                     <ul className="space-y-1">
                       {links
                         .filter((link) => !link.missing)
-                        .map((link) => (
-                          <li key={`${link.label}-${link.href}`}>
-                            <button
-                              type="button"
-                              className="flex w-full flex-col rounded-md px-2 py-2 text-left hover:bg-accent"
-                              onClick={() => void openLinked(link.href)}
-                            >
-                              <span className="truncate text-sm text-foreground">
-                                {link.label || link.href}
-                              </span>
-                              <span className="truncate text-[11px] text-muted-foreground">
-                                {link.href}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
+                        .map((link) => {
+                          const title = linkDisplayLabel(link);
+                          const showHref = linkHrefAddsInfo(link);
+                          return (
+                            <li key={`${link.label}-${link.href}`}>
+                              <button
+                                type="button"
+                                className="flex w-full flex-col rounded-md px-2 py-2 text-left hover:bg-accent"
+                                title={link.href}
+                                onClick={() => void openLinked(link.href)}
+                              >
+                                <span className="truncate text-sm text-foreground">{title}</span>
+                                {showHref ? (
+                                  <span className="truncate text-[11px] text-muted-foreground">
+                                    {link.href}
+                                  </span>
+                                ) : null}
+                              </button>
+                            </li>
+                          );
+                        })}
                     </ul>
                   )}
                 </section>
