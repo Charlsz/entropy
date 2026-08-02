@@ -614,7 +614,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   </div>
                 ) : null}
                 <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
-                  <h1 className="mb-4 text-left text-3xl font-semibold tracking-tight text-foreground">
+                  <h1 className="mb-4 text-left text-[1.75rem] font-medium leading-tight tracking-tight text-foreground">
                     {activeTab?.title}
                   </h1>
                 </div>
@@ -640,7 +640,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 ) : null}
                 {mode === "preview" ? (
                   <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
-                    <h1 className="mb-4 text-left text-3xl font-semibold tracking-tight text-foreground">
+                    <h1 className="mb-4 text-left text-[1.75rem] font-medium leading-tight tracking-tight text-foreground">
                       {activeTab?.title}
                     </h1>
                   </div>

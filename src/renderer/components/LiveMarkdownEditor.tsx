@@ -242,7 +242,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
                     if (el) textRefs.current.set(index, el);
                     else textRefs.current.delete(index);
                   }}
-                  className="min-h-[1.75rem] w-full resize-none overflow-hidden rounded-none border-0 bg-transparent p-0 font-sans text-[15px] leading-7 shadow-none focus-visible:ring-0"
+                  className="min-h-[1.75rem] w-full resize-none overflow-hidden rounded-none border-0 bg-transparent p-0 font-sans text-[15px] font-normal leading-[1.7] shadow-none focus-visible:ring-0"
                   value={block.value}
                   disabled={disabled}
                   spellCheck
