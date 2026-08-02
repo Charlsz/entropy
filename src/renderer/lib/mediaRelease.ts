@@ -70,8 +70,10 @@ export async function withMediaReleased<T>(
         window.requestAnimationFrame(() => resolve());
       });
     });
-    await sleep(220);
+    // Settle so Chromium drops the mapping before Windows Recycle Bin / rename.
+    await sleep(280);
     releaseDomMedia(filePath);
+    await sleep(80);
     return await task();
   } finally {
     releasing.delete(filePath);

@@ -22,42 +22,19 @@ async function pathExists(target: string): Promise<boolean> {
   }
 }
 
-/**
- * Move into the user's Recycle Bin / Trash via the OS (Electron shell.trashItem).
- * Entropy does not keep a parallel trash folder.
- *
- * Windows frequently aborts IFileOperation while media previews still hold the
- * file — retry with backoff before surfacing a clear locked-file error.
- */
-export async function removeToTrash(targetPath: string): Promise<void> {
-  purgeLegacyBin();
-  const normalized = path.normalize(targetPath);
-  const attempts = 8;
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      await shell.trashItem(normalized);
-      return;
-    } catch (err) {
-      lastError = err;
-      if (!isRetryableTrashError(err) || attempt === attempts - 1) break;
-      await sleep(100 * (attempt + 1));
-    }
-  }
-
-  throw friendlyTrashError(normalized, lastError);
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isRetryableTrashError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err ?? "");
-  return /operation was aborted|ebusy|eperm|access is denied|being used by another process|locked/i.test(
+  return /operation was aborted|ebusy|eperm|access is denied|being used by another process|locked|eacces/i.test(
     message,
   );
 }
 
 function friendlyTrashError(targetPath: string, err: unknown): Error {
-  const name = path.basename(targetPath);
+  const name = path.basename(targetPath).replace(/^\.entropy-trash-\d+-[a-z0-9]+-/i, "");
   if (isRetryableTrashError(err)) {
     return new Error(
       `Couldn't move "${name}" to the Recycle Bin - the file is still in use. Close any preview and try again.`,
@@ -66,8 +43,72 @@ function friendlyTrashError(targetPath: string, err: unknown): Error {
   return err instanceof Error ? err : new Error(`Failed to delete "${name}"`);
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function trashOnce(targetPath: string): Promise<void> {
+  await shell.trashItem(path.normalize(targetPath));
+}
+
+/**
+ * When Windows refuses trash while Chromium still maps the path, rename first.
+ * Rename usually succeeds for read locks and breaks the mapping so Recycle Bin can proceed.
+ */
+async function renameAside(targetPath: string): Promise<string> {
+  const dir = path.dirname(targetPath);
+  const base = path.basename(targetPath);
+  const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const staging = path.join(dir, `.entropy-trash-${stamp}-${base}`);
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await fs.rename(targetPath, staging);
+      return staging;
+    } catch (err) {
+      lastError = err;
+      if (!isRetryableTrashError(err) || attempt === 5) break;
+      await sleep(80 * (attempt + 1));
+    }
+  }
+  throw friendlyTrashError(targetPath, lastError);
+}
+
+/**
+ * Move into the user's Recycle Bin / Trash via the OS (Electron shell.trashItem).
+ * Entropy does not keep a parallel trash folder.
+ */
+export async function removeToTrash(targetPath: string): Promise<void> {
+  purgeLegacyBin();
+  const normalized = path.normalize(targetPath);
+
+  // Fast path: unlocked files.
+  try {
+    await trashOnce(normalized);
+    return;
+  } catch (err) {
+    if (!isRetryableTrashError(err)) throw friendlyTrashError(normalized, err);
+  }
+
+  // Retry direct trash briefly.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await sleep(100 * (attempt + 1));
+    try {
+      await trashOnce(normalized);
+      return;
+    } catch (err) {
+      if (!isRetryableTrashError(err)) throw friendlyTrashError(normalized, err);
+    }
+  }
+
+  // Break common preview locks (especially video) by renaming, then trash the new path.
+  let staging: string | null = null;
+  try {
+    staging = await renameAside(normalized);
+    await trashOnce(staging);
+  } catch (err) {
+    if (staging && (await pathExists(staging)) && !(await pathExists(normalized))) {
+      await fs.rename(staging, normalized).catch(() => undefined);
+    }
+    throw friendlyTrashError(normalized, err);
+  }
 }
 
 export async function undoRemoves(originalPaths: string[]): Promise<{ restored: number; failed: string[] }> {
