@@ -5,6 +5,8 @@ import {
   Copy,
   FileText,
   Folder,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 import type { FileEntry, InventoryRoot, TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
@@ -38,7 +40,7 @@ import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isPreviewableEntry } from "../lib/media";
-import { formatBytes, sizeShare } from "../lib/format";
+import { formatBytes } from "../lib/format";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isUnderPath, osTrashName, samePath } from "../lib/platform";
 import { cn } from "../lib/utils";
@@ -94,6 +96,7 @@ export function FilesPage() {
 
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
+  const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed;
 
   const refreshListing = useCallback(async (options?: { quiet?: boolean }) => {
     if (!workspace.currentFolder) return;
@@ -489,17 +492,19 @@ export function FilesPage() {
           persistLayout={workspace.currentSection === "inventory"}
           sidebar={null}
           context={
-            <StorageTreemap
-              scan={treemapScan}
-              selectedPath={selected?.path ?? pendingSelectPath}
-              scanning={scanningTreemap}
-              workspacePath={workspace.path}
-              scanRoot={scanRoot}
-              recentFiles={workspace.recentFiles}
-              onSelect={(leaf) => void selectTreemapLeaf(leaf)}
-              onOpen={(leaf) => void selectTreemapLeaf(leaf, true)}
-              onZoom={(leaf) => void zoomTreemapFolder(leaf)}
-            />
+            treemapCollapsed ? null : (
+              <StorageTreemap
+                scan={treemapScan}
+                selectedPath={selected?.path ?? pendingSelectPath}
+                scanning={scanningTreemap}
+                workspacePath={workspace.path}
+                scanRoot={scanRoot}
+                recentFiles={workspace.recentFiles}
+                onSelect={(leaf) => void selectTreemapLeaf(leaf)}
+                onOpen={(leaf) => void selectTreemapLeaf(leaf, true)}
+                onZoom={(leaf) => void zoomTreemapFolder(leaf)}
+              />
+            )
           }
           main={
             <section
@@ -559,6 +564,35 @@ export function FilesPage() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Find exact duplicate files in this location</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "ml-auto h-8 w-8 text-muted-foreground",
+                        !treemapCollapsed && "bg-ink-2 text-paper",
+                      )}
+                      aria-label={treemapCollapsed ? "Show size map" : "Hide size map"}
+                      aria-pressed={!treemapCollapsed}
+                      onClick={() =>
+                        updateSettings({
+                          inventoryTreemapCollapsed: !treemapCollapsed,
+                        })
+                      }
+                    >
+                      {treemapCollapsed ? (
+                        <PanelRightOpen className="h-4 w-4" strokeWidth={1.75} />
+                      ) : (
+                        <PanelRightClose className="h-4 w-4" strokeWidth={1.75} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {treemapCollapsed ? "Show size map" : "Hide size map"}
+                  </TooltipContent>
                 </Tooltip>
               </div>
 

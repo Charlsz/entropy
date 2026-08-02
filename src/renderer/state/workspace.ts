@@ -11,6 +11,8 @@ export interface WorkspaceSettings {
   theme: "dark" | "light";
   sidebarCollapsed: boolean;
   contextCollapsed: boolean;
+  /** Hide Inventory Storage map for a wide gallery. */
+  inventoryTreemapCollapsed: boolean;
   filesView: "list" | "grid";
   panelLayout: PanelLayoutState;
   /** File Inventory: Nav | Content | Treemap */
@@ -68,6 +70,7 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   theme: "dark",
   sidebarCollapsed: false,
   contextCollapsed: false,
+  inventoryTreemapCollapsed: false,
   filesView: "grid",
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },

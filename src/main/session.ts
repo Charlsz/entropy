@@ -13,6 +13,7 @@ export interface AppSettings {
   filesView: "list" | "grid";
   sidebarCollapsed: boolean;
   contextCollapsed: boolean;
+  inventoryTreemapCollapsed: boolean;
   panelLayout: PanelLayoutState;
   inventoryPanelLayout: PanelLayoutState;
   inventoryExtraRoots: string[];
@@ -40,6 +41,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   filesView: "grid",
   sidebarCollapsed: false,
   contextCollapsed: false,
+  inventoryTreemapCollapsed: false,
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],
@@ -73,6 +75,7 @@ export async function loadSession(): Promise<AppSession> {
         filesView: parsed.settings?.filesView === "list" ? "list" : "grid",
         sidebarCollapsed: Boolean(parsed.settings?.sidebarCollapsed),
         contextCollapsed: Boolean(parsed.settings?.contextCollapsed),
+        inventoryTreemapCollapsed: Boolean(parsed.settings?.inventoryTreemapCollapsed),
         panelLayout: normalizePanelLayout(parsed.settings?.panelLayout),
         inventoryPanelLayout: normalizePanelLayout(
           parsed.settings?.inventoryPanelLayout,

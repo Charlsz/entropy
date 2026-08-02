@@ -11,6 +11,7 @@ export function toSessionSettings(settings: WorkspaceSettings) {
     filesView: settings.filesView,
     sidebarCollapsed: settings.sidebarCollapsed,
     contextCollapsed: settings.contextCollapsed,
+    inventoryTreemapCollapsed: settings.inventoryTreemapCollapsed,
     panelLayout: { ...settings.panelLayout },
     inventoryPanelLayout: { ...settings.inventoryPanelLayout },
     inventoryExtraRoots: [...settings.inventoryExtraRoots],
@@ -25,6 +26,9 @@ export function fromSessionSettings(
     filesView: settings.filesView,
     sidebarCollapsed: Boolean(settings.sidebarCollapsed),
     contextCollapsed: Boolean(settings.contextCollapsed),
+    inventoryTreemapCollapsed: Boolean(
+      (settings as { inventoryTreemapCollapsed?: boolean }).inventoryTreemapCollapsed,
+    ),
     panelLayout: normalizePanelLayout(settings.panelLayout ?? DEFAULT_PANEL_LAYOUT),
     inventoryPanelLayout: normalizePanelLayout(
       settings.inventoryPanelLayout ?? DEFAULT_INVENTORY_PANEL_LAYOUT,
