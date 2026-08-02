@@ -43,6 +43,10 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
   flushText();
 
   if (blocks.length === 0) return [{ type: "text", value: "" }];
+  // Always leave a text caret after a trailing embed (Obsidian-style continue writing).
+  if (blocks[blocks.length - 1]?.type === "media") {
+    blocks.push({ type: "text", value: "" });
+  }
   return blocks;
 }
 

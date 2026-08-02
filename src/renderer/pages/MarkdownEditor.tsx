@@ -291,6 +291,29 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     scheduleSave(activePath, value);
   }
 
+  // Obsidian-like: landing in a note should be ready to type without an extra click.
+  useEffect(() => {
+    if (mode === "preview") return;
+    if (!activeTab || activeTab.loading || activeTab.missing || activeTab.conflict) return;
+
+    const timer = window.setTimeout(() => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) {
+        if (active.closest(".entropy-editor-shell textarea")) return;
+        if (
+          active.closest(
+            ".entropy-notes-sidebar input, [data-entropy-search], [role='dialog'] input, [role='dialog'] textarea",
+          )
+        ) {
+          return;
+        }
+      }
+      liveEditorRef.current?.focus({ at: "end" });
+    }, 40);
+
+    return () => window.clearTimeout(timer);
+  }, [activePath, mode, activeTab?.loading, activeTab?.missing, activeTab?.conflict]);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -564,16 +587,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          {activeTab && noteMeta.cover ? (
-            <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
-              <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
-            </div>
-          ) : null}
-          <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
-            <h1 className="mb-4 text-left text-3xl font-semibold tracking-tight text-foreground">
-              {activeTab?.title}
-            </h1>
-          </div>
           <div
             className={cn(
               "min-h-0 flex-1",
@@ -586,7 +599,25 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   "min-h-0 flex-1 overflow-y-auto",
                   mode === "split" ? "border-r border-border" : "",
                 )}
+                onMouseDown={(event) => {
+                  const target = event.target as HTMLElement;
+                  if (target.closest("textarea, button, a, input, iframe, video, img, figure")) {
+                    return;
+                  }
+                  event.preventDefault();
+                  liveEditorRef.current?.focus({ at: "end" });
+                }}
               >
+                {activeTab && noteMeta.cover ? (
+                  <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
+                    <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
+                  </div>
+                ) : null}
+                <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
+                  <h1 className="mb-4 text-left text-3xl font-semibold tracking-tight text-foreground">
+                    {activeTab?.title}
+                  </h1>
+                </div>
                 <LiveMarkdownEditor
                   ref={liveEditorRef}
                   className={mode === "split" ? "" : "mx-auto max-w-[720px]"}
@@ -601,6 +632,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             ) : null}
             {mode !== "edit" ? (
               <ScrollArea className="min-h-0 flex-1">
+                {mode === "preview" && activeTab && noteMeta.cover ? (
+                  <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
+                    <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
+                  </div>
+                ) : null}
+                {mode === "preview" ? (
+                  <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
+                    <h1 className="mb-4 text-left text-3xl font-semibold tracking-tight text-foreground">
+                      {activeTab?.title}
+                    </h1>
+                  </div>
+                ) : null}
                 <MarkdownPreview
                   content={noteMeta.body}
                   notePath={activeTab?.path}

@@ -20,7 +20,7 @@ import {
 
 export interface LiveMarkdownEditorHandle {
   insertMarkdown: (markdown: string) => void;
-  focus: () => void;
+  focus: (options?: { at?: "start" | "end" }) => void;
 }
 
 interface LiveMarkdownEditorProps {
@@ -70,12 +70,19 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
     useImperativeHandle(
       ref,
       () => ({
-        focus() {
-          const el =
-            textRefs.current.get(activeTextIndex.current) ??
-            textRefs.current.values().next().value ??
-            null;
-          el?.focus();
+        focus(options) {
+          const at = options?.at ?? "end";
+          const ordered = [...textRefs.current.entries()].sort((a, b) => a[0] - b[0]);
+          if (ordered.length === 0) return;
+          const preferred =
+            (at === "end" ? [...ordered].reverse() : ordered).find(([, el]) => el) ??
+            ordered[0];
+          const [index, el] = preferred;
+          if (!el) return;
+          activeTextIndex.current = index;
+          el.focus();
+          const pos = at === "start" ? 0 : el.value.length;
+          el.setSelectionRange(pos, pos);
         },
         insertMarkdown(markdown: string) {
           const trimmed = markdown.trim();
@@ -109,11 +116,28 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
             const body = value.replace(/\s+$/, "");
             const pad = body ? "\n\n" : "";
             commitBlocks(parseMarkdownBlocks(`${body}${pad}${trimmed}\n`));
+            window.requestAnimationFrame(() => {
+              const ordered = [...textRefs.current.entries()].sort((a, b) => a[0] - b[0]);
+              const last = ordered[ordered.length - 1];
+              if (!last) return;
+              activeTextIndex.current = last[0];
+              last[1]?.focus();
+            });
             return;
           }
 
           const pad = value && !value.endsWith("\n") ? "\n\n" : value ? "\n" : "";
           commitBlocks(parseMarkdownBlocks(`${value}${pad}${trimmed}`));
+          window.requestAnimationFrame(() => {
+            const ordered = [...textRefs.current.entries()].sort((a, b) => a[0] - b[0]);
+            const last = ordered[ordered.length - 1];
+            if (!last) return;
+            activeTextIndex.current = last[0];
+            const area = last[1];
+            if (!area) return;
+            area.focus();
+            area.setSelectionRange(area.value.length, area.value.length);
+          });
         },
       }),
       [commitBlocks, value],
@@ -123,13 +147,32 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
       for (const el of textRefs.current.values()) autoResize(el);
     }, [blocks]);
 
+    function focusNearestText(prefer: "start" | "end" = "end"): void {
+      const ordered = [...textRefs.current.entries()].sort((a, b) => a[0] - b[0]);
+      if (ordered.length === 0) return;
+      const pick = prefer === "end" ? ordered[ordered.length - 1] : ordered[0];
+      const [index, el] = pick;
+      if (!el) return;
+      activeTextIndex.current = index;
+      el.focus();
+      const pos = prefer === "start" ? 0 : el.value.length;
+      el.setSelectionRange(pos, pos);
+    }
+
     return (
       <div
         className={cn(
-          "select-text entropy-prose-pad mb-8 flex min-h-0 w-full flex-1 flex-col gap-3 pb-16",
+          "select-text entropy-prose-pad mb-8 flex min-h-full w-full flex-1 flex-col gap-3 pb-16",
           className,
         )}
         onDragOver={(event) => event.preventDefault()}
+        onMouseDown={(event) => {
+          if (disabled) return;
+          const target = event.target as HTMLElement;
+          if (target.closest("textarea, button, a, input, iframe, video, img, figure")) return;
+          event.preventDefault();
+          focusNearestText("end");
+        }}
         onDrop={(event) => {
           event.preventDefault();
           const entropyPath = event.dataTransfer.getData("application/x-entropy-path");
@@ -316,7 +359,7 @@ function MediaEmbedBlock({
     <figure className="group relative my-1">
       <button
         type="button"
-        className="absolute right-2 top-2 z-10 hidden rounded-md bg-ink/80 px-2 py-1 text-[11px] text-paper group-hover:block"
+        className="absolute right-2 top-2 z-10 rounded-md bg-ink/80 px-2 py-1 text-[11px] text-paper opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
         onClick={onRemove}
         disabled={disabled}
       >
