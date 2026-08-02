@@ -138,31 +138,64 @@ function FolderCollage({ path, size }: { path: string; size: "sm" | "md" | "lg" 
 
   if (size === "sm" || size === "md") {
     const first = data.media[0];
-    return mediaKind(first.extension) === "video" ? (
-      <VideoThumb path={first.path} size={size} />
-    ) : (
-      <ImageThumb path={first.path} alt={first.name} />
+    return <FolderMediaCell entry={first} />;
+  }
+
+  const items = data.media.slice(0, 4);
+  const count = items.length;
+
+  if (count === 1) {
+    return (
+      <div className="h-full w-full overflow-hidden bg-ink-2">
+        <FolderMediaCell entry={items[0]} />
+      </div>
+    );
+  }
+
+  if (count === 2) {
+    return (
+      <div className="grid h-full w-full grid-cols-2 gap-[1px] bg-ink">
+        {items.map((item) => (
+          <div key={item.path} className="relative min-h-0 overflow-hidden bg-ink-2">
+            <FolderMediaCell entry={item} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (count === 3) {
+    return (
+      <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-[1px] bg-ink">
+        <div className="relative row-span-2 min-h-0 overflow-hidden bg-ink-2">
+          <FolderMediaCell entry={items[0]} />
+        </div>
+        <div className="relative min-h-0 overflow-hidden bg-ink-2">
+          <FolderMediaCell entry={items[1]} />
+        </div>
+        <div className="relative min-h-0 overflow-hidden bg-ink-2">
+          <FolderMediaCell entry={items[2]} />
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-[1px] bg-ink">
-      {Array.from({ length: 4 }).map((_, index) => {
-        const item = data.media[index];
-        if (!item) {
-          return <div key={index} className="bg-ink-2" />;
-        }
-        return (
-          <div key={item.path} className="relative overflow-hidden bg-ink-2">
-            {mediaKind(item.extension) === "video" ? (
-              <VideoThumb path={item.path} size="sm" />
-            ) : (
-              <ImageThumb path={item.path} alt={item.name} />
-            )}
-          </div>
-        );
-      })}
+      {items.map((item) => (
+        <div key={item.path} className="relative min-h-0 overflow-hidden bg-ink-2">
+          <FolderMediaCell entry={item} />
+        </div>
+      ))}
     </div>
+  );
+}
+
+function FolderMediaCell({ entry }: { entry: FileEntry }) {
+  return mediaKind(entry.extension) === "video" ? (
+    <VideoThumb path={entry.path} size="sm" />
+  ) : (
+    <ImageThumb path={entry.path} alt={entry.name} />
   );
 }
 
