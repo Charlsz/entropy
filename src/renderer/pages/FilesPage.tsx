@@ -453,7 +453,7 @@ export function FilesPage() {
   function fileActions(entry: FileEntry): ItemAction[] {
     return [
       ...buildEntryActions({
-        canReference: true,
+        canReference: !entry.isDirectory,
         referenceLabel: "Add to Workspace",
         onRename: () => void handleRename(entry),
         onReference: () => referenceInNote(entry.path),

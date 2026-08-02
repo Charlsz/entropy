@@ -93,17 +93,19 @@ export function InventoryContextBar({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            aria-label="Add to Workspace"
-            title="Add to Workspace"
-            onClick={onAddToWorkspace}
-          >
-            <Link2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-          </Button>
+          {!selected.isDirectory ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Add to Workspace"
+              title="Add to Workspace"
+              onClick={onAddToWorkspace}
+            >
+              <Link2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
