@@ -5,10 +5,10 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        ink: "#212121",
-        "ink-2": "#242424",
-        paper: "#F8F8FF",
-        "paper-2": "#F4F4FF",
+        ink: "var(--ink)",
+        "ink-2": "var(--ink-2)",
+        paper: "var(--paper)",
+        "paper-2": "var(--paper-2)",
         border: "var(--border)",
         input: "var(--input)",
         ring: "var(--ring)",

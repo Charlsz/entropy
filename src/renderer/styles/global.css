@@ -21,67 +21,67 @@
 @layer base {
   :root,
   [data-theme="dark"] {
-    --ink: #212121;
-    --ink-2: #242424;
-    --paper: #f8f8ff;
-    --paper-2: #f4f4ff;
-    --background: #212121;
-    --foreground: #f8f8ff;
-    --card: #242424;
-    --card-foreground: #f8f8ff;
-    --primary: #f8f8ff;
-    --primary-foreground: #212121;
-    --secondary: #242424;
-    --secondary-foreground: #f8f8ff;
-    --muted: #242424;
-    /* Soften secondary text so chrome feels calmer than pure paper-2 */
-    --muted-foreground: color-mix(in srgb, #f4f4ff 68%, #212121);
-    --accent: #242424;
-    --accent-foreground: #f8f8ff;
-    --destructive: #f4f4ff;
-    --destructive-foreground: #212121;
-    /* Quiet hairlines — readable without bright white strips */
-    --border: color-mix(in srgb, #f8f8ff 8%, #212121);
-    --input: #242424;
-    --ring: color-mix(in srgb, #f4f4ff 55%, #212121);
-    --rail: #212121;
-    --panel: #242424;
+    /* Absolute palette (dark: ink = surface, paper = text) */
+    --ink: #131413;
+    --ink-2: #1c1d1c;
+    --paper: #fafaf9;
+    --paper-2: #c8c8c6;
+    --background: #131413;
+    --foreground: #fafaf9;
+    --card: #1c1d1c;
+    --card-foreground: #fafaf9;
+    --primary: #fafaf9;
+    --primary-foreground: #131413;
+    --secondary: #1c1d1c;
+    --secondary-foreground: #fafaf9;
+    --muted: #1c1d1c;
+    --muted-foreground: color-mix(in srgb, #fafaf9 62%, #131413);
+    --accent: #1c1d1c;
+    --accent-foreground: #fafaf9;
+    --destructive: #c8c8c6;
+    --destructive-foreground: #131413;
+    --border: color-mix(in srgb, #fafaf9 9%, #131413);
+    --input: #1c1d1c;
+    --ring: color-mix(in srgb, #fafaf9 50%, #131413);
+    --rail: #131413;
+    --panel: #1c1d1c;
     --radius: 10px;
     --motion: 180ms;
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-    --scrollbar: color-mix(in srgb, #f8f8ff 16%, transparent);
-    --scrollbar-hover: color-mix(in srgb, #f8f8ff 28%, transparent);
+    --scrollbar: color-mix(in srgb, #fafaf9 16%, transparent);
+    --scrollbar-hover: color-mix(in srgb, #fafaf9 28%, transparent);
   }
 
+  /* Light: remaps ink/paper roles so existing bg-ink / text-paper classes invert cleanly */
   [data-theme="light"] {
-    --ink: #212121;
-    --ink-2: #242424;
-    --paper: #f8f8ff;
-    --paper-2: #f4f4ff;
-    --background: #f8f8ff;
-    --foreground: #212121;
-    --card: #f4f4ff;
-    --card-foreground: #212121;
-    --primary: #212121;
-    --primary-foreground: #f8f8ff;
-    --secondary: #f4f4ff;
-    --secondary-foreground: #212121;
-    --muted: #f4f4ff;
-    --muted-foreground: color-mix(in srgb, #212121 55%, #f4f4ff);
-    --accent: #f4f4ff;
-    --accent-foreground: #212121;
-    --destructive: #242424;
-    --destructive-foreground: #f8f8ff;
-    --border: color-mix(in srgb, #212121 10%, #f8f8ff);
-    --input: #f4f4ff;
-    --ring: color-mix(in srgb, #212121 45%, #f8f8ff);
-    --rail: #f8f8ff;
-    --panel: #f4f4ff;
+    --ink: #fafaf9;
+    --ink-2: #f0f0ee;
+    --paper: #131413;
+    --paper-2: #5c5d5c;
+    --background: #fafaf9;
+    --foreground: #131413;
+    --card: #ffffff;
+    --card-foreground: #131413;
+    --primary: #131413;
+    --primary-foreground: #fafaf9;
+    --secondary: #f0f0ee;
+    --secondary-foreground: #131413;
+    --muted: #f0f0ee;
+    --muted-foreground: color-mix(in srgb, #131413 52%, #fafaf9);
+    --accent: #f0f0ee;
+    --accent-foreground: #131413;
+    --destructive: #5c5d5c;
+    --destructive-foreground: #fafaf9;
+    --border: color-mix(in srgb, #131413 10%, #fafaf9);
+    --input: #ffffff;
+    --ring: color-mix(in srgb, #131413 40%, #fafaf9);
+    --rail: #fafaf9;
+    --panel: #ffffff;
     --radius: 10px;
     --motion: 180ms;
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-    --scrollbar: color-mix(in srgb, #212121 18%, transparent);
-    --scrollbar-hover: color-mix(in srgb, #212121 30%, transparent);
+    --scrollbar: color-mix(in srgb, #131413 16%, transparent);
+    --scrollbar-hover: color-mix(in srgb, #131413 28%, transparent);
   }
 
   * {

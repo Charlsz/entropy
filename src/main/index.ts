@@ -82,7 +82,7 @@ function createWindow(): BrowserWindow {
     minWidth: 720,
     minHeight: 520,
     show: true,
-    backgroundColor: "#212121",
+    backgroundColor: "#131413",
     ...(icon ? { icon } : {}),
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     webPreferences: {

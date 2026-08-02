@@ -3,10 +3,10 @@ version: alpha
 name: Entropy
 description: Local-first desktop workspace — Obsidian writing × Refern organization, four-color restrained system.
 colors:
-  ink: "#212121"
-  ink-2: "#242424"
-  paper: "#F8F8FF"
-  paper-2: "#F4F4FF"
+  ink: "#131413"
+  ink-2: "#1C1D1C"
+  paper: "#FAFAF9"
+  paper-2: "#C8C8C6"
   background: "{colors.ink}"
   foreground: "{colors.paper}"
   surface: "{colors.ink-2}"
@@ -87,14 +87,14 @@ Prefer **whitespace over borders**. Prefer **icons over text** when the action i
 
 | Token | Hex | Role |
 |---|---|---|
-| **ink** | `#212121` | Main background, chrome, primary surface |
-| **ink-2** | `#242424` | Secondary surface — panels, cards, hover fills, borders |
-| **paper** | `#F8F8FF` | Primary text / icons on ink |
-| **paper-2** | `#F4F4FF` | Secondary text, muted labels, focus ring, soft emphasis |
+| **ink** | `#131413` | Main background, chrome, primary surface (dark theme) |
+| **ink-2** | `#1C1D1C` | Secondary surface — panels, cards, hover fills |
+| **paper** | `#FAFAF9` | Primary text / icons on ink (dark theme) |
+| **paper-2** | `#C8C8C6` | Secondary text, muted labels, soft emphasis |
 
 Destructive actions use the same palette (e.g. quieter paper-2 styling), never a separate danger color.
 
-Light theme, if present, must still use only these four hex values — remap roles, do not invent new ones.
+Light theme remaps ink/paper roles (surfaces become paper tones, text becomes ink) via CSS variables — do not invent new hex values beyond derived mixes of these four.
 
 ## Typography
 

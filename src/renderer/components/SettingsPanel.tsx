@@ -34,7 +34,7 @@ export function SettingsPanel() {
               <div className="min-w-0">
                 <p className="text-sm text-foreground">Dark theme</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Uses Entropy’s four-color ink and paper palette.
+                  Ink surfaces and paper text — toggles Entropy’s light and dark maps.
                 </p>
               </div>
               <Switch

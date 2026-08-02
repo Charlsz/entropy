@@ -27,7 +27,7 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 - **Local-first filesystem:** Entropy never imports, copies, or claims ownership of user files. Workspace holds notes/settings; media stays in place. Indexes/caches are rebuildable only.
 - **No automatic file moves/copies:** User-initiated rename/move/trash/reveal only.
 - **No accounts / no required cloud:** Offline must work fully. AI is optional and never a dependency.
-- **Color palette only:** `#212121`, `#242424`, `#F8F8FF`, `#F4F4FF`. No other brand/accent/status colors (including no red for delete).
+- **Color palette only:** `#131413`, `#1C1D1C`, `#FAFAF9`, `#C8C8C6`. No other brand/accent/status colors (including no red for delete). Light theme remaps ink/paper roles via CSS variables.
 - **Typography:** One UI font — **Geist** (or Inter only if Geist is unavailable). No display/decorative font pairing.
 - **Notebook:** Writing is primary. Editor occupies most of the screen. **Do not add a Linked / extra side panel in the notebook window.** Context lives in the optional right panel only, and that panel **hides when empty**. Support inline media while editing.
 - **File Inventory:** Nav | Content View | Treemap. Starts at Home; does not auto-scan every drive. Content View keeps the Refern-like grid language.

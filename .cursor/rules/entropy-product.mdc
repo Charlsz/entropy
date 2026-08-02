@@ -16,7 +16,7 @@ Follow those documents over habit or generic SaaS patterns.
 ## Non-negotiables (summary)
 
 - Local-first: never own/import user files; workspace = folder; notes = Markdown on disk
-- Palette only: `#212121` `#242424` `#F8F8FF` `#F4F4FF`
+- Palette only: `#131413` `#1C1D1C` `#FAFAF9` `#C8C8C6`
 - Font: Geist only (Inter solely if Geist unavailable)
 - Notebook: no Linked/extra side panels; context panel hides when empty
 - Layout: three columns, resizable, remembered, collapsible
