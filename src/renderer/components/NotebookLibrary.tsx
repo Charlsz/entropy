@@ -372,7 +372,14 @@ function LibraryRow({
           {entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "")}
         </span>
       </button>
-      <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+      <div
+        className={cn(
+          "shrink-0 transition-opacity duration-150",
+          selected
+            ? "opacity-100"
+            : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+        )}
+      >
         <ItemActionsMenu
           label={entry.name}
           actions={buildEntryActions({

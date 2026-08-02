@@ -418,10 +418,19 @@ export function NotebookPage({
                         >
                           {note.name.replace(/\.md$/i, "")}
                         </button>
-                        <ItemActionsMenu
-                          label={note.name.replace(/\.md$/i, "")}
-                          actions={noteActions(note)}
-                        />
+                        <div
+                          className={cn(
+                            "shrink-0 transition-opacity duration-150",
+                            activePath === note.path
+                              ? "opacity-100"
+                              : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                          )}
+                        >
+                          <ItemActionsMenu
+                            label={note.name.replace(/\.md$/i, "")}
+                            actions={noteActions(note)}
+                          />
+                        </div>
                       </>
                     )}
                   </li>
