@@ -47,9 +47,12 @@ export function NotebookPage({
   const [statusRight, setStatusRight] = useState("");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [movingPath, setMovingPath] = useState<string | null>(null);
+  const [contextUseful, setContextUseful] = useState(false);
+  const [contextEpoch, setContextEpoch] = useState(0);
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const activePathRef = useRef<string | null>(null);
-  const ensureNotePromiseRef = useRef<Promise<string> | null>(null);
+  const insertedReferenceKeysRef = useRef(new Set<string>());
+  const [queuedReference, setQueuedReference] = useState<string | null>(null);
   activePathRef.current = activePath;
 
   const refreshNotes = useCallback(async (options?: { quiet?: boolean }) => {
@@ -91,71 +94,115 @@ export function NotebookPage({
     onPendingNoteHandled?.();
   }, [pendingNote, onPendingNoteHandled]);
 
+  const buildReferenceMarkdown = useCallback(async (notePath: string, entry: FileEntry) => {
+    const noteDir = await window.entropy.fs.dirname(notePath);
+    const relative = await window.entropy.fs.relative(noteDir, entry.path);
+    const hrefSource =
+      /[:/\\]/.test(relative) && relative.includes(":")
+        ? entry.path
+        : relative || entry.path;
+    const href = hrefSource.replace(/\\/g, "/");
+    const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
+    return isLiveEmbedExt(entry.extension)
+      ? `![${label}](${/\s/.test(href) ? `<${href}>` : href})`
+      : `[${label}](${/\s/.test(href) ? `<${href}>` : href})`;
+  }, []);
+
+  const insertReferenceIntoOpenNote = useCallback(
+    async (notePath: string, entry: FileEntry, signal: { cancelled: boolean }) => {
+      if (entry.path === notePath) {
+        setError("Pick another note or file to reference.");
+        setPreviewEntry(entry);
+        return false;
+      }
+
+      setOpenPaths((prev) => (prev.includes(notePath) ? prev : [...prev, notePath]));
+      setActivePath(notePath);
+
+      const insert = await buildReferenceMarkdown(notePath, entry);
+      const deadline = Date.now() + 4000;
+      while (!signal.cancelled && Date.now() < deadline) {
+        if (editorRef.current?.insertMarkdown(insert)) {
+          setPreviewEntry(entry);
+          setContextEpoch((value) => value + 1);
+          setError(null);
+          return true;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 50));
+      }
+      return false;
+    },
+    [buildReferenceMarkdown],
+  );
+
+  /** Prefer the open note, then last Notebook note, then last recent .md that still exists. */
+  const resolveTargetNote = useCallback(async (): Promise<string | null> => {
+    const candidates = [
+      activePathRef.current,
+      workspace.activeNotePath,
+      ...workspace.recentFiles,
+    ].filter((path): path is string => Boolean(path));
+
+    const seen = new Set<string>();
+    for (const candidate of candidates) {
+      const key = candidate.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!/\.md$/i.test(candidate)) continue;
+      try {
+        if (!(await window.entropy.fs.exists(candidate))) continue;
+        const stat = await window.entropy.fs.stat(candidate);
+        if (!stat.isDirectory) return candidate;
+      } catch {
+        // Missing or unreadable — try the next candidate.
+      }
+    }
+    return null;
+  }, [workspace.activeNotePath, workspace.recentFiles]);
+
   useEffect(() => {
     if (!pendingReference) return;
-    let cancelled = false;
+    const signal = { cancelled: false };
 
     void (async () => {
       try {
         const entry = await window.entropy.fs.stat(pendingReference);
-        if (cancelled) return;
+        if (signal.cancelled) return;
 
-        let notePath = activePathRef.current;
+        // Always surface the file in the Notebook context panel.
+        setPreviewEntry(entry);
+        setError(null);
+
+        let notePath = await resolveTargetNote();
+        if (signal.cancelled) return;
+
         if (!notePath) {
-          if (!ensureNotePromiseRef.current) {
-            ensureNotePromiseRef.current = (async () => {
-              const created = await window.entropy.fs.createNote(workspace.path);
-              setOpenPaths((prev) => (prev.includes(created) ? prev : [...prev, created]));
-              setActivePath(created);
-              void refreshNotes({ quiet: true });
-              return created;
-            })().finally(() => {
-              ensureNotePromiseRef.current = null;
-            });
-          }
-          notePath = await ensureNotePromiseRef.current;
-          if (cancelled) return;
-        }
+          const existing = await window.entropy.fs.listMarkdown(workspace.path);
+          if (signal.cancelled) return;
 
-        if (entry.path === notePath) {
-          setError("Pick another note or file to reference.");
-          setPreviewEntry(entry);
-          onPendingReferenceHandled?.();
-          return;
-        }
-
-        const noteDir = await window.entropy.fs.dirname(notePath);
-        const relative = await window.entropy.fs.relative(noteDir, entry.path);
-        const hrefSource =
-          /[:/\\]/.test(relative) && relative.includes(":")
-            ? entry.path
-            : relative || entry.path;
-        const href = hrefSource.replace(/\\/g, "/");
-        const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
-        const insert = isLiveEmbedExt(entry.extension)
-          ? `![${label}](${/\s/.test(href) ? `<${href}>` : href})`
-          : `[${label}](${/\s/.test(href) ? `<${href}>` : href})`;
-
-        // Wait for the editor tab to finish loading (especially after auto-create).
-        const deadline = Date.now() + 4000;
-        while (!cancelled && Date.now() < deadline) {
-          if (editorRef.current?.insertMarkdown(insert)) {
-            setPreviewEntry(entry);
-            setContextEpoch((value) => value + 1);
-            setError(null);
+          if (existing.length === 0) {
+            // Only create a note when the workspace has no Markdown at all.
+            notePath = await window.entropy.fs.createNote(workspace.path);
+            if (signal.cancelled) return;
+            void refreshNotes({ quiet: true });
+          } else {
+            // Notes exist but none is "current" — panel only until the user opens one.
+            setQueuedReference(entry.path);
             onPendingReferenceHandled?.();
             return;
           }
-          await new Promise((resolve) => window.setTimeout(resolve, 50));
         }
 
-        if (!cancelled) {
+        setQueuedReference(null);
+        const inserted = await insertReferenceIntoOpenNote(notePath, entry, signal);
+        if (signal.cancelled) return;
+        if (!inserted) {
           setError("Could not add the file to the open note. Try again.");
-          setPreviewEntry(entry);
-          onPendingReferenceHandled?.();
+          setQueuedReference(entry.path);
         }
+        onPendingReferenceHandled?.();
       } catch (err) {
-        if (!cancelled) {
+        if (!signal.cancelled) {
           setError(err instanceof Error ? err.message : "Failed to reference file");
           onPendingReferenceHandled?.();
         }
@@ -163,9 +210,55 @@ export function NotebookPage({
     })();
 
     return () => {
+      signal.cancelled = true;
+    };
+  }, [
+    pendingReference,
+    onPendingReferenceHandled,
+    resolveTargetNote,
+    insertReferenceIntoOpenNote,
+    refreshNotes,
+    workspace.path,
+  ]);
+
+  // Deferred insert: user opened a note after Add to Workspace showed panel-only.
+  useEffect(() => {
+    if (!queuedReference || !activePath) return;
+    const filePath = queuedReference;
+    const notePath = activePath;
+    const key = `${filePath}\0${notePath}`;
+    if (insertedReferenceKeysRef.current.has(key)) {
+      setQueuedReference(null);
+      return;
+    }
+
+    // Claim before await so Strict Mode cannot insert the same pair twice.
+    insertedReferenceKeysRef.current.add(key);
+    setQueuedReference(null);
+    setContextEpoch((value) => value + 1);
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const entry = await window.entropy.fs.stat(filePath);
+        if (cancelled) return;
+        const inserted = await insertReferenceIntoOpenNote(notePath, entry, {
+          cancelled: false,
+        });
+        if (cancelled) return;
+        if (!inserted) {
+          insertedReferenceKeysRef.current.delete(key);
+          setQueuedReference(filePath);
+        }
+      } catch {
+        insertedReferenceKeysRef.current.delete(key);
+      }
+    })();
+
+    return () => {
       cancelled = true;
     };
-  }, [pendingReference, onPendingReferenceHandled, refreshNotes, workspace.path]);
+  }, [queuedReference, activePath, insertReferenceIntoOpenNote]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -360,9 +453,6 @@ export function NotebookPage({
         excerpt: "",
       }));
 
-  const [contextUseful, setContextUseful] = useState(false);
-  const [contextEpoch, setContextEpoch] = useState(0);
-
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -379,6 +469,7 @@ export function NotebookPage({
       <NoteContextPanel
         notePath={activePath}
         previewEntry={previewEntry}
+        contentEpoch={contextEpoch}
         onOpenNote={openNote}
         onReference={(entry) => void referenceEntry(entry)}
         onClearPreview={() => setPreviewEntry(null)}

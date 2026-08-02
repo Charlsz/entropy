@@ -12,6 +12,7 @@ import {
 } from "./ui/tooltip";
 import { useWorkspace } from "../state/useWorkspace";
 import { rewriteMarkdownHref } from "../lib/linkRepair";
+import { samePath } from "../lib/platform";
 
 const LINK_RE = /\!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
 
@@ -47,6 +48,8 @@ interface NoteLink {
 interface NoteContextPanelProps {
   notePath: string | null;
   previewEntry?: FileEntry | null;
+  /** Bump after editor inserts/rewrites so "In this note" refreshes. */
+  contentEpoch?: number;
   onOpenNote: (path: string) => void;
   onReference?: (entry: FileEntry) => void;
   onClearPreview?: () => void;
@@ -56,6 +59,7 @@ interface NoteContextPanelProps {
 export function NoteContextPanel({
   notePath,
   previewEntry = null,
+  contentEpoch = 0,
   onOpenNote,
   onReference,
   onClearPreview,
@@ -94,6 +98,32 @@ export function NoteContextPanel({
         setRawContent(content);
         const found = await resolveLinks(notePath, content);
         if (cancelled) return;
+
+        // After Add to Workspace, keep the preview listed under "In this note"
+        // even before the note save lands on disk.
+        if (previewEntry && contentEpoch > 0) {
+          let linked = false;
+          for (const link of found) {
+            if (link.missing) continue;
+            try {
+              const absolute = await resolveAbsolute(notePath, link.href);
+              if (samePath(absolute, previewEntry.path)) {
+                linked = true;
+                break;
+              }
+            } catch {
+              // Keep scanning.
+            }
+          }
+          if (!linked) {
+            found.push({
+              label: previewEntry.name,
+              href: previewEntry.path,
+              missing: false,
+            });
+          }
+        }
+
         setLinks(found);
         const words = content.trim() ? content.trim().split(/\s+/).length : 0;
         setMeta({
@@ -116,7 +146,7 @@ export function NoteContextPanel({
     return () => {
       cancelled = true;
     };
-  }, [notePath, workspace.path]);
+  }, [notePath, workspace.path, contentEpoch, previewEntry]);
 
   const preview = previewEntry ?? linkedFile;
   const canGoBack = Boolean(preview);
