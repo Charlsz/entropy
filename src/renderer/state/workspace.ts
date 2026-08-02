@@ -55,9 +55,9 @@ export interface WorkspaceState {
 }
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 18,
-  main: 68,
-  context: 14,
+  sidebar: 20,
+  main: 58,
+  context: 22,
 };
 
 export const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
@@ -148,6 +148,15 @@ export function normalizePanelLayout(
     return { ...DEFAULT_PANEL_LAYOUT };
   }
 
+  // Prior crushed defaults (context too thin / main oversized).
+  if (
+    fallback === DEFAULT_PANEL_LAYOUT &&
+    ((Math.abs(sidebar - 18) < 0.5 && Math.abs(main - 68) < 0.5 && Math.abs(context - 14) < 0.5) ||
+      (Math.abs(sidebar - 16) < 0.5 && Math.abs(main - 66) < 0.5 && Math.abs(context - 18) < 0.5))
+  ) {
+    return { ...DEFAULT_PANEL_LAYOUT };
+  }
+
   // Migrate Inventory from earlier three-column defaults → Content | Treemap.
   if (
     fallback === DEFAULT_INVENTORY_PANEL_LAYOUT &&
@@ -157,7 +166,51 @@ export function normalizePanelLayout(
     return { ...DEFAULT_INVENTORY_PANEL_LAYOUT };
   }
 
+  if (fallback === DEFAULT_PANEL_LAYOUT) {
+    return clampNotebookPanelLayout({ sidebar, main, context });
+  }
+
   return { sidebar, main, context };
+}
+
+/** Keep Notebook columns in a readable band so sides never crush the editor. */
+export function clampNotebookPanelLayout(layout: PanelLayoutState): PanelLayoutState {
+  const SIDEBAR_MIN = 16;
+  const SIDEBAR_MAX = 28;
+  const CONTEXT_MIN = 18;
+  const CONTEXT_MAX = 30;
+  const MAIN_MIN = 44;
+
+  let sidebar = clamp(layout.sidebar, SIDEBAR_MIN, SIDEBAR_MAX);
+  let context = clamp(layout.context, CONTEXT_MIN, CONTEXT_MAX);
+  let main = 100 - sidebar - context;
+
+  if (main < MAIN_MIN) {
+    const deficit = MAIN_MIN - main;
+    const sideRoom = Math.max(0, sidebar - SIDEBAR_MIN);
+    const contextRoom = Math.max(0, context - CONTEXT_MIN);
+    const room = sideRoom + contextRoom;
+    if (room <= 0) return { ...DEFAULT_PANEL_LAYOUT };
+    const takeSide = deficit * (sideRoom / room);
+    const takeContext = deficit - takeSide;
+    sidebar = Math.max(SIDEBAR_MIN, sidebar - takeSide);
+    context = Math.max(CONTEXT_MIN, context - takeContext);
+    main = 100 - sidebar - context;
+  }
+
+  return {
+    sidebar: roundPanel(sidebar),
+    main: roundPanel(main),
+    context: roundPanel(context),
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundPanel(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 export function layoutFromGroup(

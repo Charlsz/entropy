@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { Group, Panel, Separator, type Layout } from "react-resizable-panels";
 import { useWorkspace } from "../state/useWorkspace";
-import { layoutFromGroup } from "../state/workspace";
+import { clampNotebookPanelLayout, layoutFromGroup } from "../state/workspace";
 import { cn } from "../lib/utils";
 
 interface ThreeColumnLayoutProps {
@@ -29,13 +29,12 @@ export function ThreeColumnLayout({
   const { workspace, updateSettings } = useWorkspace();
   const hasSidebar = sidebar != null;
   const hasContext = context != null;
-  const layoutKey = `${id}-${hasSidebar ? "side" : "noside"}-${hasContext ? "context" : "main"}`;
   const isInventory = variant === "inventory";
   const savedLayout = isInventory
     ? workspace.settings.inventoryPanelLayout
-    : workspace.settings.panelLayout;
+    : clampNotebookPanelLayout(workspace.settings.panelLayout);
 
-  // Percentages only — panels grow/shrink with the window instead of locking to px.
+  // Percentages only for defaults — pixel min/max keep sides from crushing the editor.
   const defaultLayout = useMemo<Layout>(() => {
     if (!hasSidebar && hasContext) {
       const total = (savedLayout.main + savedLayout.context) || 100;
@@ -60,6 +59,9 @@ export function ThreeColumnLayout({
     };
   }, [hasContext, hasSidebar, savedLayout]);
 
+  // Bump when constraint model changes so crushed saved layouts remount cleanly.
+  const layoutKey = `${id}-v2-${hasSidebar ? "side" : "noside"}-${hasContext ? "context" : "main"}`;
+
   return (
     <Group
       id={layoutKey}
@@ -75,22 +77,27 @@ export function ThreeColumnLayout({
             main: layout.main ?? savedLayout.main,
             context: layout.context ?? savedLayout.context,
           };
-          if (isInventory) updateSettings({ inventoryPanelLayout: next });
-          else updateSettings({ panelLayout: next });
+          if (isInventory) {
+            updateSettings({ inventoryPanelLayout: next });
+          } else {
+            const context = Math.min(30, Math.max(18, next.context));
+            const main = 100 - context;
+            updateSettings({ panelLayout: { sidebar: 0, main, context } });
+          }
           return;
         }
         const next = layoutFromGroup(layout, hasContext, savedLayout);
         if (isInventory) updateSettings({ inventoryPanelLayout: next });
-        else updateSettings({ panelLayout: next });
+        else updateSettings({ panelLayout: clampNotebookPanelLayout(next) });
       }}
     >
       {hasSidebar ? (
         <>
           <Panel
             id="sidebar"
-            className={cn("min-h-0 bg-ink-2", isInventory ? "min-w-0" : "min-w-[10rem]")}
-            minSize={isInventory ? "14%" : "12%"}
-            maxSize={isInventory ? "28%" : "32%"}
+            className={cn("min-h-0 bg-ink-2", isInventory ? "min-w-0" : "min-w-[13.75rem]")}
+            minSize={isInventory ? "14%" : 220}
+            maxSize={isInventory ? "28%" : 320}
             defaultSize={`${defaultLayout.sidebar}%`}
           >
             <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{sidebar}</div>
@@ -102,7 +109,7 @@ export function ThreeColumnLayout({
       <Panel
         id="main"
         className="min-h-0 min-w-0 bg-background"
-        minSize={isInventory ? "32%" : "28%"}
+        minSize={isInventory ? "32%" : 400}
         defaultSize={`${defaultLayout.main}%`}
       >
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{main}</div>
@@ -113,9 +120,9 @@ export function ThreeColumnLayout({
           <Separator className="entropy-resize-handle" />
           <Panel
             id="context"
-            className={cn("min-h-0 bg-ink-2", isInventory ? "min-w-0" : "min-w-[10rem]")}
-            minSize={isInventory ? "16%" : "10%"}
-            maxSize={isInventory ? "55%" : "28%"}
+            className={cn("min-h-0 bg-ink-2", isInventory ? "min-w-0" : "min-w-[15rem]")}
+            minSize={isInventory ? "16%" : 240}
+            maxSize={isInventory ? "55%" : 360}
             defaultSize={`${defaultLayout.context}%`}
           >
             <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{context}</div>
