@@ -18,19 +18,19 @@ function normalizeHref(raw: string): string {
   return trimmed;
 }
 
-/** Prefer a single calm line when alt text duplicates the path/filename. */
+/** Prefer the real filename for linked / embedded files. */
 function linkDisplayLabel(link: NoteLink): string {
   const hrefBase = link.href.split(/[/\\]/).pop() ?? link.href;
   const label = link.label.trim();
-  const looksUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(hrefBase) ||
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(label);
-  if (looksUuid) {
-    const ext = hrefBase.includes(".") ? hrefBase.slice(hrefBase.lastIndexOf(".") + 1) : "";
-    return ext ? `Embedded ${ext.toUpperCase()}` : "Embedded file";
+  if (
+    label &&
+    label !== link.href &&
+    label !== hrefBase &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(label)
+  ) {
+    return label;
   }
-  if (!label || label === link.href || label === hrefBase) return hrefBase;
-  return label;
+  return hrefBase;
 }
 
 interface NoteLink {

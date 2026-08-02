@@ -627,7 +627,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   onChange={handleChange}
                   onKeyDown={handleKeyDown}
                   onDropPath={(path) => void insertFileLink(path)}
-                  onOpenLocal={onOpenLocalPath}
                 />
               </div>
             ) : null}
