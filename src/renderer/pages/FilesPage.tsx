@@ -379,13 +379,15 @@ export function FilesPage() {
   }
 
   function requestDelete(entry: FileEntry): void {
+    // Single files: trash immediately — Undo bar is enough. Folders still confirm.
+    if (!entry.isDirectory) {
+      void trashEntry(entry);
+      return;
+    }
     setPendingDelete(entry);
   }
 
-  async function confirmDelete(): Promise<void> {
-    const entry = pendingDelete;
-    if (!entry) return;
-    setPendingDelete(null);
+  async function trashEntry(entry: FileEntry): Promise<void> {
     try {
       await window.entropy.fs.remove(entry.path);
       setUndoTrash({ paths: [entry.path], name: entry.name, size: entry.size });
@@ -394,6 +396,13 @@ export function FilesPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete");
     }
+  }
+
+  async function confirmDelete(): Promise<void> {
+    const entry = pendingDelete;
+    if (!entry) return;
+    setPendingDelete(null);
+    await trashEntry(entry);
   }
 
   async function undoTrashAction(): Promise<void> {
@@ -617,9 +626,9 @@ export function FilesPage() {
 
                   {!loading && visible.length === 0 ? (
                     <Empty className="py-16">
-                      <EmptyTitle>This folder is empty</EmptyTitle>
+                      <EmptyTitle>Nothing here yet</EmptyTitle>
                       <EmptyDescription>
-                        Drop files here or open another folder from the path above.
+                        Drop files into this folder, or pick another path above.
                       </EmptyDescription>
                     </Empty>
                   ) : null}
@@ -690,11 +699,11 @@ export function FilesPage() {
       ) : null}
       <ConfirmDialog
         open={pendingDelete !== null}
-        title={`Move to ${osTrashName()}?`}
+        title={`Move folder to ${osTrashName()}?`}
         description={
           pendingDelete
-            ? `Move "${pendingDelete.name}" to ${osTrashName()}? Recover from there until it is emptied.`
-            : `Move this item to ${osTrashName()}?`
+            ? `Move "${pendingDelete.name}" and everything inside to ${osTrashName()}? You can recover from there until it is emptied.`
+            : `Move this folder to ${osTrashName()}?`
         }
         confirmLabel={`Move to ${osTrashName()}`}
         onConfirm={() => void confirmDelete()}

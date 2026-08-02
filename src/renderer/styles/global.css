@@ -395,6 +395,8 @@
   min-width: 0;
   flex-direction: column;
   gap: 0.5rem;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 14rem;
 }
 
 .entropy-gallery-face {

@@ -409,8 +409,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   if (openPaths.length === 0) {
     return (
       <Empty>
-        <EmptyTitle>Notebook</EmptyTitle>
-        <EmptyDescription>Select a note or create a new markdown file.</EmptyDescription>
+        <EmptyTitle>Open a note</EmptyTitle>
+        <EmptyDescription>Pick one from the list, or create a new note with +.</EmptyDescription>
       </Empty>
     );
   }

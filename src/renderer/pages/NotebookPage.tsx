@@ -373,7 +373,7 @@ export function NotebookPage({
               {!loading && visibleNotes.length === 0 ? (
                 <Empty className="py-6">
                   <EmptyTitle>No notes yet</EmptyTitle>
-                  <EmptyDescription>Create a markdown note to start writing.</EmptyDescription>
+                  <EmptyDescription>Use + to create a note and start writing.</EmptyDescription>
                 </Empty>
               ) : null}
 
