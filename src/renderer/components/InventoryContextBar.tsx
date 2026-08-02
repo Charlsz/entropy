@@ -4,15 +4,8 @@ import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { FILE_KIND_LABEL, kindFromExtension } from "../../shared/fileKinds";
 import { Button } from "./ui/button";
 import { useWorkspace } from "../state/useWorkspace";
-
 import { samePath, osRevealLabel } from "../lib/platform";
-
-function formatBytes(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
+import { formatBytes } from "../lib/format";
 
 function formatRelative(value: number): string {
   const delta = Date.now() - value;
@@ -29,6 +22,7 @@ interface InventoryContextBarProps {
   scanRoot: string;
   onOpenExternal: () => void;
   onReveal: () => void;
+  onOpenNote?: (notePath: string) => void;
 }
 
 export function InventoryContextBar({
@@ -36,6 +30,7 @@ export function InventoryContextBar({
   scanRoot,
   onOpenExternal,
   onReveal,
+  onOpenNote,
 }: InventoryContextBarProps) {
   const { workspace } = useWorkspace();
   const [noteRefs, setNoteRefs] = useState<NoteSearchResult[]>([]);
@@ -75,16 +70,7 @@ export function InventoryContextBar({
     : FILE_KIND_LABEL[kindFromExtension(selected.extension)]?.replace(/s$/, "") || "File";
   const lastOpened = workspace.recentFiles.some((path) => samePath(path, selected.path))
     ? "Recently"
-    : "Never in Entropy";
-  const hint = selected.isDirectory
-    ? null
-    : loading
-      ? null
-      : noteRefs.length > 0
-        ? `In ${noteRefs.length} note${noteRefs.length === 1 ? "" : "s"} — review before deleting`
-        : duplicates.length > 0
-          ? `Has ${duplicates.length} duplicate cop${duplicates.length === 1 ? "y" : "ies"} — one may be removable`
-          : null;
+    : "Never";
 
   return (
     <aside
@@ -101,30 +87,32 @@ export function InventoryContextBar({
             <span className="mx-1.5 text-border">·</span>
             {formatBytes(selected.size)}
             <span className="mx-1.5 text-border">·</span>
-            Modified {formatRelative(selected.modifiedAt)}
+            {formatRelative(selected.modifiedAt)}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            className="entropy-context-action h-7 gap-1.5 px-2 text-xs"
+            size="icon"
+            className="h-7 w-7"
+            aria-label={osRevealLabel()}
+            title={osRevealLabel()}
             onClick={onReveal}
           >
             <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
-            <span className="entropy-context-action-label">{osRevealLabel()}</span>
           </Button>
           {!selected.isDirectory ? (
             <Button
               type="button"
               variant="ghost"
-              size="sm"
-              className="entropy-context-action h-7 gap-1.5 px-2 text-xs"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Open"
+              title="Open"
               onClick={onOpenExternal}
             >
               <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
-              <span className="entropy-context-action-label">Open</span>
             </Button>
           ) : null}
         </div>
@@ -132,35 +120,34 @@ export function InventoryContextBar({
 
       {!selected.isDirectory ? (
         <dl className="entropy-context-meta mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
-          <Meta label="Last opened" value={lastOpened} />
-          <Meta label="In notes" value={loading ? "…" : String(noteRefs.length)} />
-          <Meta label="Duplicate copies" value={loading ? "…" : String(duplicates.length)} />
-          <Meta
-            label="Location"
-            value={selected.path.split(/[/\\]/).slice(-2, -1)[0] || "—"}
-          />
+          <Meta label="Opened" value={lastOpened} />
+          <Meta label="Duplicates" value={loading ? "…" : String(duplicates.length)} />
         </dl>
-      ) : (
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          Open the folder to inspect its files, or use Storage to zoom into its size map.
-        </p>
-      )}
+      ) : null}
 
       {!loading && noteRefs.length > 0 ? (
-        <ul className="mt-2 flex flex-wrap gap-1.5">
-          {noteRefs.slice(0, 4).map((note) => (
-            <li
-              key={note.path}
-              className="rounded-md bg-background/50 px-1.5 py-0.5 text-[10px] text-muted-foreground"
-              title={note.path}
-            >
-              {note.name.replace(/\.md$/i, "")}
-            </li>
-          ))}
-          {noteRefs.length > 4 ? (
-            <li className="px-1 text-[10px] text-muted-foreground">+{noteRefs.length - 4} more</li>
-          ) : null}
-        </ul>
+        <div className="mt-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Referenced in
+          </p>
+          <ul className="mt-1.5 flex flex-wrap gap-1.5">
+            {noteRefs.slice(0, 6).map((note) => (
+              <li key={note.path}>
+                <button
+                  type="button"
+                  className="rounded-md bg-background/50 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-ink-2 hover:text-foreground"
+                  title={note.path}
+                  onClick={() => onOpenNote?.(note.path)}
+                >
+                  {note.name.replace(/\.md$/i, "")}
+                </button>
+              </li>
+            ))}
+            {noteRefs.length > 6 ? (
+              <li className="px-1 text-[10px] text-muted-foreground">+{noteRefs.length - 6}</li>
+            ) : null}
+          </ul>
+        </div>
       ) : null}
 
       {!loading && duplicates.length > 0 ? (
@@ -172,8 +159,6 @@ export function InventoryContextBar({
           ))}
         </ul>
       ) : null}
-
-      {hint ? <p className="mt-2 text-[10px] leading-snug text-muted-foreground">{hint}</p> : null}
     </aside>
   );
 }

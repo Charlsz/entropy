@@ -38,18 +38,12 @@ import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isPreviewableEntry } from "../lib/media";
+import { formatBytes, sizeShare } from "../lib/format";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isUnderPath, osTrashName, samePath } from "../lib/platform";
 import { cn } from "../lib/utils";
 
 type SortKey = "name" | "modified" | "size" | "type";
-
-function formatBytes(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  if (size < 1024 * 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`;
-  return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`;
-}
 
 function pickRoot(folder: string, roots: InventoryRoot[]): InventoryRoot | null {
   const matches = roots.filter((root) => isUnderPath(folder, root.path));
@@ -65,6 +59,8 @@ export function FilesPage() {
     setInventoryRoot,
     bootstrapInventoryFolder,
     visitPreview,
+    openNote,
+    updateSettings,
   } = useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
   const [scanRoot, setScanRoot] = useState<string>("");
@@ -621,6 +617,7 @@ export function FilesPage() {
                   scanRoot={scanRoot}
                   onOpenExternal={() => void window.entropy.fs.openExternal(selected.path)}
                   onReveal={() => void revealPath(selected.path)}
+                  onOpenNote={openNote}
                 />
               ) : null}
             </section>
