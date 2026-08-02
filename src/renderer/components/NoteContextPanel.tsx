@@ -164,9 +164,6 @@ export function NoteContextPanel({
             <p className="mt-2 truncate text-sm text-paper" title={meta.title}>
               {meta.title}
             </p>
-            <p className="mt-1 text-xs text-paper-2">
-              {meta.words} words · {meta.chars} characters
-            </p>
           </>
         ) : null}
         {notePath && !meta ? <p className="mt-2 text-xs text-muted-foreground">Loading…</p> : null}
@@ -234,7 +231,7 @@ export function NoteContextPanel({
             </section>
           ) : notePath ? (
           <p className="text-xs text-muted-foreground">
-            Drag a library file here, or click a link.
+            Drag a file here, or click a link.
           </p>
           ) : null}
 

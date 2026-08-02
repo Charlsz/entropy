@@ -34,19 +34,23 @@
     --secondary: #242424;
     --secondary-foreground: #f8f8ff;
     --muted: #242424;
-    --muted-foreground: #f4f4ff;
+    /* Soften secondary text so chrome feels calmer than pure paper-2 */
+    --muted-foreground: color-mix(in srgb, #f4f4ff 68%, #212121);
     --accent: #242424;
     --accent-foreground: #f8f8ff;
     --destructive: #f4f4ff;
     --destructive-foreground: #212121;
-    --border: #242424;
+    /* Quiet hairlines — readable without bright white strips */
+    --border: color-mix(in srgb, #f8f8ff 8%, #212121);
     --input: #242424;
-    --ring: #f4f4ff;
+    --ring: color-mix(in srgb, #f4f4ff 55%, #212121);
     --rail: #212121;
     --panel: #242424;
     --radius: 10px;
     --motion: 180ms;
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --scrollbar: color-mix(in srgb, #f8f8ff 16%, transparent);
+    --scrollbar-hover: color-mix(in srgb, #f8f8ff 28%, transparent);
   }
 
   [data-theme="light"] {
@@ -63,19 +67,21 @@
     --secondary: #f4f4ff;
     --secondary-foreground: #212121;
     --muted: #f4f4ff;
-    --muted-foreground: #242424;
+    --muted-foreground: color-mix(in srgb, #212121 55%, #f4f4ff);
     --accent: #f4f4ff;
     --accent-foreground: #212121;
     --destructive: #242424;
     --destructive-foreground: #f8f8ff;
-    --border: #f4f4ff;
+    --border: color-mix(in srgb, #212121 10%, #f8f8ff);
     --input: #f4f4ff;
-    --ring: #242424;
+    --ring: color-mix(in srgb, #212121 45%, #f8f8ff);
     --rail: #f8f8ff;
     --panel: #f4f4ff;
     --radius: 10px;
     --motion: 180ms;
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --scrollbar: color-mix(in srgb, #212121 18%, transparent);
+    --scrollbar-hover: color-mix(in srgb, #212121 30%, transparent);
   }
 
   * {
@@ -91,6 +97,39 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     user-select: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: var(--scrollbar);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-hover);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   button,
@@ -512,7 +551,7 @@
 .entropy-breadcrumb {
   overflow-x: auto;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--paper-2) 35%, transparent) transparent;
+  scrollbar-color: var(--scrollbar) transparent;
 }
 
 .entropy-breadcrumb::-webkit-scrollbar {
@@ -521,7 +560,7 @@
 
 .entropy-breadcrumb::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: color-mix(in srgb, var(--paper-2) 35%, transparent);
+  background: var(--scrollbar);
 }
 
 .entropy-context-bar {
@@ -598,7 +637,7 @@
   width: 1px !important;
   flex: 0 0 1px !important;
   margin: 0;
-  background: color-mix(in srgb, var(--border) 80%, transparent);
+  background: var(--border);
 }
 
 /* Wider invisible hit target without eating layout space. */
@@ -611,7 +650,12 @@
 
 .entropy-resize-handle:hover,
 .entropy-resize-handle[data-separator][data-resize-handle-active] {
-  background: var(--paper-2);
+  background: color-mix(in srgb, var(--paper) 22%, var(--ink));
+}
+
+[data-theme="light"] .entropy-resize-handle:hover,
+[data-theme="light"] .entropy-resize-handle[data-separator][data-resize-handle-active] {
+  background: color-mix(in srgb, var(--ink) 18%, var(--paper));
 }
 
 @media (prefers-reduced-motion: reduce) {

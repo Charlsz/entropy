@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FilePlus2 } from "lucide-react";
+import { FilePlus2, FileText } from "lucide-react";
 import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { MarkdownEditor, type MarkdownEditorHandle } from "../pages/MarkdownEditor";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
-import { Separator } from "../components/ui/separator";
 import { StatusBar } from "../components/StatusBar";
 import { ItemActionsMenu } from "../components/ItemActionsMenu";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -16,7 +15,6 @@ import { Skeleton } from "../components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { NoteContextPanel } from "../components/NoteContextPanel";
-import { NotebookLibrary } from "../components/NotebookLibrary";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isLiveEmbedExt } from "../lib/markdownBlocks";
@@ -339,15 +337,15 @@ export function NotebookPage({
         persistLayout={workspace.currentSection === "notebook"}
         context={context}
         sidebar={
-          <div className="flex h-full min-h-0 flex-col">
-            <div className="flex items-center justify-between gap-2 px-4 py-3">
+          <div className="entropy-notes-sidebar flex h-full min-h-0 flex-col">
+            <div className="flex items-center gap-2 px-3 py-3">
               <Input
                 type="search"
                 placeholder="Filter notes…"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 aria-label="Filter notes"
-                className="h-8 min-w-0 flex-1 bg-background"
+                className="h-8 min-w-0 flex-1 border-transparent bg-background/80"
               />
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -366,108 +364,87 @@ export function NotebookPage({
               </Tooltip>
             </div>
 
-            <ScrollArea className="min-h-0 flex-1 px-3">
-              {error ? <p className="px-2 pb-2 text-sm text-paper-2">{error}</p> : null}
-              {loading ? (
-                <div className="space-y-2 px-2">
-                  <Skeleton className="h-9 w-full" />
-                  <Skeleton className="h-9 w-full" />
-                  <Skeleton className="h-9 w-full" />
-                </div>
-              ) : null}
-              {!loading && visibleNotes.length === 0 ? (
-                <Empty className="py-6">
-                  <EmptyTitle>No notes yet</EmptyTitle>
-                  <EmptyDescription>Use + to create a note and start writing.</EmptyDescription>
-                </Empty>
-              ) : null}
+            <ScrollArea className="min-h-0 flex-1" type="hover">
+              <div className="px-2 pb-4">
+                {error ? <p className="px-2 pb-2 text-sm text-muted-foreground">{error}</p> : null}
+                {loading ? (
+                  <div className="space-y-1 px-1">
+                    <Skeleton className="h-9 w-full rounded-lg" />
+                    <Skeleton className="h-9 w-full rounded-lg" />
+                    <Skeleton className="h-9 w-full rounded-lg" />
+                  </div>
+                ) : null}
+                {!loading && visibleNotes.length === 0 ? (
+                  <Empty className="py-10">
+                    <EmptyTitle>No notes yet</EmptyTitle>
+                    <EmptyDescription>Use + to create a note and start writing.</EmptyDescription>
+                  </Empty>
+                ) : null}
 
-              <ul className="space-y-1 pb-3">
-                {visibleNotes.map((note) => (
-                  <li
-                    key={note.path}
-                    className={cn(
-                      "group flex min-w-0 items-center gap-1 rounded-md pr-1",
-                      activePath === note.path && "bg-accent",
-                    )}
-                  >
-                    {renaming === note.path ? (
-                      <Input
-                        className="h-9 min-w-0"
-                        value={renameValue}
-                        autoFocus
-                        onChange={(event) => setRenameValue(event.target.value)}
-                        onBlur={() => void commitRename(note.path)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") void commitRename(note.path);
-                          if (event.key === "Escape") setRenaming(null);
-                        }}
-                      />
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="min-w-0 flex-1 truncate px-3 py-2.5 text-left text-sm text-foreground"
-                          onClick={() => openNote(note.path)}
-                          onDoubleClick={() =>
-                            startRename({
-                              name: note.name,
-                              path: note.path,
-                              isDirectory: false,
-                              size: 0,
-                              modifiedAt: 0,
-                              extension: ".md",
-                            })
-                          }
-                        >
-                          {note.name.replace(/\.md$/i, "")}
-                        </button>
-                        <div className="shrink-0">
-                          <ItemActionsMenu
-                            label={note.name.replace(/\.md$/i, "")}
-                            actions={noteActions(note)}
+                <ul className="space-y-0.5" aria-label="Notes">
+                  {visibleNotes.map((note) => {
+                    const title = note.name.replace(/\.md$/i, "");
+                    const active = activePath === note.path;
+                    return (
+                      <li key={note.path}>
+                        {renaming === note.path ? (
+                          <Input
+                            className="h-9"
+                            value={renameValue}
+                            autoFocus
+                            onChange={(event) => setRenameValue(event.target.value)}
+                            onBlur={() => void commitRename(note.path)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") void commitRename(note.path);
+                              if (event.key === "Escape") setRenaming(null);
+                            }}
                           />
-                        </div>
-                      </>
-                    )}
-                  </li>
-                ))}
-              </ul>
-
-              <Separator className="my-2" />
-
-              <NotebookLibrary
-                rootPath={workspace.path}
-                rootName={workspace.name}
-                selectedPath={previewEntry?.path ?? null}
-                renamingPath={renaming}
-                renameValue={renameValue}
-                onRenameValueChange={setRenameValue}
-                onCommitRename={(path) => void commitRename(path)}
-                onCancelRename={() => setRenaming(null)}
-                onSelect={setPreviewEntry}
-                onReference={(entry) => void referenceEntry(entry)}
-                onOpenNote={openNote}
-                onRename={(entry) => startRename(entry)}
-                onCopyPath={(entry) => void copyPath(entry.path)}
-                onReveal={(entry) => void revealPath(entry.path)}
-                onMoveTo={(entry) => setMovingPath(entry.path)}
-                onDelete={(entry) => {
-                  if (entry.extension.toLowerCase() === ".md" && !entry.isDirectory) {
-                    requestDelete(entry.path);
-                    return;
-                  }
-                  void (async () => {
-                    try {
-                      await window.entropy.fs.remove(entry.path);
-                      if (previewEntry?.path === entry.path) setPreviewEntry(null);
-                      await refreshNotes();
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : "Failed to delete");
-                    }
-                  })();
-                }}
-              />
+                        ) : (
+                          <div
+                            className={cn(
+                              "group flex min-w-0 items-center gap-0.5 rounded-lg pr-0.5",
+                              active && "bg-background",
+                            )}
+                          >
+                            <button
+                              type="button"
+                              className={cn(
+                                "flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2 text-left",
+                                active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                              )}
+                              onClick={() => openNote(note.path)}
+                              onDoubleClick={() =>
+                                startRename({
+                                  name: note.name,
+                                  path: note.path,
+                                  isDirectory: false,
+                                  size: 0,
+                                  modifiedAt: 0,
+                                  extension: ".md",
+                                })
+                              }
+                            >
+                              <FileText
+                                className="h-3.5 w-3.5 shrink-0 opacity-55"
+                                strokeWidth={1.75}
+                              />
+                              <span className="min-w-0 flex-1 truncate text-sm">{title}</span>
+                            </button>
+                            <div className="shrink-0">
+                              <ItemActionsMenu label={title} actions={noteActions(note)} />
+                            </div>
+                          </div>
+                        )}
+                        {note.excerpt ? (
+                          <p className="line-clamp-2 px-9 pb-1.5 text-[11px] text-muted-foreground/80">
+                            {note.excerpt}
+                          </p>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             </ScrollArea>
           </div>
         }
