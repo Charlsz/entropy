@@ -67,7 +67,7 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-8">
+    <div className="flex min-h-0 flex-1 items-center justify-center bg-background px-4 py-6 sm:p-8">
       <div className="w-full max-w-lg space-y-8">
         <div className="space-y-3 text-center">
           <img
@@ -76,7 +76,7 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
             className="mx-auto h-12 w-12 object-contain"
             draggable={false}
           />
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             Choose a workspace
           </h1>
           <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">
@@ -85,7 +85,7 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
           </p>
         </div>
 
-        <div className="flex justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
           <Button type="button" disabled={busy} onClick={() => void handleOpen()}>
             Open Workspace
           </Button>

@@ -28,7 +28,7 @@ export function TrashUndoBar({
       className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-ink-2 px-4 py-2.5"
       role="status"
     >
-      <div className="min-w-0 text-sm">
+      <div className="min-w-0 flex-1 basis-[12rem] text-sm">
         <p className="font-medium text-foreground">
           {count === "1" ? "Moved" : `${count} moved`} to {trash}
           {reclaimLabel ? (

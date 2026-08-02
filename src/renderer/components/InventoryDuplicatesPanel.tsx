@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Copy, FolderOpen, Square, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Bookmark,
+  Copy,
+  Filter,
+  FolderOpen,
+  Square,
+  Trash2,
+} from "lucide-react";
 import type {
   DuplicateGroup,
   DuplicateScanProgress,
@@ -15,7 +23,7 @@ import { ScrollArea } from "./ui/scroll-area";
 import { ConfirmDialog, DeletePreviewLists } from "./ConfirmDialog";
 import { TrashUndoBar } from "./TrashUndoBar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { osTrashName } from "../lib/platform";
+import { osRevealLabel, osTrashName } from "../lib/platform";
 import { cn } from "../lib/utils";
 import { formatBytes } from "../lib/format";
 
@@ -36,6 +44,13 @@ function formatEta(ms: number | null | undefined): string | null {
 
 function baseName(filePath: string): string {
   return filePath.split(/[/\\]/).pop() ?? filePath;
+}
+
+/** Last segments for dense lists; full path stays in title. */
+function shortPath(filePath: string): string {
+  const parts = filePath.split(/[/\\]/).filter(Boolean);
+  if (parts.length <= 3) return parts.join(" › ");
+  return `… › ${parts.slice(-3).join(" › ")}`;
 }
 
 interface InventoryDuplicatesPanelProps {
@@ -183,63 +198,74 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background" aria-label="Duplicate files">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          aria-label="Back to folder"
-          onClick={() => {
-            if (running) void window.entropy.duplicates.cancel();
-            onBack();
-          }}
-        >
-          <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-            <p className="truncate text-sm font-medium text-foreground">Exact duplicates</p>
-          </div>
-          <p className="truncate text-sm text-muted-foreground" title={rootPath}>
-            {rootPath}
-          </p>
-        </div>
-        {running ? (
+    <div
+      className="entropy-duplicates flex h-full min-h-0 flex-col bg-background"
+      aria-label="Duplicate files"
+    >
+      <div className="border-b border-border px-4 py-3">
+        <div className="entropy-readable flex items-center gap-2">
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            className="h-8 shrink-0 gap-1.5 px-2 text-xs"
-            onClick={stopScan}
-          >
-            <Square className="h-3 w-3" strokeWidth={1.75} />
-            Stop
-          </Button>
-        ) : phase === "done" ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 shrink-0 px-2 text-xs"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            aria-label="Back to folder"
             onClick={() => {
-              setResult(null);
-              setLiveGroups([]);
-              setProgress(null);
-              setError(null);
-              setLogLines([]);
-              setPhase("choose");
+              if (running) void window.entropy.duplicates.cancel();
+              onBack();
             }}
           >
-            Change scope
+            <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
           </Button>
-        ) : null}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+              <p className="truncate text-sm font-medium text-foreground">Exact duplicates</p>
+            </div>
+            <p className="truncate text-sm text-muted-foreground" title={rootPath}>
+              {rootPath}
+            </p>
+          </div>
+          {running ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 px-2 text-xs"
+              onClick={stopScan}
+            >
+              <Square className="h-3 w-3" strokeWidth={1.75} />
+              Stop
+            </Button>
+          ) : phase === "done" ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  aria-label="Change scope"
+                  onClick={() => {
+                    setResult(null);
+                    setLiveGroups([]);
+                    setProgress(null);
+                    setError(null);
+                    setLogLines([]);
+                    setPhase("choose");
+                  }}
+                >
+                  <Filter className="h-4 w-4" strokeWidth={1.75} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Change scope</TooltipContent>
+            </Tooltip>
+          ) : null}
+        </div>
       </div>
 
       {phase === "choose" ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-10">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10 sm:px-6">
           <div className="w-full max-w-md space-y-6">
             <div className="space-y-1 text-center">
               <h2 className="text-sm font-medium text-foreground">What should we scan?</h2>
@@ -282,34 +308,37 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       ) : (
         <>
           <div className="border-b border-border px-4 py-3">
-            <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate text-muted-foreground">
-                {progress?.message ?? (running ? `Scanning ${scopeLabel}…` : error ? error : "Ready")}
-              </span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">
-                {etaLabel ? `${etaLabel} · ` : ""}
-                {percent}%
-              </span>
+            <div className="entropy-readable">
+              <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate text-muted-foreground">
+                  {progress?.message ??
+                    (running ? `Scanning ${scopeLabel}…` : error ? error : "Ready")}
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {etaLabel ? `${etaLabel} · ` : ""}
+                  {percent}%
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-ink-2">
+                <div className="h-full rounded-full bg-paper-2" style={{ width: `${percent}%` }} />
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {scopeLabel}
+                {groups.length > 0
+                  ? ` · ${groups.length} group${groups.length === 1 ? "" : "s"}`
+                  : ""}
+              </p>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-ink-2">
-              <div className="h-full rounded-full bg-paper-2" style={{ width: `${percent}%` }} />
-            </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Exact duplicates only · scope {scopeLabel}
-              {groups.length > 0
-                ? ` · ${groups.length} group${groups.length === 1 ? "" : "s"} so far`
-                : ""}
-            </p>
           </div>
 
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_7.5rem]">
+          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(5rem,7.5rem)]">
             <ScrollArea className="min-h-0">
-              <div className="space-y-3 p-4">
+              <div className="entropy-readable space-y-3 px-4 py-4">
                 {!running && !error && groups.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center">
                     <p className="text-sm text-foreground">No exact duplicates found</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Try another scope, or every matching file under this location is unique.
+                      Try another scope — every matching file here is unique.
                     </p>
                   </div>
                 ) : null}
@@ -347,23 +376,25 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
             </ScrollArea>
 
             <div className="border-t border-border bg-ink/40 px-4 py-2">
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Activity
-              </p>
-              <ScrollArea className="h-[5.25rem]">
-                <div className="space-y-0.5 font-mono text-[11px] text-muted-foreground">
-                  {logLines.length === 0 ? (
-                    <p>Waiting…</p>
-                  ) : (
-                    logLines.map((line, index) => (
-                      <p key={`${index}-${line}`} className="truncate">
-                        {line}
-                      </p>
-                    ))
-                  )}
-                  <div ref={logEndRef} />
-                </div>
-              </ScrollArea>
+              <div className="entropy-readable">
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Activity
+                </p>
+                <ScrollArea className="h-[4.5rem]">
+                  <div className="space-y-0.5 font-mono text-[11px] text-muted-foreground">
+                    {logLines.length === 0 ? (
+                      <p>Waiting…</p>
+                    ) : (
+                      logLines.map((line, index) => (
+                        <p key={`${index}-${line}`} className="truncate">
+                          {line}
+                        </p>
+                      ))
+                    )}
+                    <div ref={logEndRef} />
+                  </div>
+                </ScrollArea>
+              </div>
             </div>
           </div>
 
@@ -378,19 +409,19 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
                 onDismiss={() => setUndoBatch(null)}
               />
             ) : null}
-            <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm text-muted-foreground">
-              <span className="min-w-0 truncate">
-                {result
-                  ? `${result.filesScanned.toLocaleString()} files · ${formatDuration(result.durationMs)}`
-                  : progress
-                    ? `${progress.filesSeen.toLocaleString()} seen`
-                    : rootPath}
-              </span>
-              <span className="shrink-0">
-                {groups.length > 0
-                  ? `${groups.length} groups`
-                  : ""}
-              </span>
+            <div className="px-4 py-2 text-sm text-muted-foreground">
+              <div className="entropy-readable flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate">
+                  {result
+                    ? `${result.filesScanned.toLocaleString()} files · ${formatDuration(result.durationMs)}`
+                    : progress
+                      ? `${progress.filesSeen.toLocaleString()} seen`
+                      : rootPath}
+                </span>
+                <span className="shrink-0">
+                  {groups.length > 0 ? `${groups.length} groups` : ""}
+                </span>
+              </div>
             </div>
           </div>
         </>
@@ -434,78 +465,94 @@ function DuplicateGroupCard({
   const extras = group.copies.filter((copy) => copy.path !== group.keepPath);
 
   return (
-    <article className="rounded-xl border border-border bg-ink-2 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 space-y-0.5">
-          <h2 className="text-sm font-medium text-foreground">
-            {group.copies.length} copies · {formatBytes(group.size)} each
-          </h2>
-          <p className="text-[11px] text-muted-foreground">Identical contents</p>
-        </div>
+    <article className="rounded-xl border border-border bg-ink-2 p-3 sm:p-4">
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="min-w-0 text-sm font-medium text-foreground">
+          {group.copies.length} × {formatBytes(group.size)}
+        </h2>
         {extras.length > 0 ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                className="h-7 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground"
+                size="icon"
+                className="h-7 w-7 shrink-0 text-muted-foreground"
                 disabled={disabled}
-                aria-label={`Delete other copies · ${formatBytes(group.recoverableBytes)}`}
+                aria-label={`Delete other copies · reclaim ${formatBytes(group.recoverableBytes)}`}
                 onClick={onDeleteOtherCopies}
               >
                 <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                {formatBytes(group.recoverableBytes)}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Delete other copies</TooltipContent>
+            <TooltipContent>
+              Delete other copies · {formatBytes(group.recoverableBytes)}
+            </TooltipContent>
           </Tooltip>
         ) : null}
       </div>
-      <ul className="mt-3 space-y-1.5">
+      <ul className="mt-2.5 space-y-1">
         {group.copies.map((copy) => {
           const keep = copy.path === group.keepPath;
           return (
-            <li key={copy.path} className="flex items-center gap-2 text-sm">
+            <li key={copy.path} className="entropy-dup-row flex items-center gap-1.5 text-sm">
               <span
                 className={cn(
-                  "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium",
-                  keep ? "bg-background text-foreground" : "text-muted-foreground",
+                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                  keep ? "bg-background text-foreground" : "text-muted-foreground/50",
                 )}
+                title={keep ? "Keep" : "Copy"}
+                aria-label={keep ? "Keep" : "Copy"}
               >
-                {keep ? "Keep" : "Copy"}
+                {keep ? (
+                  <Bookmark className="h-3.5 w-3.5" strokeWidth={1.75} />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
+                )}
               </span>
               <button
                 type="button"
-                className="min-w-0 flex-1 truncate text-left text-muted-foreground hover:text-foreground"
+                className="entropy-dup-path min-w-0 flex-1 truncate text-left text-muted-foreground hover:text-foreground"
                 title={copy.path}
                 onClick={() => void window.entropy.fs.reveal(copy.path)}
               >
-                {copy.path}
+                {shortPath(copy.path)}
               </button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                aria-label="Reveal in folder"
-                onClick={() => void window.entropy.fs.reveal(copy.path)}
-              >
-                <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
-              </Button>
-              {!keep ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 text-muted-foreground"
-                  aria-label={`Delete ${baseName(copy.path)}`}
-                  disabled={disabled}
-                  onClick={() => onDeleteCopy(copy.path)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </Button>
-              ) : null}
+              <div className="entropy-dup-actions flex shrink-0 items-center">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      aria-label={osRevealLabel()}
+                      onClick={() => void window.entropy.fs.reveal(copy.path)}
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{osRevealLabel()}</TooltipContent>
+                </Tooltip>
+                {!keep ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground"
+                        aria-label={`Delete ${baseName(copy.path)}`}
+                        disabled={disabled}
+                        onClick={() => onDeleteCopy(copy.path)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete</TooltipContent>
+                  </Tooltip>
+                ) : null}
+              </div>
             </li>
           );
         })}

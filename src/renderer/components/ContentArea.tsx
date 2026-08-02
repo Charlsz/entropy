@@ -76,8 +76,8 @@ function SettingsPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <main className="min-h-0 flex-1 overflow-auto p-8" aria-label="Settings">
-        <div className="mx-auto max-w-lg space-y-5">
+      <main className="min-h-0 flex-1 overflow-auto px-4 py-6 sm:p-8" aria-label="Settings">
+        <div className="mx-auto w-full max-w-lg space-y-5">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-paper">Settings</h1>
             <p className="mt-1 break-all text-xs text-paper-2">{workspace.path}</p>

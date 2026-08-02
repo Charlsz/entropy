@@ -441,6 +441,40 @@
   min-width: 0;
 }
 
+/* Readable column for list/detail modes — gallery stays full-bleed. */
+.entropy-readable {
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+.entropy-readable-wide {
+  width: 100%;
+  max-width: 56rem;
+  margin-inline: auto;
+}
+
+.entropy-duplicates {
+  container-type: inline-size;
+  container-name: duplicates;
+}
+
+@container duplicates (max-width: 30rem) {
+  .entropy-dup-row {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+  }
+
+  .entropy-dup-path {
+    flex: 1 1 100%;
+    order: 3;
+  }
+
+  .entropy-dup-actions {
+    margin-left: auto;
+  }
+}
+
 /* Inventory chrome adapts to the Content column, not the whole window. */
 .entropy-inventory-chrome {
   container-type: inline-size;
