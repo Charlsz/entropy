@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, FolderOpen, Link2, Trash2, X } from "lucide-react";
+import { ArrowLeft, ExternalLink, FolderOpen, Link2, Trash2, X } from "lucide-react";
 import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { FilePreview } from "../pages/FilePreview";
 import { EntryPreview } from "./EntryPreview";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "./ui/tooltip";
 import { useWorkspace } from "../state/useWorkspace";
 import { rewriteMarkdownHref } from "../lib/linkRepair";
 
@@ -61,7 +66,13 @@ export function NoteContextPanel({
   const [rawContent, setRawContent] = useState("");
   const [backlinks, setBacklinks] = useState<NoteSearchResult[]>([]);
   const [linkedFile, setLinkedFile] = useState<FileEntry | null>(null);
+  const [previewHistory, setPreviewHistory] = useState<FileEntry[]>([]);
   const [meta, setMeta] = useState<{ title: string; words: number; chars: number } | null>(null);
+
+  useEffect(() => {
+    setPreviewHistory([]);
+    setLinkedFile(null);
+  }, [notePath]);
 
   useEffect(() => {
     if (!notePath) {
@@ -69,6 +80,7 @@ export function NoteContextPanel({
       setRawContent("");
       setBacklinks([]);
       setLinkedFile(null);
+      setPreviewHistory([]);
       setMeta(null);
       return;
     }
@@ -107,7 +119,25 @@ export function NoteContextPanel({
   }, [notePath, workspace.path]);
 
   const preview = previewEntry ?? linkedFile;
+  const canGoBack = Boolean(preview);
   const broken = links.filter((link) => link.missing);
+
+  function dismissPreview(): void {
+    setPreviewHistory([]);
+    setLinkedFile(null);
+    onClearPreview?.();
+  }
+
+  function goBack(): void {
+    if (previewHistory.length > 0) {
+      const prev = previewHistory[previewHistory.length - 1]!;
+      setPreviewHistory((h) => h.slice(0, -1));
+      setLinkedFile(prev);
+      onClearPreview?.();
+      return;
+    }
+    dismissPreview();
+  }
 
   async function openLinked(href: string): Promise<void> {
     if (!notePath) return;
@@ -121,6 +151,10 @@ export function NoteContextPanel({
       if (info.extension.toLowerCase() === ".md") {
         onOpenNote(info.path);
         return;
+      }
+      const current = previewEntry ?? linkedFile;
+      if (current && current.path !== info.path) {
+        setPreviewHistory((h) => [...h, current]);
       }
       setLinkedFile(info);
       onClearPreview?.();
@@ -160,6 +194,23 @@ export function NoteContextPanel({
   return (
     <div className="entropy-note-context flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="entropy-chrome-bar shrink-0 border-b border-border">
+        {canGoBack ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                aria-label="Back"
+                onClick={goBack}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Back</TooltipContent>
+          </Tooltip>
+        ) : null}
         <div className="min-w-0 flex-1">
           <p
             className="truncate text-sm font-medium leading-none text-foreground"
@@ -211,14 +262,14 @@ export function NoteContextPanel({
                 >
                   <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
                 </Button>
-                {onClearPreview && previewEntry ? (
+                {preview ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
                     aria-label="Clear selection"
-                    onClick={onClearPreview}
+                    onClick={dismissPreview}
                   >
                     <X className="h-3.5 w-3.5" strokeWidth={1.75} />
                   </Button>
