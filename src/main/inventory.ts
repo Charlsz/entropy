@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { InventoryRoot, TreemapFileLeaf, TreemapScanResult, GlobalSearchHit } from "../shared/types";
 import { kindFromExtension } from "../shared/fileKinds";
+import { mapPool } from "./asyncPool";
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -32,7 +33,10 @@ const SKIP_DIRS = new Set([
   "My Videos",
 ]);
 
+const MEASURE_CONCURRENCY = 6;
 const sizeCache = new Map<string, { size: number; mtimeMs: number }>();
+/** Coalesce concurrent measurePath calls (measureChildren ∥ scanTreemapLevel). */
+const measureInflight = new Map<string, Promise<number>>();
 
 async function pushIfDir(
   roots: InventoryRoot[],
@@ -58,26 +62,30 @@ export async function listMountRoots(): Promise<InventoryRoot[]> {
   const seen = new Set<string>();
 
   if (process.platform === "win32") {
-    for (const letter of "CDEFGHIJKLMNOPQRSTUVWXYZ") {
-      await pushIfDir(roots, seen, {
-        id: `drive-${letter.toLowerCase()}`,
-        name: `${letter}:`,
-        path: `${letter}:\\`,
-      });
-    }
+    await Promise.all(
+      Array.from("CDEFGHIJKLMNOPQRSTUVWXYZ").map((letter) =>
+        pushIfDir(roots, seen, {
+          id: `drive-${letter.toLowerCase()}`,
+          name: `${letter}:`,
+          path: `${letter}:\\`,
+        }),
+      ),
+    );
     return roots;
   }
 
   if (process.platform === "darwin") {
     try {
       const entries = await fs.readdir("/Volumes");
-      for (const name of entries) {
-        await pushIfDir(roots, seen, {
-          id: `volume-${name}`,
-          name,
-          path: path.join("/Volumes", name),
-        });
-      }
+      await Promise.all(
+        entries.map((name) =>
+          pushIfDir(roots, seen, {
+            id: `volume-${name}`,
+            name,
+            path: path.join("/Volumes", name),
+          }),
+        ),
+      );
     } catch {
       // No Volumes folder.
     }
@@ -89,13 +97,15 @@ export async function listMountRoots(): Promise<InventoryRoot[]> {
   for (const base of [path.join("/media", user), "/media", "/mnt"]) {
     try {
       const entries = await fs.readdir(base);
-      for (const name of entries) {
-        await pushIfDir(roots, seen, {
-          id: `mount-${base}-${name}`,
-          name,
-          path: path.join(base, name),
-        });
-      }
+      await Promise.all(
+        entries.map((name) =>
+          pushIfDir(roots, seen, {
+            id: `mount-${base}-${name}`,
+            name,
+            path: path.join(base, name),
+          }),
+        ),
+      );
     } catch {
       // Skip inaccessible mount bases.
     }
@@ -155,6 +165,17 @@ export function getHomePath(): string {
 /** Recursive size; caches by path+mtime. Skips heavy/system dirs. */
 export async function measurePath(targetPath: string): Promise<number> {
   const normalized = path.normalize(targetPath);
+  const inflight = measureInflight.get(normalized);
+  if (inflight) return inflight;
+
+  const job = measurePathUncached(normalized).finally(() => {
+    measureInflight.delete(normalized);
+  });
+  measureInflight.set(normalized, job);
+  return job;
+}
+
+async function measurePathUncached(normalized: string): Promise<number> {
   let info;
   try {
     info = await fs.lstat(normalized);
@@ -177,7 +198,6 @@ export async function measurePath(targetPath: string): Promise<number> {
     return 0;
   }
 
-  let total = 0;
   let dirents;
   try {
     dirents = await fs.readdir(normalized, { withFileTypes: true });
@@ -185,16 +205,20 @@ export async function measurePath(targetPath: string): Promise<number> {
     return 0;
   }
 
-  for (const dirent of dirents) {
-    if (dirent.name === "." || dirent.name === "..") continue;
-    if (SKIP_DIRS.has(dirent.name)) continue;
-    const child = path.join(normalized, dirent.name);
+  const children = dirents
+    .filter((dirent) => dirent.name !== "." && dirent.name !== ".." && !SKIP_DIRS.has(dirent.name))
+    .map((dirent) => path.join(normalized, dirent.name));
+
+  const sizes = await mapPool(children, MEASURE_CONCURRENCY, async (child) => {
     try {
-      total += await measurePath(child);
+      return await measurePath(child);
     } catch {
-      // Ignore inaccessible children.
+      return 0;
     }
-  }
+  });
+
+  let total = 0;
+  for (const size of sizes) total += size;
 
   sizeCache.set(normalized, { size: total, mtimeMs: info.mtimeMs });
   return total;
@@ -210,19 +234,33 @@ export async function measureChildren(
     return [];
   }
 
-  const results: Array<{ path: string; size: number }> = [];
-  for (const dirent of dirents) {
-    if (dirent.name === "." || dirent.name === "..") continue;
-    if (SKIP_DIRS.has(dirent.name)) continue;
-    const child = path.join(dirPath, dirent.name);
-    const size = await measurePath(child);
-    results.push({ path: child, size });
-  }
-  return results;
+  const children = dirents
+    .filter((dirent) => dirent.name !== "." && dirent.name !== ".." && !SKIP_DIRS.has(dirent.name))
+    .map((dirent) => path.join(dirPath, dirent.name));
+
+  return mapPool(children, MEASURE_CONCURRENCY, async (child) => ({
+    path: child,
+    size: await measurePath(child),
+  }));
 }
 
 export function clearSizeCache(): void {
   sizeCache.clear();
+}
+
+/** Drop cached sizes under a folder after an external change. */
+export function invalidateSizeCacheUnder(dirPath: string): void {
+  const prefix = path.normalize(dirPath).replace(/[/\\]+$/, "").toLowerCase();
+  for (const key of [...sizeCache.keys()]) {
+    const normalized = key.replace(/[/\\]+$/, "").toLowerCase();
+    if (
+      normalized === prefix ||
+      normalized.startsWith(`${prefix}\\`) ||
+      normalized.startsWith(`${prefix}/`)
+    ) {
+      sizeCache.delete(key);
+    }
+  }
 }
 
 const MAX_SCAN_DEPTH = 14;
@@ -329,18 +367,23 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
   }
 
   const collected: TreemapFileLeaf[] = [];
-  for (const dirent of dirents) {
-    if (dirent.name === "." || dirent.name === "..") continue;
-    if (SKIP_DIRS.has(dirent.name)) continue;
-    if (dirent.name.startsWith(".")) continue;
+  const direntsFiltered = dirents.filter(
+    (dirent) =>
+      dirent.name !== "." &&
+      dirent.name !== ".." &&
+      !SKIP_DIRS.has(dirent.name) &&
+      !dirent.name.startsWith("."),
+  );
+
+  await mapPool(direntsFiltered, MEASURE_CONCURRENCY, async (dirent) => {
     const fullPath = path.join(root, dirent.name);
     try {
       const link = await fs.lstat(fullPath);
-      if (link.isSymbolicLink()) continue;
+      if (link.isSymbolicLink()) return;
 
       if (link.isDirectory()) {
         const size = await measurePath(fullPath);
-        if (size <= 0) continue;
+        if (size <= 0) return;
         collected.push({
           path: fullPath,
           name: dirent.name,
@@ -351,10 +394,10 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
           location,
           modifiedAt: link.mtimeMs,
         });
-        continue;
+        return;
       }
 
-      if (!link.isFile() || link.size <= 0) continue;
+      if (!link.isFile() || link.size <= 0) return;
       const extension = path.extname(dirent.name).toLowerCase();
       collected.push({
         path: fullPath,
@@ -369,7 +412,7 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
     } catch {
       // Skip inaccessible entries.
     }
-  }
+  });
 
   let totalSize = 0;
   for (const file of collected) totalSize += file.size;
