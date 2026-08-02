@@ -61,7 +61,9 @@ export function Titlebar({
         ) : null}
       </div>
 
-      <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center">
+      {/* Above side chrome (z-10) so the switcher receives clicks; overlay stays
+          pointer-events-none so empty gutters remain window-drag regions. */}
+      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
         <div className="pointer-events-auto max-w-[min(16rem,40vw)] px-2">
           {workspaceName && onCloseWorkspace ? (
             <button
