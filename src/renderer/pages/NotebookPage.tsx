@@ -327,6 +327,7 @@ export function NotebookPage({
         onOpenNote={openNote}
         onReference={(entry) => void referenceEntry(entry)}
         onClearPreview={() => setPreviewEntry(null)}
+        onRewriteHref={(from, to) => editorRef.current?.rewriteHref(from, to)}
       />
     ) : null;
 

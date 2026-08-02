@@ -212,6 +212,10 @@ function registerIpc(): void {
     const win = BrowserWindow.fromWebContents(event.sender);
     return inventory.pickInventoryFolder(win);
   });
+  ipcMain.handle("fs:pickFile", (event, defaultPath?: string) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return inventory.pickFile(win, defaultPath);
+  });
   ipcMain.handle("fs:measurePath", (_event, targetPath: string) =>
     inventory.measurePath(targetPath),
   );

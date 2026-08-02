@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/toolti
 import { cn } from "../lib/utils";
 import { parseNoteFrontmatter } from "../lib/noteMeta";
 import { isLiveEmbedExt } from "../lib/markdownBlocks";
+import { rewriteMarkdownHref } from "../lib/linkRepair";
 import { useWorkspace } from "../state/useWorkspace";
 
 interface EditorTab {
@@ -48,6 +49,7 @@ interface MarkdownEditorProps {
 
 export interface MarkdownEditorHandle {
   insertMarkdown: (markdown: string) => void;
+  rewriteHref: (from: string, to: string | null) => void;
 }
 
 type SurfaceMode = "edit" | "preview";
@@ -304,8 +306,22 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           liveEditorRef.current?.insertMarkdown(markdown);
         });
       },
+      rewriteHref(from: string, to: string | null) {
+        const path = activePathRef.current;
+        if (!path) return;
+        const tab = tabsRef.current.find((item) => item.path === path);
+        if (!tab || tab.missing || tab.conflict) return;
+        const next = rewriteMarkdownHref(tab.content, from, to);
+        if (next === tab.content) return;
+        setTabs((prev) =>
+          prev.map((item) =>
+            item.path === path ? { ...item, content: next, conflict: false } : item,
+          ),
+        );
+        scheduleSave(path, next);
+      },
     }),
-    [],
+    [scheduleSave],
   );
 
   function handleClose(path: string): void {

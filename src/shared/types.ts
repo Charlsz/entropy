@@ -174,6 +174,7 @@ export interface EntropyApi {
     getInventoryRoots: (extraPaths?: string[]) => Promise<InventoryRoot[]>;
     listMountRoots: () => Promise<InventoryRoot[]>;
     pickInventoryFolder: () => Promise<string | null>;
+    pickFile: (defaultPath?: string) => Promise<string | null>;
     measurePath: (targetPath: string) => Promise<number>;
     measureChildren: (dirPath: string) => Promise<Array<{ path: string; size: number }>>;
     scanTreemapFiles: (dirPath: string, maxLeaves?: number) => Promise<TreemapScanResult>;
@@ -204,6 +205,7 @@ export interface AppSession {
     filesView: "list" | "grid";
     sidebarCollapsed: boolean;
     contextCollapsed: boolean;
+    inventoryTreemapCollapsed?: boolean;
     panelLayout: {
       sidebar: number;
       main: number;

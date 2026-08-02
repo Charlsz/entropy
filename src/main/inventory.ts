@@ -170,6 +170,23 @@ export async function pickInventoryFolder(
   return path.normalize(result.filePaths[0]);
 }
 
+/** Pick any file for repairing a broken note link (path stays on disk; no import). */
+export async function pickFile(
+  browserWindow: BrowserWindow | null,
+  defaultPath?: string,
+): Promise<string | null> {
+  const options: Electron.OpenDialogOptions = {
+    title: "Locate file",
+    properties: ["openFile"],
+    defaultPath: defaultPath ? path.normalize(defaultPath) : undefined,
+  };
+  const result = browserWindow
+    ? await dialog.showOpenDialog(browserWindow, options)
+    : await dialog.showOpenDialog(options);
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return path.normalize(result.filePaths[0]);
+}
+
 export function getHomePath(): string {
   return path.normalize(app.getPath("home"));
 }

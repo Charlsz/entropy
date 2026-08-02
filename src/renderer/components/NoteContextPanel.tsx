@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Link2, X } from "lucide-react";
+import { ExternalLink, FolderOpen, Link2, Trash2, X } from "lucide-react";
 import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { FilePreview } from "../pages/FilePreview";
 import { EntryPreview } from "./EntryPreview";
@@ -7,8 +7,23 @@ import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
 import { useWorkspace } from "../state/useWorkspace";
+import { rewriteMarkdownHref } from "../lib/linkRepair";
 
-const LINK_RE = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+const LINK_RE = /\!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
+
+function normalizeHref(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("<") && trimmed.endsWith(">")) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+interface NoteLink {
+  label: string;
+  href: string;
+  missing: boolean;
+}
 
 interface NoteContextPanelProps {
   notePath: string | null;
@@ -16,6 +31,7 @@ interface NoteContextPanelProps {
   onOpenNote: (path: string) => void;
   onReference?: (entry: FileEntry) => void;
   onClearPreview?: () => void;
+  onRewriteHref?: (from: string, to: string | null) => void;
 }
 
 export function NoteContextPanel({
@@ -24,9 +40,11 @@ export function NoteContextPanel({
   onOpenNote,
   onReference,
   onClearPreview,
+  onRewriteHref,
 }: NoteContextPanelProps) {
   const { workspace } = useWorkspace();
-  const [links, setLinks] = useState<Array<{ label: string; href: string }>>([]);
+  const [links, setLinks] = useState<NoteLink[]>([]);
+  const [rawContent, setRawContent] = useState("");
   const [backlinks, setBacklinks] = useState<NoteSearchResult[]>([]);
   const [linkedFile, setLinkedFile] = useState<FileEntry | null>(null);
   const [meta, setMeta] = useState<{ title: string; words: number; chars: number } | null>(null);
@@ -34,6 +52,7 @@ export function NoteContextPanel({
   useEffect(() => {
     if (!notePath) {
       setLinks([]);
+      setRawContent("");
       setBacklinks([]);
       setLinkedFile(null);
       setMeta(null);
@@ -46,12 +65,9 @@ export function NoteContextPanel({
       try {
         const content = await window.entropy.fs.readText(notePath);
         if (cancelled) return;
-        const found: Array<{ label: string; href: string }> = [];
-        LINK_RE.lastIndex = 0;
-        let match: RegExpExecArray | null;
-        while ((match = LINK_RE.exec(content)) !== null) {
-          found.push({ label: match[1], href: match[2] });
-        }
+        setRawContent(content);
+        const found = await resolveLinks(notePath, content);
+        if (cancelled) return;
         setLinks(found);
         const words = content.trim() ? content.trim().split(/\s+/).length : 0;
         setMeta({
@@ -64,6 +80,7 @@ export function NoteContextPanel({
       } catch {
         if (!cancelled) {
           setLinks([]);
+          setRawContent("");
           setBacklinks([]);
           setMeta(null);
         }
@@ -76,12 +93,12 @@ export function NoteContextPanel({
   }, [notePath, workspace.path]);
 
   const preview = previewEntry ?? linkedFile;
+  const broken = links.filter((link) => link.missing);
 
   async function openLinked(href: string): Promise<void> {
     if (!notePath) return;
     try {
-      const noteDir = await window.entropy.fs.dirname(notePath);
-      const absolute = await window.entropy.fs.join(noteDir, href);
+      const absolute = await resolveAbsolute(notePath, href);
       if (!(await window.entropy.fs.exists(absolute))) {
         setLinkedFile(null);
         return;
@@ -96,6 +113,27 @@ export function NoteContextPanel({
     } catch {
       setLinkedFile(null);
     }
+  }
+
+  async function removeLink(href: string): Promise<void> {
+    const next = rewriteMarkdownHref(rawContent, href, null);
+    setRawContent(next);
+    onRewriteHref?.(href, null);
+    if (notePath) setLinks(await resolveLinks(notePath, next));
+  }
+
+  async function locateLink(href: string): Promise<void> {
+    if (!notePath) return;
+    const picked = await window.entropy.fs.pickFile();
+    if (!picked) return;
+    const noteDir = await window.entropy.fs.dirname(notePath);
+    const relative = await window.entropy.fs.relative(noteDir, picked);
+    const nextHref = relative.replace(/\\/g, "/");
+    const wrapped = /\s/.test(nextHref) ? `<${nextHref}>` : nextHref;
+    const next = rewriteMarkdownHref(rawContent, href, wrapped);
+    setRawContent(next);
+    onRewriteHref?.(href, wrapped);
+    setLinks(await resolveLinks(notePath, next));
   }
 
   if (!notePath && !previewEntry) return null;
@@ -181,8 +219,53 @@ export function NoteContextPanel({
             </section>
           ) : notePath ? (
             <p className="text-xs text-muted-foreground">
-              Select a file in the library to preview it here, or click a link in the note.
+              Select a library file or click a link to preview it here.
             </p>
+          ) : null}
+
+          {notePath && broken.length > 0 ? (
+            <section>
+              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Missing
+              </h3>
+              <ul className="space-y-1">
+                {broken.map((link) => (
+                  <li
+                    key={`broken-${link.label}-${link.href}`}
+                    className="flex min-w-0 items-start gap-1 rounded-md px-1 py-1"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-foreground">{link.label || link.href}</p>
+                      <p className="truncate text-[11px] text-muted-foreground" title={link.href}>
+                        {link.href}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      aria-label="Locate file"
+                      title="Locate"
+                      onClick={() => void locateLink(link.href)}
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      aria-label="Remove link"
+                      title="Remove"
+                      onClick={() => void removeLink(link.href)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ) : null}
 
           {notePath ? (
@@ -202,7 +285,12 @@ export function NoteContextPanel({
                           className="flex w-full flex-col rounded-md px-2 py-2 text-left hover:bg-accent"
                           onClick={() => void openLinked(link.href)}
                         >
-                          <span className="truncate text-sm text-foreground">{link.label}</span>
+                          <span className="truncate text-sm text-foreground">
+                            {link.label || link.href}
+                            {link.missing ? (
+                              <span className="ml-1.5 text-[11px] text-muted-foreground">missing</span>
+                            ) : null}
+                          </span>
                           <span className="truncate text-[11px] text-muted-foreground">{link.href}</span>
                         </button>
                       </li>
@@ -246,4 +334,37 @@ export function NoteContextPanel({
       </ScrollArea>
     </div>
   );
+}
+
+async function resolveAbsolute(notePath: string, href: string): Promise<string> {
+  const clean = normalizeHref(href);
+  if (/^[a-zA-Z]:[\\/]/.test(clean) || clean.startsWith("\\\\") || clean.startsWith("/")) {
+    return clean;
+  }
+  const noteDir = await window.entropy.fs.dirname(notePath);
+  return window.entropy.fs.join(noteDir, clean);
+}
+
+async function resolveLinks(notePath: string, content: string): Promise<NoteLink[]> {
+  const found: NoteLink[] = [];
+  const seen = new Set<string>();
+  LINK_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = LINK_RE.exec(content)) !== null) {
+    const label = match[1];
+    const href = normalizeHref(match[2]);
+    if (/^(https?:|mailto:|data:)/i.test(href)) continue;
+    const key = `${label}\0${href}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    let missing = true;
+    try {
+      const absolute = await resolveAbsolute(notePath, href);
+      missing = !(await window.entropy.fs.exists(absolute));
+    } catch {
+      missing = true;
+    }
+    found.push({ label, href, missing });
+  }
+  return found;
 }
