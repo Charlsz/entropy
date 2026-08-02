@@ -24,14 +24,14 @@ export function WindowControls() {
   if (isMac || !canControl) return null;
 
   return (
-    <div className="no-drag ml-1 flex items-center">
+    <div className="no-drag ml-1 flex h-10 items-center">
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-10 rounded-none text-muted-foreground"
+            className="h-10 w-10 rounded-none text-muted-foreground"
             aria-label="Minimize"
             onClick={() => void window.entropy.window.minimize()}
           >
@@ -46,7 +46,7 @@ export function WindowControls() {
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-10 rounded-none text-muted-foreground"
+            className="h-10 w-10 rounded-none text-muted-foreground"
             aria-label={maximized ? "Restore" : "Maximize"}
             onClick={() => {
               void window.entropy.window.maximize().then(async () => {
@@ -65,7 +65,7 @@ export function WindowControls() {
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-10 rounded-none text-muted-foreground hover:bg-ink-2 hover:text-paper"
+            className="h-10 w-10 rounded-none text-muted-foreground hover:bg-ink-2 hover:text-paper"
             aria-label="Close"
             onClick={() => void window.entropy.window.close()}
           >
