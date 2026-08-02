@@ -48,6 +48,9 @@ export function NotebookPage({
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [movingPath, setMovingPath] = useState<string | null>(null);
   const editorRef = useRef<MarkdownEditorHandle>(null);
+  const activePathRef = useRef<string | null>(null);
+  const ensureNotePromiseRef = useRef<Promise<string> | null>(null);
+  activePathRef.current = activePath;
 
   const refreshNotes = useCallback(async (options?: { quiet?: boolean }) => {
     const quiet = Boolean(options?.quiet);
@@ -91,16 +94,37 @@ export function NotebookPage({
   useEffect(() => {
     if (!pendingReference) return;
     let cancelled = false;
+
     void (async () => {
       try {
         const entry = await window.entropy.fs.stat(pendingReference);
         if (cancelled) return;
-        if (!activePath) {
-          setError("Open a note before referencing a file.");
+
+        let notePath = activePathRef.current;
+        if (!notePath) {
+          if (!ensureNotePromiseRef.current) {
+            ensureNotePromiseRef.current = (async () => {
+              const created = await window.entropy.fs.createNote(workspace.path);
+              setOpenPaths((prev) => (prev.includes(created) ? prev : [...prev, created]));
+              setActivePath(created);
+              void refreshNotes({ quiet: true });
+              return created;
+            })().finally(() => {
+              ensureNotePromiseRef.current = null;
+            });
+          }
+          notePath = await ensureNotePromiseRef.current;
+          if (cancelled) return;
+        }
+
+        if (entry.path === notePath) {
+          setError("Pick another note or file to reference.");
           setPreviewEntry(entry);
+          onPendingReferenceHandled?.();
           return;
         }
-        const noteDir = await window.entropy.fs.dirname(activePath);
+
+        const noteDir = await window.entropy.fs.dirname(notePath);
         const relative = await window.entropy.fs.relative(noteDir, entry.path);
         const hrefSource =
           /[:/\\]/.test(relative) && relative.includes(":")
@@ -111,22 +135,37 @@ export function NotebookPage({
         const insert = isLiveEmbedExt(entry.extension)
           ? `![${label}](${/\s/.test(href) ? `<${href}>` : href})`
           : `[${label}](${/\s/.test(href) ? `<${href}>` : href})`;
-        editorRef.current?.insertMarkdown(insert);
-        setPreviewEntry(entry);
-        setContextEpoch((value) => value + 1);
-        setError(null);
+
+        // Wait for the editor tab to finish loading (especially after auto-create).
+        const deadline = Date.now() + 4000;
+        while (!cancelled && Date.now() < deadline) {
+          if (editorRef.current?.insertMarkdown(insert)) {
+            setPreviewEntry(entry);
+            setContextEpoch((value) => value + 1);
+            setError(null);
+            onPendingReferenceHandled?.();
+            return;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 50));
+        }
+
+        if (!cancelled) {
+          setError("Could not add the file to the open note. Try again.");
+          setPreviewEntry(entry);
+          onPendingReferenceHandled?.();
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to reference file");
+          onPendingReferenceHandled?.();
         }
-      } finally {
-        if (!cancelled) onPendingReferenceHandled?.();
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [pendingReference, activePath, onPendingReferenceHandled]);
+  }, [pendingReference, onPendingReferenceHandled, refreshNotes, workspace.path]);
 
   useEffect(() => {
     if (!query.trim()) {

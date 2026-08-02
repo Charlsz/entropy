@@ -29,6 +29,8 @@ export async function moveEntryToFolder(
 
 export function buildEntryActions(options: {
   canReference?: boolean;
+  /** Defaults to "Reference" (Notebook). Inventory uses "Add to Workspace". */
+  referenceLabel?: string;
   onRename: () => void;
   onReference?: () => void;
   onCopyPath: () => void;
@@ -42,7 +44,10 @@ export function buildEntryActions(options: {
     { label: "Rename", onSelect: options.onRename },
   ];
   if (options.canReference && options.onReference) {
-    actions.push({ label: "Reference", onSelect: options.onReference });
+    actions.push({
+      label: options.referenceLabel ?? "Reference",
+      onSelect: options.onReference,
+    });
   }
   actions.push(
     { label: "Copy path", onSelect: options.onCopyPath },

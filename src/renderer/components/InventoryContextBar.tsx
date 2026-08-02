@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, FolderOpen } from "lucide-react";
+import { ExternalLink, FolderOpen, Link2 } from "lucide-react";
 import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { FILE_KIND_LABEL, kindFromExtension } from "../../shared/fileKinds";
 import { Button } from "./ui/button";
@@ -22,6 +22,7 @@ interface InventoryContextBarProps {
   scanRoot: string;
   onOpenExternal: () => void;
   onReveal: () => void;
+  onAddToWorkspace: () => void;
   onOpenNote?: (notePath: string) => void;
 }
 
@@ -30,6 +31,7 @@ export function InventoryContextBar({
   scanRoot,
   onOpenExternal,
   onReveal,
+  onAddToWorkspace,
   onOpenNote,
 }: InventoryContextBarProps) {
   const { workspace } = useWorkspace();
@@ -91,6 +93,17 @@ export function InventoryContextBar({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label="Add to Workspace"
+            title="Add to Workspace"
+            onClick={onAddToWorkspace}
+          >
+            <Link2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </Button>
           <Button
             type="button"
             variant="ghost"

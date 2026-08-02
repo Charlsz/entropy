@@ -62,6 +62,7 @@ export function FilesPage() {
     bootstrapInventoryFolder,
     visitPreview,
     openNote,
+    referenceInNote,
     updateSettings,
   } = useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
@@ -452,7 +453,10 @@ export function FilesPage() {
   function fileActions(entry: FileEntry): ItemAction[] {
     return [
       ...buildEntryActions({
+        canReference: true,
+        referenceLabel: "Add to Workspace",
         onRename: () => void handleRename(entry),
+        onReference: () => referenceInNote(entry.path),
         onCopyPath: () => void copyPath(entry.path),
         onReveal: () => void revealPath(entry.path),
         onMoveTo: () => setMovingEntry(entry),
@@ -667,6 +671,7 @@ export function FilesPage() {
                   scanRoot={scanRoot}
                   onOpenExternal={() => void window.entropy.fs.openExternal(selected.path)}
                   onReveal={() => void revealPath(selected.path)}
+                  onAddToWorkspace={() => referenceInNote(selected.path)}
                   onOpenNote={openNote}
                 />
               ) : null}

@@ -48,7 +48,8 @@ interface MarkdownEditorProps {
 }
 
 export interface MarkdownEditorHandle {
-  insertMarkdown: (markdown: string) => void;
+  /** Returns false when the active tab is not ready to accept an insert. */
+  insertMarkdown: (markdown: string) => boolean;
   rewriteHref: (from: string, to: string | null) => void;
 }
 
@@ -319,15 +320,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     () => ({
       insertMarkdown(markdown: string) {
         const path = activePathRef.current;
-        if (!path) return;
+        if (!path) return false;
         const tab = tabsRef.current.find((item) => item.path === path);
-        if (!tab || tab.missing || tab.conflict) return;
+        if (!tab || tab.loading || tab.missing || tab.conflict) return false;
 
         setSplit(false);
         setSurface("edit");
         window.requestAnimationFrame(() => {
           liveEditorRef.current?.insertMarkdown(markdown);
         });
+        return true;
       },
       rewriteHref(from: string, to: string | null) {
         const path = activePathRef.current;
