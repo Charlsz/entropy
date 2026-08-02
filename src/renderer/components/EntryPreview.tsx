@@ -36,6 +36,20 @@ export function getFolderPreview(folderPath: string): Promise<FolderPreviewData>
   return pending;
 }
 
+/** Drop cached folder collages after an external directory change. */
+export function invalidateFolderPreview(folderPath?: string): void {
+  if (!folderPath) {
+    folderPreviewCache.clear();
+    return;
+  }
+  const needle = folderPath.replace(/\\/g, "/").toLowerCase();
+  for (const key of folderPreviewCache.keys()) {
+    if (key.replace(/\\/g, "/").toLowerCase() === needle) {
+      folderPreviewCache.delete(key);
+    }
+  }
+}
+
 interface EntryPreviewProps {
   entry: FileEntry;
   size?: "sm" | "md" | "lg";

@@ -181,6 +181,11 @@ export interface EntropyApi {
     findFileReferences: (workspacePath: string, filePath: string) => Promise<NoteSearchResult[]>;
     findDuplicates: (rootPath: string, filePath: string) => Promise<FileEntry[]>;
     findDuplicateGroups: (rootPath: string) => Promise<DuplicateGroup[]>;
+    /** Watch a folder for external create/rename/delete/write; pairs with onDirChanged. */
+    watchDir: (dirPath: string, options?: { recursive?: boolean }) => Promise<void>;
+    unwatchDir: (dirPath: string) => Promise<void>;
+    unwatchAll: () => Promise<void>;
+    onDirChanged: (callback: (info: { path: string }) => void) => () => void;
   };
   canvas: {
     load: (workspacePath: string) => Promise<CanvasDocument | null>;

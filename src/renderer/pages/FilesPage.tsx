@@ -12,7 +12,12 @@ import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { StatusBar } from "../components/StatusBar";
 import { ItemActionsMenu, type ItemAction } from "../components/ItemActionsMenu";
-import { EntryPreview, getFolderPreview, useFolderCount } from "../components/EntryPreview";
+import {
+  EntryPreview,
+  getFolderPreview,
+  invalidateFolderPreview,
+  useFolderCount,
+} from "../components/EntryPreview";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
 import { TrashUndoBar } from "../components/TrashUndoBar";
@@ -33,6 +38,7 @@ import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isPreviewableEntry } from "../lib/media";
+import { useDirWatch } from "../hooks/useDirWatch";
 import { cn } from "../lib/utils";
 
 type SortKey = "name" | "modified" | "size" | "type";
@@ -90,6 +96,8 @@ export function FilesPage() {
   const [sortAsc, setSortAsc] = useState(true);
   const [duplicatesMode, setDuplicatesMode] = useState(false);
   const [renderedCount, setRenderedCount] = useState(60);
+  /** Bumps when the open folder changes on disk so sizes/treemap stay current. */
+  const [diskEpoch, setDiskEpoch] = useState(0);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const homeBootstrapped = useRef(false);
 
@@ -100,10 +108,13 @@ export function FilesPage() {
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
 
-  const refreshListing = useCallback(async () => {
+  const refreshListing = useCallback(async (options?: { quiet?: boolean }) => {
     if (!workspace.currentFolder) return;
-    setLoading(true);
-    setError(null);
+    const quiet = Boolean(options?.quiet);
+    if (!quiet) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const listing = await window.entropy.fs.listDir(workspace.currentFolder);
       setEntries(listing);
@@ -111,16 +122,27 @@ export function FilesPage() {
         if (!current) return null;
         return listing.find((entry) => entry.path === current.path) ?? null;
       });
+      if (quiet) setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to read folder");
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, [workspace.currentFolder]);
 
   const refresh = useCallback(async () => {
     await refreshListing();
   }, [refreshListing]);
+
+  useDirWatch(
+    workspace.currentFolder,
+    () => {
+      invalidateFolderPreview(workspace.currentFolder);
+      void refreshListing({ quiet: true });
+      setDiskEpoch((value) => value + 1);
+    },
+    { enabled: Boolean(workspace.currentFolder) },
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -221,7 +243,7 @@ export function FilesPage() {
     return () => {
       cancelled = true;
     };
-  }, [workspace.currentFolder, workspace.currentSection]);
+  }, [workspace.currentFolder, workspace.currentSection, diskEpoch]);
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
@@ -240,7 +262,7 @@ export function FilesPage() {
     return () => {
       cancelled = true;
     };
-  }, [workspace.currentFolder, workspace.currentSection]);
+  }, [workspace.currentFolder, workspace.currentSection, diskEpoch]);
 
   useEffect(() => {
     if (!pendingSelectPath || loading) return;

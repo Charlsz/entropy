@@ -100,6 +100,21 @@ const api: EntropyApi = {
     scanTreemapFiles: (dirPath, maxLeaves) =>
       ipcRenderer.invoke("fs:scanTreemapFiles", dirPath, maxLeaves),
     scanTreemapLevel: (dirPath) => ipcRenderer.invoke("fs:scanTreemapLevel", dirPath),
+    watchDir: (dirPath, options) => ipcRenderer.invoke("fs:watchDir", dirPath, options),
+    unwatchDir: (dirPath) => ipcRenderer.invoke("fs:unwatchDir", dirPath),
+    unwatchAll: () => ipcRenderer.invoke("fs:unwatchAll"),
+    onDirChanged: (callback) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        info: { path: string },
+      ): void => {
+        callback(info);
+      };
+      ipcRenderer.on("fs:dir-changed", listener);
+      return () => {
+        ipcRenderer.removeListener("fs:dir-changed", listener);
+      };
+    },
   },
   canvas: {
     load: (workspacePath) => ipcRenderer.invoke("canvas:load", workspacePath),

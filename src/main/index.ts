@@ -15,6 +15,7 @@ import {
 import { FILE_PROTOCOL, registerFileProtocol, toEntropyThumbUrl, toEntropyUrl } from "./protocol";
 import { loadCanvas, saveCanvas, type PersistedCanvas } from "./canvasStore";
 import { loadSession, saveSession, type AppSession } from "./session";
+import { unwatchAll, unwatchDir, watchDir } from "./folderWatch";
 import {
   clearRecentWorkspaces,
   createWorkspaceDialog,
@@ -223,6 +224,18 @@ function registerIpc(): void {
   ipcMain.handle("fs:scanTreemapLevel", (_event, dirPath: string) =>
     inventory.scanTreemapLevel(dirPath),
   );
+  ipcMain.handle(
+    "fs:watchDir",
+    (event, dirPath: string, options?: { recursive?: boolean }) => {
+      watchDir(event.sender, dirPath, options);
+    },
+  );
+  ipcMain.handle("fs:unwatchDir", (event, dirPath: string) => {
+    unwatchDir(event.sender, dirPath);
+  });
+  ipcMain.handle("fs:unwatchAll", (event) => {
+    unwatchAll(event.sender);
+  });
 
   ipcMain.handle("duplicates:scan", async (event, rootPath: string, scope?: string) => {
     const senderId = event.sender.id;

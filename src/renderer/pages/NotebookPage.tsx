@@ -17,6 +17,7 @@ import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { NoteContextPanel } from "../components/NoteContextPanel";
 import { NotebookLibrary } from "../components/NotebookLibrary";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
+import { useDirWatch } from "../hooks/useDirWatch";
 import { cn } from "../lib/utils";
 
 export function NotebookPage({
@@ -46,15 +47,19 @@ export function NotebookPage({
   const [movingPath, setMovingPath] = useState<string | null>(null);
   const editorRef = useRef<MarkdownEditorHandle>(null);
 
-  const refreshNotes = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const refreshNotes = useCallback(async (options?: { quiet?: boolean }) => {
+    const quiet = Boolean(options?.quiet);
+    if (!quiet) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       setNotes(await window.entropy.fs.listMarkdown(workspace.path));
+      if (quiet) setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load notes");
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, [workspace.path]);
 
@@ -62,6 +67,14 @@ export function NotebookPage({
     if (workspace.currentSection !== "notebook") return;
     void refreshNotes();
   }, [refreshNotes, workspace.currentSection]);
+
+  useDirWatch(
+    workspace.path,
+    () => {
+      void refreshNotes({ quiet: true });
+    },
+    { recursive: true, enabled: Boolean(workspace.path) },
+  );
 
   useEffect(() => {
     if (!pendingNote) return;
