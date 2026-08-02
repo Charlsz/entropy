@@ -71,6 +71,7 @@ const IMAGE_EXT = new Set([
   ".svg",
   ".avif",
 ]);
+const PDF_EXT = new Set([".pdf"]);
 
 export function extensionOfHref(href: string): string {
   const clean = href.split(/[?#]/)[0] ?? href;
@@ -80,15 +81,19 @@ export function extensionOfHref(href: string): string {
   return base.slice(dot).toLowerCase();
 }
 
-export function embedKind(href: string): "image" | "video" | "other" {
-  if (/^(https?:|data:)/i.test(href)) {
-    const ext = extensionOfHref(href);
-    if (VIDEO_EXT.has(ext)) return "video";
-    if (IMAGE_EXT.has(ext) || !ext) return "image";
-    return "other";
-  }
+export type EmbedKind = "image" | "video" | "pdf" | "other";
+
+export function embedKind(href: string): EmbedKind {
   const ext = extensionOfHref(href);
   if (VIDEO_EXT.has(ext)) return "video";
   if (IMAGE_EXT.has(ext)) return "image";
+  if (PDF_EXT.has(ext)) return "pdf";
+  if (/^(https?:|data:)/i.test(href) && !ext) return "image";
   return "other";
+}
+
+/** True when a dropped/linked path should become a live `![]()` face. */
+export function isLiveEmbedExt(extension: string): boolean {
+  const ext = extension.toLowerCase();
+  return IMAGE_EXT.has(ext) || VIDEO_EXT.has(ext) || PDF_EXT.has(ext);
 }

@@ -18,6 +18,7 @@ import { NoteContextPanel } from "../components/NoteContextPanel";
 import { NotebookLibrary } from "../components/NotebookLibrary";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { useDirWatch } from "../hooks/useDirWatch";
+import { isLiveEmbedExt } from "../lib/markdownBlocks";
 import { osTrashName } from "../lib/platform";
 import { cn } from "../lib/utils";
 
@@ -107,7 +108,7 @@ export function NotebookPage({
             : relative || entry.path;
         const href = hrefSource.replace(/\\/g, "/");
         const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
-        const insert = isMediaLike(entry)
+        const insert = isLiveEmbedExt(entry.extension)
           ? `![${label}](${/\s/.test(href) ? `<${href}>` : href})`
           : `[${label}](${/\s/.test(href) ? `<${href}>` : href})`;
         editorRef.current?.insertMarkdown(insert);
@@ -250,7 +251,9 @@ export function NotebookPage({
       const relative = await window.entropy.fs.relative(noteDir, entry.path);
       const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
       const href = relative.replace(/\\/g, "/");
-      const insert = isMediaLike(entry) ? `![${label}](${href})` : `[${label}](${href})`;
+      const insert = isLiveEmbedExt(entry.extension)
+        ? `![${label}](${href})`
+        : `[${label}](${href})`;
       editorRef.current?.insertMarkdown(insert);
       setPreviewEntry(entry);
       setError(null);
@@ -514,24 +517,4 @@ export function NotebookPage({
       />
     </div>
   );
-}
-
-function isMediaLike(entry: FileEntry): boolean {
-  const ext = entry.extension.toLowerCase();
-  return [
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".webp",
-    ".bmp",
-    ".svg",
-    ".avif",
-    ".mp4",
-    ".webm",
-    ".ogg",
-    ".mov",
-    ".mkv",
-    ".m4v",
-  ].includes(ext);
 }

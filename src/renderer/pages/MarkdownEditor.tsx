@@ -23,6 +23,7 @@ import { NoteCover } from "../components/NoteCover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { cn } from "../lib/utils";
 import { parseNoteFrontmatter } from "../lib/noteMeta";
+import { isLiveEmbedExt } from "../lib/markdownBlocks";
 import { useWorkspace } from "../state/useWorkspace";
 
 interface EditorTab {
@@ -383,24 +384,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const relative = await window.entropy.fs.relative(noteDir, filePath);
     const name = await window.entropy.fs.basename(filePath);
     const info = await window.entropy.fs.stat(filePath);
-    const ext = info.extension.toLowerCase();
-    const isMedia = [
-      ".png",
-      ".jpg",
-      ".jpeg",
-      ".gif",
-      ".webp",
-      ".bmp",
-      ".svg",
-      ".avif",
-      ".mp4",
-      ".webm",
-      ".ogg",
-      ".mov",
-      ".mkv",
-      ".m4v",
-    ].includes(ext);
-    const snippet = isMedia ? `![${name}](${relative})` : `[${name}](${relative})`;
+    const snippet = isLiveEmbedExt(info.extension)
+      ? `![${name}](${relative})`
+      : `[${name}](${relative})`;
     liveEditorRef.current?.insertMarkdown(snippet);
   }
 

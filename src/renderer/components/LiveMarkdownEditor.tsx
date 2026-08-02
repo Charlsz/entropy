@@ -78,20 +78,22 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
           el?.focus();
         },
         insertMarkdown(markdown: string) {
+          const trimmed = markdown.trim();
+          const asBlock = trimmed.startsWith("![");
           const index = activeTextIndex.current;
           const el = textRefs.current.get(index);
           const current = parseMarkdownBlocks(value);
           const block = current[index];
 
-          if (el && block?.type === "text" && document.activeElement === el) {
+          if (el && block?.type === "text" && document.activeElement === el && !asBlock) {
             const start = el.selectionStart;
             const end = el.selectionEnd;
-            const nextText = `${block.value.slice(0, start)}${markdown}${block.value.slice(end)}`;
+            const nextText = `${block.value.slice(0, start)}${trimmed}${block.value.slice(end)}`;
             const next = current.map((item, i) =>
               i === index && item.type === "text" ? { ...item, value: nextText } : item,
             );
             commitBlocks(parseMarkdownBlocks(joinMarkdownBlocks(next)));
-            const cursor = start + markdown.length;
+            const cursor = start + trimmed.length;
             window.requestAnimationFrame(() => {
               const area = textRefs.current.get(index);
               if (!area) return;
@@ -102,8 +104,16 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
             return;
           }
 
+          // Live embeds need their own line so the editor can promote them to a face.
+          if (asBlock) {
+            const body = value.replace(/\s+$/, "");
+            const pad = body ? "\n\n" : "";
+            commitBlocks(parseMarkdownBlocks(`${body}${pad}${trimmed}\n`));
+            return;
+          }
+
           const pad = value && !value.endsWith("\n") ? "\n\n" : value ? "\n" : "";
-          commitBlocks(parseMarkdownBlocks(`${value}${pad}${markdown}`));
+          commitBlocks(parseMarkdownBlocks(`${value}${pad}${trimmed}`));
         },
       }),
       [commitBlocks, value],
@@ -123,7 +133,12 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
         onDrop={(event) => {
           event.preventDefault();
           const entropyPath = event.dataTransfer.getData("application/x-entropy-path");
-          if (entropyPath) onDropPath?.(entropyPath);
+          if (entropyPath) {
+            onDropPath?.(entropyPath);
+            return;
+          }
+          const dropped = event.dataTransfer.files?.[0] as (File & { path?: string }) | undefined;
+          if (dropped?.path) onDropPath?.(dropped.path);
         }}
       >
         {blocks.map((block, index) => {
@@ -316,7 +331,7 @@ function MediaEmbedBlock({
       >
         {missing || !url ? (
           <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-            Missing media: {src}
+            Missing: {src}
           </div>
         ) : kind === "video" ? (
           <video
@@ -327,6 +342,15 @@ function MediaEmbedBlock({
             playsInline
             preload="metadata"
           />
+        ) : kind === "pdf" ? (
+          <div className="entropy-pdf-face relative h-[min(28rem,50vh)] w-full overflow-hidden rounded-lg bg-ink-2">
+            <iframe
+              title={alt || "PDF"}
+              src={`${url}#toolbar=0&navpanes=0&view=FitH`}
+              className="entropy-pdf-face__frame h-full border-0"
+              tabIndex={-1}
+            />
+          </div>
         ) : kind === "image" ? (
           <img
             src={url}
