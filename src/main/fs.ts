@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { DuplicateGroup, FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
 import { removeToTrash } from "./trash";
+import { mapPool } from "./asyncPool";
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -450,42 +451,62 @@ export async function findDuplicates(
 
   const targetSize = targetStat.size;
   const targetKey = normalizePathKey(target);
-  const found: FileEntry[] = [];
+  const candidates: Array<{ path: string; name: string; size: number; mtimeMs: number }> = [];
 
   async function walk(dir: string, depth: number): Promise<void> {
-    if (depth > DUP_MAX_DEPTH || found.length >= DUP_MAX_RESULTS) return;
+    if (depth > DUP_MAX_DEPTH || candidates.length >= DUP_MAX_RESULTS * 4) return;
     let dirents;
     try {
       dirents = await fs.readdir(dir, { withFileTypes: true });
     } catch {
       return;
     }
+
+    const subdirs: string[] = [];
     for (const dirent of dirents) {
-      if (found.length >= DUP_MAX_RESULTS) return;
       if (dirent.name === "." || dirent.name === "..") continue;
       if (dirent.name.startsWith(".")) continue;
       const full = path.join(dir, dirent.name);
       try {
-        const link = await fs.lstat(full);
-        if (link.isSymbolicLink()) continue;
-        if (link.isDirectory()) {
-          await walk(full, depth + 1);
+        if (dirent.isSymbolicLink()) continue;
+        if (dirent.isDirectory()) {
+          subdirs.push(full);
           continue;
         }
-        if (!link.isFile()) continue;
+        if (!dirent.isFile()) continue;
+        const link = await fs.lstat(full);
+        if (link.isSymbolicLink() || !link.isFile()) continue;
         if (link.size !== targetSize) continue;
         if (normalizePathKey(full) === targetKey) continue;
-        const hash = await hashFile(full);
-        if (hash !== targetHash) continue;
-        found.push(toFileEntry(full, dirent.name, link.size, link.mtimeMs));
+        candidates.push({
+          path: full,
+          name: dirent.name,
+          size: link.size,
+          mtimeMs: link.mtimeMs,
+        });
       } catch {
         // Skip inaccessible.
       }
     }
+
+    await mapPool(subdirs, 4, async (subdir) => {
+      await walk(subdir, depth + 1);
+    });
   }
 
   await walk(path.normalize(rootPath), 0);
-  return found;
+
+  const matches = await mapPool(candidates, 4, async (candidate) => {
+    try {
+      const hash = await hashFile(candidate.path);
+      if (hash !== targetHash) return null;
+      return toFileEntry(candidate.path, candidate.name, candidate.size, candidate.mtimeMs);
+    } catch {
+      return null;
+    }
+  });
+
+  return matches.filter((entry): entry is FileEntry => entry != null).slice(0, DUP_MAX_RESULTS);
 }
 
 /** Content-hash duplicate groups under root (size-bucketed, then hashed). */

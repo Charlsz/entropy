@@ -7,7 +7,24 @@ import { pathToFileURL } from "node:url";
 export const FILE_PROTOCOL = "entropy";
 
 const THUMB_MAX_EDGE = 320;
+const THUMB_CONCURRENCY = 2;
 const thumbJobs = new Map<string, Promise<{ body: Buffer; type: string }>>();
+let thumbActive = 0;
+const thumbWaiters: Array<() => void> = [];
+
+async function withThumbSlot<T>(task: () => Promise<T>): Promise<T> {
+  if (thumbActive >= THUMB_CONCURRENCY) {
+    await new Promise<void>((resolve) => thumbWaiters.push(resolve));
+  }
+  thumbActive += 1;
+  try {
+    return await task();
+  } finally {
+    thumbActive -= 1;
+    const next = thumbWaiters.shift();
+    if (next) next();
+  }
+}
 const PASS_THROUGH = new Set([".gif", ".svg"]);
 const IMAGE_EXT = new Set([
   ".png",
@@ -231,7 +248,7 @@ async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type:
 
   let job = thumbJobs.get(cachePath);
   if (!job) {
-    job = (async () => {
+    job = withThumbSlot(async () => {
       if (OS_THUMB_EXT.has(ext)) {
         try {
           const osThumb = await nativeImage.createThumbnailFromPath(filePath, {
@@ -275,7 +292,7 @@ async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type:
       await fs.mkdir(path.dirname(cachePath), { recursive: true });
       await fs.writeFile(cachePath, jpeg);
       return { body: jpeg, type: "image/jpeg" };
-    })().finally(() => {
+    }).finally(() => {
       thumbJobs.delete(cachePath);
     });
     thumbJobs.set(cachePath, job);
