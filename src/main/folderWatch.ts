@@ -13,6 +13,8 @@ interface ActiveWatch {
 
 /** Per-renderer directory watches so Inventory/Notebook stay live with the disk. */
 const bySender = new Map<number, Map<string, ActiveWatch>>();
+/** WebContents that already have a single `destroyed` cleanup listener. */
+const destroyedHooked = new Set<number>();
 
 function normalizeDir(dirPath: string): string {
   return path.normalize(path.resolve(dirPath));
@@ -23,7 +25,11 @@ function senderMap(webContents: WebContents): Map<string, ActiveWatch> {
   if (!map) {
     map = new Map();
     bySender.set(webContents.id, map);
+  }
+  if (!destroyedHooked.has(webContents.id)) {
+    destroyedHooked.add(webContents.id);
     webContents.once("destroyed", () => {
+      destroyedHooked.delete(webContents.id);
       clearSender(webContents.id);
     });
   }
