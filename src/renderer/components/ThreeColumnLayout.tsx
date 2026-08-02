@@ -88,9 +88,9 @@ export function ThreeColumnLayout({
         <>
           <Panel
             id="sidebar"
-            className="min-h-0 min-w-[12.5rem] bg-ink-2"
-            minSize="14%"
-            maxSize={isInventory ? "28%" : "36%"}
+            className={cn("min-h-0 bg-ink-2", isInventory ? "min-w-0" : "min-w-[10rem]")}
+            minSize={isInventory ? "14%" : "12%"}
+            maxSize={isInventory ? "28%" : "32%"}
             defaultSize={`${defaultLayout.sidebar}%`}
           >
             <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{sidebar}</div>
@@ -113,8 +113,8 @@ export function ThreeColumnLayout({
           <Separator className="entropy-resize-handle" />
           <Panel
             id="context"
-            className="min-h-0 min-w-0 bg-ink-2"
-            minSize={isInventory ? "16%" : "12%"}
+            className={cn("min-h-0 bg-ink-2", isInventory ? "min-w-0" : "min-w-[10rem]")}
+            minSize={isInventory ? "16%" : "10%"}
             maxSize={isInventory ? "55%" : "28%"}
             defaultSize={`${defaultLayout.context}%`}
           >

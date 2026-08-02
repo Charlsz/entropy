@@ -560,6 +560,61 @@
   }
 }
 
+@container notes-sidebar (max-width: 16rem) {
+  .entropy-notes-sidebar .entropy-chrome-bar {
+    padding-inline: 0.5rem;
+  }
+
+  .entropy-notes-list {
+    padding-inline: 0.5rem;
+  }
+
+  .entropy-notes-list button {
+    padding-inline: 0.5rem;
+  }
+}
+
+@container notes-sidebar (max-width: 12rem) {
+  .entropy-notes-sidebar .entropy-chrome-bar {
+    flex-wrap: wrap;
+    min-height: 0;
+    row-gap: 0.5rem;
+  }
+
+  .entropy-notes-list .entropy-note-actions {
+    display: none;
+  }
+}
+
+.entropy-note-context {
+  container-type: inline-size;
+  container-name: note-context;
+}
+
+@container note-context (max-width: 16rem) {
+  .entropy-note-context .entropy-chrome-bar {
+    padding-inline: 0.5rem;
+  }
+
+  .entropy-context-body {
+    padding: 0.75rem;
+  }
+
+  .entropy-context-subtitle {
+    display: none;
+  }
+}
+
+@container note-context (max-width: 12rem) {
+  .entropy-context-body {
+    padding: 0.5rem;
+  }
+
+  .entropy-context-body h3 {
+    letter-spacing: 0.04em;
+  }
+}
+
 @container inventory-chrome (max-width: 28rem) {
   .entropy-sort-trigger {
     width: 6.25rem;

@@ -385,7 +385,7 @@ export function NotebookPage({
             </div>
 
             <ScrollArea className="min-h-0 flex-1" type="hover">
-              <div className="px-4 pb-6 pt-2">
+              <div className="entropy-notes-list px-4 pb-6 pt-2">
                 {error ? <p className="px-0 pb-2 text-sm text-muted-foreground">{error}</p> : null}
                 {loading ? (
                   <div className="space-y-1">
@@ -448,7 +448,7 @@ export function NotebookPage({
                             >
                               {title}
                             </button>
-                            <div className="shrink-0 pr-1">
+                            <div className="entropy-note-actions shrink-0 pr-1">
                               <ItemActionsMenu label={title} actions={noteActions(note)} />
                             </div>
                           </div>

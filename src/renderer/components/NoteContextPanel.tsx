@@ -22,6 +22,13 @@ function normalizeHref(raw: string): string {
 function linkDisplayLabel(link: NoteLink): string {
   const hrefBase = link.href.split(/[/\\]/).pop() ?? link.href;
   const label = link.label.trim();
+  const looksUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(hrefBase) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(label);
+  if (looksUuid) {
+    const ext = hrefBase.includes(".") ? hrefBase.slice(hrefBase.lastIndexOf(".") + 1) : "";
+    return ext ? `Embedded ${ext.toUpperCase()}` : "Embedded file";
+  }
   if (!label || label === link.href || label === hrefBase) return hrefBase;
   return label;
 }
@@ -151,7 +158,7 @@ export function NoteContextPanel({
   if (!hasUseful && notePath) return null;
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+    <div className="entropy-note-context flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="entropy-chrome-bar shrink-0 border-b border-border">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium leading-none text-foreground">
@@ -160,7 +167,7 @@ export function NoteContextPanel({
               : (meta?.title ?? notePath?.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note")}
           </p>
           {preview && notePath && preview.name !== meta?.title ? (
-            <p className="mt-1 truncate text-[11px] leading-none text-muted-foreground">
+            <p className="entropy-context-subtitle mt-1 truncate text-[11px] leading-none text-muted-foreground">
               {preview.name}
             </p>
           ) : null}
@@ -168,7 +175,7 @@ export function NoteContextPanel({
       </div>
 
       <ScrollArea className="min-h-0 min-w-0 flex-1" type="hover">
-        <div className="min-w-0 space-y-4 p-4">
+        <div className="min-w-0 space-y-4 p-4 entropy-context-body">
           {preview ? (
             <section className="min-w-0 space-y-2">
               <div className="flex min-w-0 items-center justify-end gap-0.5">
