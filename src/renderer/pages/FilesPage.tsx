@@ -131,7 +131,8 @@ export function FilesPage() {
   }, [workspace.currentFolder]);
 
   const refresh = useCallback(async () => {
-    await refreshListing();
+    await refreshListing({ quiet: true });
+    setDiskEpoch((value) => value + 1);
   }, [refreshListing]);
 
   useDirWatch(
@@ -141,7 +142,10 @@ export function FilesPage() {
       void refreshListing({ quiet: true });
       setDiskEpoch((value) => value + 1);
     },
-    { enabled: Boolean(workspace.currentFolder) },
+    {
+      enabled:
+        Boolean(workspace.currentFolder) && workspace.currentSection === "inventory",
+    },
   );
 
   useEffect(() => {
@@ -248,7 +252,8 @@ export function FilesPage() {
   useEffect(() => {
     if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
     let cancelled = false;
-    setScanningTreemap(true);
+    // Keep the previous map visible while refreshing so the panel doesn't flash empty.
+    if (!treemapScan) setScanningTreemap(true);
     void (async () => {
       try {
         const next = await window.entropy.fs.scanTreemapLevel(workspace.currentFolder);
@@ -262,6 +267,7 @@ export function FilesPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- preserve prior map during epoch refresh
   }, [workspace.currentFolder, workspace.currentSection, diskEpoch]);
 
   useEffect(() => {
@@ -672,25 +678,26 @@ export function FilesPage() {
   );
 }
 
-const FileGridCard = memo(function FileGridCard({
-  entry,
-  selected,
-  dropTarget,
-  onOpen,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  actions,
-}: {
-  entry: FileEntry;
-  selected: boolean;
-  dropTarget: boolean;
-  onOpen: () => void;
-  onDragStart: (event: DragEvent) => void;
-  onDragOver?: (event: DragEvent) => void;
-  onDrop?: (event: DragEvent) => void;
-  actions: ItemAction[];
-}) {
+const FileGridCard = memo(
+  function FileGridCard({
+    entry,
+    selected,
+    dropTarget,
+    onOpen,
+    onDragStart,
+    onDragOver,
+    onDrop,
+    actions,
+  }: {
+    entry: FileEntry;
+    selected: boolean;
+    dropTarget: boolean;
+    onOpen: () => void;
+    onDragStart: (event: DragEvent) => void;
+    onDragOver?: (event: DragEvent) => void;
+    onDrop?: (event: DragEvent) => void;
+    actions: ItemAction[];
+  }) {
   const count = useFolderCount(entry.path, entry.isDirectory);
   const isPreviewable = isPreviewableEntry(entry);
   const [face, setFace] = useState<"loading" | "preview" | "icon">(
@@ -767,10 +774,22 @@ const FileGridCard = memo(function FileGridCard({
             </p>
           ) : null}
         </div>
-        <div className="shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+        <div
+          className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          onClick={(event) => event.stopPropagation()}
+        >
           <ItemActionsMenu label={entry.name} actions={actions} />
         </div>
       </div>
     </div>
   );
-});
+  },
+  (prev, next) =>
+    prev.entry.path === next.entry.path &&
+    prev.entry.name === next.entry.name &&
+    prev.entry.size === next.entry.size &&
+    prev.entry.modifiedAt === next.entry.modifiedAt &&
+    prev.entry.isDirectory === next.entry.isDirectory &&
+    prev.selected === next.selected &&
+    prev.dropTarget === next.dropTarget,
+);

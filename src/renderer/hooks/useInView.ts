@@ -2,18 +2,24 @@ import { useEffect, useRef, useState } from "react";
 
 /**
  * Observe element visibility for lazy media.
- * Once visible, stays armed so gallery reorders (sort) do not blank previews.
+ * sticky (default): once visible, stays armed so gallery sort does not blank images.
+ * sticky=false: tracks enter/leave (videos) so decoders pause off-screen.
  */
-export function useInView<T extends Element>(rootMargin = "120px"): {
+export function useInView<T extends Element>(
+  rootMargin = "120px",
+  options?: { sticky?: boolean },
+): {
   ref: React.RefObject<T | null>;
   inView: boolean;
 } {
+  const sticky = options?.sticky ?? true;
   const ref = useRef<T | null>(null);
   const [inView, setInView] = useState(false);
 
   useEffect(() => {
     const node = ref.current;
-    if (!node || inView) return;
+    if (!node) return;
+    if (sticky && inView) return;
 
     function armIfVisible(): void {
       const el = ref.current;
@@ -26,11 +32,14 @@ export function useInView<T extends Element>(rootMargin = "120px"): {
         rect.right >= -margin &&
         rect.left <= (window.innerWidth || document.documentElement.clientWidth) + margin;
       if (visible) setInView(true);
+      else if (!sticky) setInView(false);
     }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry?.isIntersecting) setInView(true);
+        if (!entry) return;
+        if (entry.isIntersecting) setInView(true);
+        else if (!sticky) setInView(false);
       },
       { root: null, rootMargin, threshold: 0 },
     );
@@ -40,7 +49,7 @@ export function useInView<T extends Element>(rootMargin = "120px"): {
     requestAnimationFrame(armIfVisible);
 
     return () => observer.disconnect();
-  }, [rootMargin, inView]);
+  }, [rootMargin, inView, sticky]);
 
   return { ref, inView };
 }

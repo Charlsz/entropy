@@ -16,6 +16,7 @@ export interface FolderPreviewData {
 }
 
 const folderPreviewCache = new Map<string, Promise<FolderPreviewData>>();
+const FOLDER_PREVIEW_CACHE_MAX = 80;
 const withFolderSlot = createSlot(3);
 const withImageSlot = createSlot(6);
 
@@ -32,6 +33,11 @@ export function getFolderPreview(folderPath: string): Promise<FolderPreviewData>
         .catch(() => ({ media: [] as FileEntry[], count: 0 })),
     );
     folderPreviewCache.set(folderPath, pending);
+    while (folderPreviewCache.size > FOLDER_PREVIEW_CACHE_MAX) {
+      const oldest = folderPreviewCache.keys().next().value;
+      if (oldest === undefined) break;
+      folderPreviewCache.delete(oldest);
+    }
   }
   return pending;
 }
@@ -269,7 +275,29 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
     );
   }
 
-  // Live first page via file URL — OS PDF thumbs are unreliable on Windows.
+  // Prefer OS/generated thumb in the gallery — full PDF iframes are expensive.
+  if (thumbUrl) {
+    return (
+      <div className="relative h-full w-full overflow-hidden bg-ink-2">
+        <img
+          src={thumbUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className="h-full w-full object-cover"
+          onError={() => {
+            setThumbUrl(null);
+            if (!fileUrl) setFailed(true);
+          }}
+        />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/70 px-2 py-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-paper-2">PDF</span>
+        </div>
+      </div>
+    );
+  }
+
   if (fileUrl) {
     return (
       <div className="entropy-pdf-face relative h-full w-full overflow-hidden bg-ink-2">
@@ -286,27 +314,11 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
     );
   }
 
-  if (!thumbUrl) return <QuietFace />;
-
-  return (
-    <div className="relative h-full w-full overflow-hidden bg-ink-2">
-      <img
-        src={thumbUrl}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        draggable={false}
-        className="h-full w-full object-cover"
-        onError={() => setFailed(true)}
-      />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/70 px-2 py-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-paper-2">PDF</span>
-      </div>
-    </div>
-  );
+  return <QuietFace />;
 }
 
 function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
+  const { ref, inView } = useInView<HTMLDivElement>("80px", { sticky: false });
   const [url, setUrl] = useState<string | null>(null);
   const [poster, setPoster] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -315,20 +327,13 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
-    setUrl(null);
     setPoster(null);
     void withVideoSlot(async () => {
       try {
-        const [fileUrl, thumb] = await Promise.all([
-          getFileUrl(path),
-          getThumbUrl(path).catch(() => null),
-        ]);
-        if (!cancelled) {
-          setUrl(fileUrl);
-          setPoster(thumb);
-        }
+        const thumb = await getThumbUrl(path).catch(() => null);
+        if (!cancelled) setPoster(thumb);
       } catch {
-        if (!cancelled) setFailed(true);
+        // Poster optional.
       }
     }, () => cancelled);
     return () => {
@@ -337,8 +342,27 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
   }, [path]);
 
   useEffect(() => {
+    if (!inView) {
+      setUrl(null);
+      return;
+    }
+    let cancelled = false;
+    void withVideoSlot(async () => {
+      try {
+        const fileUrl = await getFileUrl(path);
+        if (!cancelled) setUrl(fileUrl);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    }, () => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [path, inView]);
+
+  useEffect(() => {
     const video = videoRef.current;
-    if (!video || !url) return;
+    if (!video || !url || !inView) return;
 
     let timer = 0;
     let cancelled = false;
@@ -377,11 +401,11 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
       video.removeEventListener("loadeddata", onLoaded);
       video.pause();
     };
-  }, [url]);
+  }, [url, inView]);
 
   if (failed) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-ink-2">
+      <div ref={ref} className="flex h-full w-full items-center justify-center bg-ink-2">
         <FileText
           className={cn(
             "text-muted-foreground/70",
@@ -393,10 +417,27 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
     );
   }
 
-  if (!url) return <QuietFace />;
+  if (!inView || !url) {
+    return (
+      <div ref={ref} className="relative h-full w-full overflow-hidden bg-ink-2">
+        {poster ? (
+          <img
+            src={poster}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <QuietFace />
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-ink-2">
+    <div ref={ref} className="relative h-full w-full overflow-hidden bg-ink-2">
       <video
         ref={videoRef}
         src={url}

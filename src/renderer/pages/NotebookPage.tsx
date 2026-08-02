@@ -73,7 +73,10 @@ export function NotebookPage({
     () => {
       void refreshNotes({ quiet: true });
     },
-    { recursive: true, enabled: Boolean(workspace.path) },
+    {
+      recursive: true,
+      enabled: Boolean(workspace.path) && workspace.currentSection === "notebook",
+    },
   );
 
   useEffect(() => {
