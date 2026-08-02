@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FileEntry } from "../../shared/types";
 import { cn } from "../lib/utils";
+import { isMediaReleasing, subscribeMediaRelease } from "../lib/mediaRelease";
 
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"]);
 const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv", ".m4v"]);
@@ -49,6 +50,13 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [releasing, setReleasing] = useState(() => isMediaReleasing(file.path));
+
+  useEffect(() => {
+    return subscribeMediaRelease(() => {
+      setReleasing(isMediaReleasing(file.path));
+    });
+  }, [file.path]);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,10 +161,27 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
     }
   }
 
-  if (kind === "video" && url) {
+  if (kind === "video" && url && !releasing) {
     return (
       <div className={frame}>
         <VideoPlayer url={url} poster={thumbUrl} compact={compact} />
+      </div>
+    );
+  }
+
+  if (kind === "video") {
+    return (
+      <div className={frame}>
+        {thumbUrl ? (
+          <img
+            src={thumbUrl}
+            alt=""
+            className={compact ? "max-h-40 w-full object-cover" : "h-full w-full object-cover"}
+            draggable={false}
+          />
+        ) : (
+          <p className="p-3 text-sm text-muted-foreground">Preview paused</p>
+        )}
       </div>
     );
   }

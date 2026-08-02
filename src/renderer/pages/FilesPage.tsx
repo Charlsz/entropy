@@ -40,6 +40,7 @@ import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isPreviewableEntry } from "../lib/media";
+import { withMediaReleased } from "../lib/mediaRelease";
 import { formatBytes } from "../lib/format";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isUnderPath, osTrashName, samePath } from "../lib/platform";
@@ -389,9 +390,10 @@ export function FilesPage() {
 
   async function trashEntry(entry: FileEntry): Promise<void> {
     try {
-      await window.entropy.fs.remove(entry.path);
-      setUndoTrash({ paths: [entry.path], name: entry.name, size: entry.size });
+      // Drop selection so context-bar previews unmount before we release handles.
       if (selected?.path === entry.path) setSelected(null);
+      await withMediaReleased(entry.path, () => window.entropy.fs.remove(entry.path));
+      setUndoTrash({ paths: [entry.path], name: entry.name, size: entry.size });
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete");

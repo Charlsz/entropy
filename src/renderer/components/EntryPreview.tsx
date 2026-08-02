@@ -5,6 +5,7 @@ import { useInView } from "../hooks/useInView";
 import { isMediaEntry, mediaKind } from "../lib/media";
 import { getFileUrl, getThumbUrl } from "../lib/urlCache";
 import { withVideoSlot } from "../lib/videoSlot";
+import { isMediaReleasing, subscribeMediaRelease } from "../lib/mediaRelease";
 import { createSlot } from "../lib/asyncSlot";
 import { cn } from "../lib/utils";
 
@@ -385,7 +386,14 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
   const [url, setUrl] = useState<string | null>(null);
   const [poster, setPoster] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [releasing, setReleasing] = useState(() => isMediaReleasing(path));
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    return subscribeMediaRelease(() => {
+      setReleasing(isMediaReleasing(path));
+    });
+  }, [path]);
 
   useEffect(() => {
     let cancelled = false;
@@ -406,7 +414,8 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
 
   useEffect(() => {
     // Collage / compact faces: poster only — avoid decoding many looping videos.
-    if (!inView || size === "sm" || size === "md") {
+    // Also stay on poster while the path is being trashed so Windows can unlock it.
+    if (releasing || !inView || size === "sm" || size === "md") {
       setUrl(null);
       return;
     }
@@ -414,7 +423,7 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
     void withVideoSlot(async () => {
       try {
         const fileUrl = await getFileUrl(path);
-        if (!cancelled) setUrl(fileUrl);
+        if (!cancelled && !isMediaReleasing(path)) setUrl(fileUrl);
       } catch {
         if (!cancelled) setFailed(true);
       }
@@ -422,11 +431,22 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
     return () => {
       cancelled = true;
     };
-  }, [path, inView, size]);
+  }, [path, inView, size, releasing]);
+
+  useEffect(() => {
+    if (releasing) {
+      const video = videoRef.current;
+      if (video) {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      }
+    }
+  }, [releasing]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !url || !inView) return;
+    if (!video || !url || !inView || releasing) return;
 
     let timer = 0;
     let cancelled = false;
@@ -465,7 +485,7 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
       video.removeEventListener("loadeddata", onLoaded);
       video.pause();
     };
-  }, [url, inView]);
+  }, [url, inView, releasing]);
 
   if (failed) {
     return (
@@ -481,7 +501,7 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
     );
   }
 
-  if (!inView || !url) {
+  if (!inView || !url || releasing) {
     return (
       <div ref={ref} className="relative h-full w-full overflow-hidden bg-ink-2">
         {poster ? (

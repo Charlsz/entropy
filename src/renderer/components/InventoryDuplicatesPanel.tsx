@@ -24,6 +24,7 @@ import { ConfirmDialog, DeletePreviewLists } from "./ConfirmDialog";
 import { TrashUndoBar } from "./TrashUndoBar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { osRevealLabel, osTrashName } from "../lib/platform";
+import { withMediaReleased } from "../lib/mediaRelease";
 import { cn } from "../lib/utils";
 import { formatBytes } from "../lib/format";
 
@@ -158,7 +159,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     const batchReclaim = pendingDelete.reclaimBytes;
     try {
       for (const filePath of batch) {
-        await window.entropy.fs.remove(filePath);
+        await withMediaReleased(filePath, () => window.entropy.fs.remove(filePath));
       }
       setUndoBatch({ paths: batch, reclaimBytes: batchReclaim });
       const removed = new Set(batch);

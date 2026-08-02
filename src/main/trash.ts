@@ -25,10 +25,49 @@ async function pathExists(target: string): Promise<boolean> {
 /**
  * Move into the user's Recycle Bin / Trash via the OS (Electron shell.trashItem).
  * Entropy does not keep a parallel trash folder.
+ *
+ * Windows frequently aborts IFileOperation while media previews still hold the
+ * file — retry with backoff before surfacing a clear locked-file error.
  */
 export async function removeToTrash(targetPath: string): Promise<void> {
   purgeLegacyBin();
-  await shell.trashItem(path.normalize(targetPath));
+  const normalized = path.normalize(targetPath);
+  const attempts = 6;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await shell.trashItem(normalized);
+      return;
+    } catch (err) {
+      lastError = err;
+      if (!isRetryableTrashError(err) || attempt === attempts - 1) break;
+      await sleep(80 * (attempt + 1));
+    }
+  }
+
+  throw friendlyTrashError(normalized, lastError);
+}
+
+function isRetryableTrashError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  return /operation was aborted|ebusy|eperm|access is denied|being used by another process|locked/i.test(
+    message,
+  );
+}
+
+function friendlyTrashError(targetPath: string, err: unknown): Error {
+  const name = path.basename(targetPath);
+  if (isRetryableTrashError(err)) {
+    return new Error(
+      `Couldn’t move “${name}” to the Recycle Bin — the file is still in use. Close any preview and try again.`,
+    );
+  }
+  return err instanceof Error ? err : new Error(`Failed to delete “${name}”`);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function undoRemoves(originalPaths: string[]): Promise<{ restored: number; failed: string[] }> {
