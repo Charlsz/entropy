@@ -21,18 +21,19 @@ const withFolderSlot = createSlot(3);
 const withImageSlot = createSlot(6);
 
 export function getFolderPreview(folderPath: string): Promise<FolderPreviewData> {
-  let pending = folderPreviewCache.get(folderPath);
+  const cacheKey = `v2:${folderPath}`;
+  let pending = folderPreviewCache.get(cacheKey);
   if (!pending) {
-    pending = withFolderSlot(() =>
-      window.entropy.fs
-        .listDir(folderPath)
-        .then((entries) => ({
-          media: entries.filter(isMediaEntry).slice(0, 4),
-          count: entries.length,
-        }))
-        .catch(() => ({ media: [] as FileEntry[], count: 0 })),
-    );
-    folderPreviewCache.set(folderPath, pending);
+    pending = withFolderSlot(async () => {
+      try {
+        const entries = await window.entropy.fs.listDir(folderPath);
+        const media = await sampleFolderMediaFromListing(folderPath, entries, 4);
+        return { media, count: entries.length };
+      } catch {
+        return { media: [] as FileEntry[], count: 0 };
+      }
+    });
+    folderPreviewCache.set(cacheKey, pending);
     while (folderPreviewCache.size > FOLDER_PREVIEW_CACHE_MAX) {
       const oldest = folderPreviewCache.keys().next().value;
       if (oldest === undefined) break;
@@ -40,6 +41,60 @@ export function getFolderPreview(folderPath: string): Promise<FolderPreviewData>
     }
   }
   return pending;
+}
+
+/** Direct media first, then one level of subfolders — enough for a collage without deep crawls. */
+async function sampleFolderMediaFromListing(
+  _folderPath: string,
+  entries: FileEntry[],
+  limit: number,
+): Promise<FileEntry[]> {
+  const picked: FileEntry[] = [];
+  const seen = new Set<string>();
+
+  const push = (entry: FileEntry): boolean => {
+    const key = entry.path.replace(/\\/g, "/").toLowerCase();
+    if (seen.has(key)) return picked.length >= limit;
+    seen.add(key);
+    picked.push(entry);
+    return picked.length >= limit;
+  };
+
+  const dirs: FileEntry[] = [];
+  for (const entry of entries) {
+    if (entry.isDirectory) {
+      dirs.push(entry);
+      continue;
+    }
+    if (isMediaEntry(entry) && push(entry)) return picked;
+  }
+
+  if (picked.length < limit) {
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+      if (mediaKind(entry.extension) === "pdf" && push(entry)) return picked;
+    }
+  }
+
+  for (const dir of dirs.slice(0, 12)) {
+    if (picked.length >= limit) break;
+    try {
+      const nested = await window.entropy.fs.listDir(dir.path);
+      for (const entry of nested) {
+        if (isMediaEntry(entry) && push(entry)) return picked;
+      }
+      if (picked.length >= limit) return picked;
+      for (const entry of nested) {
+        if (!entry.isDirectory && mediaKind(entry.extension) === "pdf" && push(entry)) {
+          return picked;
+        }
+      }
+    } catch {
+      // Skip unreadable children.
+    }
+  }
+
+  return picked;
 }
 
 /** Drop cached folder collages after an external directory change. */
@@ -50,7 +105,8 @@ export function invalidateFolderPreview(folderPath?: string): void {
   }
   const needle = folderPath.replace(/\\/g, "/").toLowerCase();
   for (const key of folderPreviewCache.keys()) {
-    if (key.replace(/\\/g, "/").toLowerCase() === needle) {
+    const bare = key.replace(/^v\d+:/, "").replace(/\\/g, "/").toLowerCase();
+    if (bare === needle) {
       folderPreviewCache.delete(key);
     }
   }
@@ -198,11 +254,10 @@ function FolderCollage({ path, size }: { path: string; size: "sm" | "md" | "lg" 
 }
 
 function FolderMediaCell({ entry }: { entry: FileEntry }) {
-  return mediaKind(entry.extension) === "video" ? (
-    <VideoThumb path={entry.path} size="sm" />
-  ) : (
-    <ImageThumb path={entry.path} alt={entry.name} />
-  );
+  const kind = mediaKind(entry.extension);
+  if (kind === "video") return <VideoThumb path={entry.path} size="sm" />;
+  if (kind === "pdf") return <PdfThumb path={entry.path} size="sm" />;
+  return <ImageThumb path={entry.path} alt={entry.name} />;
 }
 
 function ImageThumb({ path, alt }: { path: string; alt: string }) {

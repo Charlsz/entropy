@@ -40,7 +40,7 @@ import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isPreviewableEntry } from "../lib/media";
-import { formatBytes, sizeShare } from "../lib/format";
+import { formatBytes } from "../lib/format";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isUnderPath, osTrashName, samePath } from "../lib/platform";
 import { cn } from "../lib/utils";
@@ -307,11 +307,6 @@ export function FilesPage() {
         size: sizeByPath[entry.path] ?? entry.size,
       })),
     [entries, sizeByPath],
-  );
-
-  const folderTotal = useMemo(
-    () => sizedEntries.reduce((sum, entry) => sum + Math.max(0, entry.size), 0),
-    [sizedEntries],
   );
 
   const visible = useMemo(() => {
@@ -644,9 +639,6 @@ export function FilesPage() {
                           sizePending={
                             entry.isDirectory && sizeByPath[entry.path] === undefined
                           }
-                          weightShare={
-                            entry.isDirectory ? sizeShare(entry.size, folderTotal) : 0
-                          }
                           onOpen={() => void openEntry(entry)}
                           onDragStart={(event) => onDragStart(event, entry)}
                           onDragOver={
@@ -725,7 +717,6 @@ const FileGridCard = memo(
     selected,
     dropTarget,
     sizePending,
-    weightShare,
     onOpen,
     onDragStart,
     onDragOver,
@@ -736,7 +727,6 @@ const FileGridCard = memo(
     selected: boolean;
     dropTarget: boolean;
     sizePending: boolean;
-    weightShare: number;
     onOpen: () => void;
     onDragStart: (event: DragEvent) => void;
     onDragOver?: (event: DragEvent) => void;
@@ -804,28 +794,13 @@ const FileGridCard = memo(
             {entry.name}
           </p>
           {entry.isDirectory ? (
-            <>
-              <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                <span className="text-foreground/80">
-                  {sizePending ? "…" : formatBytes(entry.size)}
-                </span>
-                <span className="mx-1 text-border">·</span>
-                <span>{count == null ? "…" : `${count.toLocaleString()} items`}</span>
-              </p>
-              <div
-                className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-ink-2"
-                aria-hidden
-              >
-                <div
-                  className="h-full rounded-full bg-paper/40 transition-[width] duration-150 ease-out"
-                  style={{
-                    width: sizePending
-                      ? "0%"
-                      : `${Math.max(weightShare > 0 ? 6 : 0, weightShare * 100)}%`,
-                  }}
-                />
-              </div>
-            </>
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">
+              <span className="text-foreground/80">
+                {sizePending ? "…" : formatBytes(entry.size)}
+              </span>
+              <span className="mx-1 text-border">·</span>
+              <span>{count == null ? "…" : `${count.toLocaleString()} items`}</span>
+            </p>
           ) : entry.size > 0 ? (
             <p className="mt-0.5 truncate text-sm text-muted-foreground">
               {formatBytes(entry.size)}
@@ -850,6 +825,5 @@ const FileGridCard = memo(
     prev.entry.isDirectory === next.entry.isDirectory &&
     prev.selected === next.selected &&
     prev.dropTarget === next.dropTarget &&
-    prev.sizePending === next.sizePending &&
-    prev.weightShare === next.weightShare,
+    prev.sizePending === next.sizePending,
 );
