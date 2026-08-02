@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 export const FILE_PROTOCOL = "entropy";
 
 const THUMB_MAX_EDGE = 320;
-const THUMB_CONCURRENCY = 2;
+const THUMB_CONCURRENCY = 4;
 const thumbJobs = new Map<string, Promise<{ body: Buffer; type: string }>>();
 let thumbActive = 0;
 const thumbWaiters: Array<() => void> = [];

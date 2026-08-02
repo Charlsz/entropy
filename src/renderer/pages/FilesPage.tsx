@@ -241,6 +241,10 @@ export function FilesPage() {
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
+    if (treemapCollapsed) {
+      setScanningTreemap(false);
+      return;
+    }
     let cancelled = false;
     // Keep the previous map visible while refreshing so the panel doesn't flash empty.
     if (!treemapScan) setScanningTreemap(true);
@@ -258,7 +262,7 @@ export function FilesPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- preserve prior map during epoch refresh
-  }, [workspace.currentFolder, workspace.currentSection, diskEpoch]);
+  }, [workspace.currentFolder, workspace.currentSection, diskEpoch, treemapCollapsed]);
 
   useEffect(() => {
     if (!pendingSelectPath || loading) return;

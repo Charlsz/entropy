@@ -17,11 +17,11 @@ export interface FolderPreviewData {
 
 const folderPreviewCache = new Map<string, Promise<FolderPreviewData>>();
 const FOLDER_PREVIEW_CACHE_MAX = 80;
-const withFolderSlot = createSlot(3);
-const withImageSlot = createSlot(6);
+const withFolderSlot = createSlot(4);
+const withImageSlot = createSlot(8);
 
 export function getFolderPreview(folderPath: string): Promise<FolderPreviewData> {
-  const cacheKey = `v2:${folderPath}`;
+  const cacheKey = `v3:${folderPath}`;
   let pending = folderPreviewCache.get(cacheKey);
   if (!pending) {
     pending = withFolderSlot(async () => {
@@ -76,7 +76,7 @@ async function sampleFolderMediaFromListing(
     }
   }
 
-  for (const dir of dirs.slice(0, 12)) {
+  for (const dir of dirs.slice(0, 6)) {
     if (picked.length >= limit) break;
     try {
       const nested = await window.entropy.fs.listDir(dir.path);
@@ -123,7 +123,7 @@ export const EntryPreview = memo(function EntryPreview({
   size = "sm",
   className,
 }: EntryPreviewProps) {
-  const { ref, inView } = useInView<HTMLDivElement>();
+  const { ref, inView } = useInView<HTMLDivElement>("160px");
   const shell = cn(
     "relative overflow-hidden bg-ink-2",
     size === "sm" && "h-7 w-7 shrink-0 rounded",
@@ -300,14 +300,17 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
     setFileUrl(null);
     void withImageSlot(async () => {
       try {
-        const [thumb, file] = await Promise.all([
-          getThumbUrl(path).catch(() => null),
-          getFileUrl(path).catch(() => null),
-        ]);
+        const thumb = await getThumbUrl(path).catch(() => null);
         if (cancelled) return;
-        if (thumb) setThumbUrl(thumb);
+        if (thumb) {
+          setThumbUrl(thumb);
+          return;
+        }
+        // Full PDF fetch only when OS thumb is unavailable.
+        const file = await getFileUrl(path).catch(() => null);
+        if (cancelled) return;
         if (file) setFileUrl(file);
-        if (!thumb && !file) setFailed(true);
+        else setFailed(true);
       } catch {
         if (!cancelled) setFailed(true);
       }
@@ -343,7 +346,12 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
           className="h-full w-full object-cover"
           onError={() => {
             setThumbUrl(null);
-            if (!fileUrl) setFailed(true);
+            void getFileUrl(path)
+              .then((file) => {
+                if (file) setFileUrl(file);
+                else setFailed(true);
+              })
+              .catch(() => setFailed(true));
           }}
         />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/70 px-2 py-1">
@@ -397,7 +405,8 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
   }, [path]);
 
   useEffect(() => {
-    if (!inView) {
+    // Collage / compact faces: poster only — avoid decoding many looping videos.
+    if (!inView || size === "sm" || size === "md") {
       setUrl(null);
       return;
     }
@@ -413,7 +422,7 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
     return () => {
       cancelled = true;
     };
-  }, [path, inView]);
+  }, [path, inView, size]);
 
   useEffect(() => {
     const video = videoRef.current;

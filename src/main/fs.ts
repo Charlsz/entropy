@@ -82,22 +82,32 @@ export async function listDir(dirPath: string): Promise<FileEntry[]> {
       batch.map(async (dirent) => {
         const fullPath = path.join(dirPath, dirent.name);
         try {
-          // Prefer lstat so Windows junctions are visible as links.
+          // Fast path: plain files — one lstat (size + mtime).
+          if (dirent.isFile()) {
+            const info = await fs.lstat(fullPath);
+            if (info.isSymbolicLink()) {
+              const target = await fs.stat(fullPath);
+              if (target.isDirectory()) return null;
+              return toEntry(fullPath, target);
+            }
+            return toEntry(fullPath, info);
+          }
+
+          // Directories / junctions / odd types — keep safer link handling.
           const linkInfo = await fs.lstat(fullPath);
           if (linkInfo.isSymbolicLink() && (dirent.isDirectory() || linkInfo.isDirectory())) {
-            // Skip inaccessible profile junctions; keep intentional user symlinks that resolve.
             try {
               await fs.access(fullPath);
               const target = await fs.stat(fullPath);
               if (!target.isDirectory()) return toEntry(fullPath, target);
-              // Still hide known Windows aliases even if access somehow succeeds.
               if (shouldSkipDirName(dirent.name)) return null;
               return toEntry(fullPath, target);
             } catch {
               return null;
             }
           }
-          const info = linkInfo.isDirectory() || linkInfo.isFile() ? linkInfo : await fs.stat(fullPath);
+          const info =
+            linkInfo.isDirectory() || linkInfo.isFile() ? linkInfo : await fs.stat(fullPath);
           return toEntry(fullPath, info);
         } catch {
           return null;

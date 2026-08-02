@@ -1,9 +1,9 @@
 const MAX_URL_CACHE = 400;
 
-const cache = new Map<string, Promise<string>>();
-const thumbCache = new Map<string, Promise<string>>();
+const cache = new Map<string, string>();
+const thumbCache = new Map<string, string>();
 
-function remember(map: Map<string, Promise<string>>, key: string, value: Promise<string>): Promise<string> {
+function remember(map: Map<string, string>, key: string, value: string): string {
   if (map.has(key)) map.delete(key);
   map.set(key, value);
   while (map.size > MAX_URL_CACHE) {
@@ -12,6 +12,24 @@ function remember(map: Map<string, Promise<string>>, key: string, value: Promise
     map.delete(oldest);
   }
   return value;
+}
+
+/** Same encoding as main `protocol.encodePathToken` — no IPC round-trip. */
+function encodePathToken(filePath: string): string {
+  const bytes = new TextEncoder().encode(filePath);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function toEntropyUrl(filePath: string): string {
+  return `entropy://local/${encodePathToken(filePath)}`;
+}
+
+function toEntropyThumbUrl(filePath: string): string {
+  return `entropy://thumb/${encodePathToken(filePath)}`;
 }
 
 /** Drop in-memory URL cache (e.g. after protocol format changes). */
@@ -24,24 +42,16 @@ export function getFileUrl(filePath: string): Promise<string> {
   const existing = cache.get(filePath);
   if (existing) {
     remember(cache, filePath, existing);
-    return existing;
+    return Promise.resolve(existing);
   }
-  const pending = window.entropy.fs.toUrl(filePath).catch((error) => {
-    cache.delete(filePath);
-    throw error;
-  });
-  return remember(cache, filePath, pending);
+  return Promise.resolve(remember(cache, filePath, toEntropyUrl(filePath)));
 }
 
 export function getThumbUrl(filePath: string): Promise<string> {
   const existing = thumbCache.get(filePath);
   if (existing) {
     remember(thumbCache, filePath, existing);
-    return existing;
+    return Promise.resolve(existing);
   }
-  const pending = window.entropy.fs.toThumbUrl(filePath).catch((error) => {
-    thumbCache.delete(filePath);
-    throw error;
-  });
-  return remember(thumbCache, filePath, pending);
+  return Promise.resolve(remember(thumbCache, filePath, toEntropyThumbUrl(filePath)));
 }
