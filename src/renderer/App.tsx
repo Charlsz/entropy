@@ -134,5 +134,5 @@ export function App() {
     );
   }
 
-  return <TooltipProvider delayDuration={200}>{content}</TooltipProvider>;
+  return <TooltipProvider delayDuration={400}>{content}</TooltipProvider>;
 }

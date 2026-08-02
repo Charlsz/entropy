@@ -88,8 +88,8 @@ export function ThreeColumnLayout({
         <>
           <Panel
             id="sidebar"
-            className="min-h-0 min-w-0 bg-ink-2"
-            minSize="12%"
+            className="min-h-0 min-w-[12.5rem] bg-ink-2"
+            minSize="14%"
             maxSize={isInventory ? "28%" : "36%"}
             defaultSize={`${defaultLayout.sidebar}%`}
           >

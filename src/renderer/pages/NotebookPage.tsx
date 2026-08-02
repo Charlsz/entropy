@@ -13,6 +13,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { NoteContextPanel } from "../components/NoteContextPanel";
 import { NotebookLibrary } from "../components/NotebookLibrary";
@@ -348,17 +349,21 @@ export function NotebookPage({
                 aria-label="Filter notes"
                 className="h-8 min-w-0 flex-1 bg-background"
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                title="New note"
-                aria-label="New note"
-                onClick={() => void handleCreate()}
-              >
-                <FilePlus2 className="h-4 w-4" strokeWidth={1.75} />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    aria-label="New note"
+                    onClick={() => void handleCreate()}
+                  >
+                    <FilePlus2 className="h-4 w-4" strokeWidth={1.75} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New note</TooltipContent>
+              </Tooltip>
             </div>
 
             <ScrollArea className="min-h-0 flex-1 px-3">
@@ -414,18 +419,10 @@ export function NotebookPage({
                               extension: ".md",
                             })
                           }
-                          title={note.name.replace(/\.md$/i, "")}
                         >
                           {note.name.replace(/\.md$/i, "")}
                         </button>
-                        <div
-                          className={cn(
-                            "shrink-0 transition-opacity duration-150",
-                            activePath === note.path
-                              ? "opacity-100"
-                              : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
-                          )}
-                        >
+                        <div className="shrink-0">
                           <ItemActionsMenu
                             label={note.name.replace(/\.md$/i, "")}
                             actions={noteActions(note)}

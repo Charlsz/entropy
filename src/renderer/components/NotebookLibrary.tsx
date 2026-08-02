@@ -352,7 +352,11 @@ function LibraryRow({
           selected && "text-foreground",
         )}
         onClick={onActivate}
-        title={isFolder ? (open ? "Collapse folder" : "Expand folder") : entry.name}
+        aria-label={
+          isFolder
+            ? `${open ? "Collapse" : "Expand"} ${entry.name}`
+            : entry.name.replace(/\.md$/i, "")
+        }
       >
         {isFolder ? (
           open ? (
@@ -372,14 +376,7 @@ function LibraryRow({
           {entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "")}
         </span>
       </button>
-      <div
-        className={cn(
-          "shrink-0 transition-opacity duration-150",
-          selected
-            ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
-        )}
-      >
+      <div className="shrink-0">
         <ItemActionsMenu
           label={entry.name}
           actions={buildEntryActions({

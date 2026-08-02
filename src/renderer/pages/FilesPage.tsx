@@ -833,7 +833,7 @@ const FileGridCard = memo(
           ) : null}
         </div>
         <div
-          className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          className="shrink-0"
           onClick={(event) => event.stopPropagation()}
         >
           <ItemActionsMenu label={entry.name} actions={actions} />
