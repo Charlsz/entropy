@@ -60,7 +60,7 @@ const CODE = new Set([
 ]);
 const EXECUTABLE = new Set([".exe", ".msi", ".app", ".dmg", ".bat", ".cmd", ".com", ".dll", ".so", ".dylib"]);
 
-/** Muted fills aligned with Entropy's dark UI — distinct kinds, not neon. */
+/** Muted fills for dark UI — distinct kinds within the ink/paper system. */
 export const FILE_KIND_FILL: Record<FileKindId, string> = {
   image: "#3d4a52",
   video: "#4a3f46",
@@ -71,6 +71,21 @@ export const FILE_KIND_FILL: Record<FileKindId, string> = {
   executable: "#4a4038",
   other: "#3a3a3e",
 };
+
+/** Light-theme fills (paper-dominant mixes) so dark labels stay readable. */
+export const FILE_KIND_FILL_LIGHT: Record<FileKindId, string> = {
+  image: "#D5DBD8",
+  video: "#DDD6D8",
+  audio: "#D6DBD5",
+  document: "#DDD9D0",
+  archive: "#D9D5DD",
+  code: "#D2D8DA",
+  executable: "#DDD6CF",
+  other: "#D6D6D8",
+};
+
+export const FOLDER_FILL_DARK = "#2c3136";
+export const FOLDER_FILL_LIGHT = "#E2E2E0";
 
 export const FILE_KIND_LABEL: Record<FileKindId, string> = {
   image: "Images",

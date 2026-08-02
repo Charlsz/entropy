@@ -3,15 +3,18 @@ import { HardDrive } from "lucide-react";
 import type { FileEntry, NoteSearchResult, TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
 import {
   FILE_KIND_FILL,
+  FILE_KIND_FILL_LIGHT,
   FILE_KIND_LABEL,
   FILE_KIND_ORDER,
+  FOLDER_FILL_DARK,
+  FOLDER_FILL_LIGHT,
   type FileKindId,
 } from "../../shared/fileKinds";
 import { cn } from "../lib/utils";
 import { samePath } from "../lib/platform";
 import { squarify } from "../lib/squarify";
+import { useWorkspace } from "../state/useWorkspace";
 
-const FOLDER_FILL = "#2c3136";
 /** Minimum tile edge so every leaf stays visible and nameable. */
 const MIN_TILE_EDGE = 28;
 
@@ -57,9 +60,9 @@ function kindLabelFor(leaf: TreemapFileLeaf): string {
   return label;
 }
 
-function fillFor(leaf: TreemapFileLeaf): string {
-  if (leaf.isDirectory) return FOLDER_FILL;
-  return FILE_KIND_FILL[leaf.kind];
+function fillFor(leaf: TreemapFileLeaf, light: boolean): string {
+  if (leaf.isDirectory) return light ? FOLDER_FILL_LIGHT : FOLDER_FILL_DARK;
+  return (light ? FILE_KIND_FILL_LIGHT : FILE_KIND_FILL)[leaf.kind];
 }
 
 function deleteHint(intel: HoverIntel, isDirectory: boolean): string | null {
@@ -82,6 +85,8 @@ export function StorageTreemap({
   onZoom,
   className,
 }: StorageTreemapProps) {
+  const { workspace } = useWorkspace();
+  const light = workspace.settings.theme === "light";
   const [frameEl, setFrameEl] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [hover, setHover] = useState<HoverState | null>(null);
@@ -126,10 +131,10 @@ export function StorageTreemap({
       kind,
       size: map.get(kind)!.size,
       count: map.get(kind)!.count,
-      fill: FILE_KIND_FILL[kind],
+      fill: (light ? FILE_KIND_FILL_LIGHT : FILE_KIND_FILL)[kind],
       label: FILE_KIND_LABEL[kind],
     }));
-  }, [files]);
+  }, [files, light]);
 
   const layout = useMemo(() => {
     if (!showMap || size.width < 8 || size.height < 8) return [];
@@ -161,11 +166,11 @@ export function StorageTreemap({
           y: rect.y + gap / 2,
           width,
           height,
-          fill: fillFor(file),
+          fill: fillFor(file, light),
         };
       })
       .filter((item): item is NonNullable<typeof item> => item != null);
-  }, [files, showMap, size.height, size.width, total]);
+  }, [files, light, showMap, size.height, size.width, total]);
 
   function clearHover(): void {
     if (hoverTimer.current) {
@@ -249,7 +254,7 @@ export function StorageTreemap({
         ) : (
           <div
             ref={setFrameEl}
-            className="relative h-full min-h-[160px] overflow-hidden rounded-xl bg-ink"
+            className="relative h-full min-h-[160px] overflow-hidden rounded-xl bg-muted"
             role="list"
             aria-label="Storage size map"
             onPointerLeave={clearHover}
@@ -276,7 +281,7 @@ export function StorageTreemap({
                       cell.isDirectory ? ", double-click to zoom" : ""
                     }`}
                     className={cn(
-                      "absolute overflow-hidden border border-black/30 p-1 text-left focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      "absolute overflow-hidden border border-border p-1 text-left focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                       selected && "z-10 ring-1 ring-ring",
                       isAggregateLeaf(cell) ? "cursor-default opacity-80" : "cursor-pointer",
                     )}
@@ -434,7 +439,7 @@ function HoverCard({
 
   return (
     <div
-      className="pointer-events-none absolute z-20 rounded-lg border border-border bg-ink p-3"
+      className="pointer-events-none absolute z-20 rounded-lg border border-border bg-card p-3"
       style={{ left, top, width: cardW }}
       role="tooltip"
     >
