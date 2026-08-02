@@ -358,7 +358,7 @@ export function NotebookPage({
         context={context}
         sidebar={
           <div className="entropy-notes-sidebar flex h-full min-h-0 flex-col">
-            <div className="entropy-toolbar entropy-notes-chrome px-4 py-3">
+            <div className="entropy-chrome-bar entropy-notes-chrome border-b border-border">
               <Input
                 type="search"
                 placeholder="Filter notes…"
@@ -385,8 +385,8 @@ export function NotebookPage({
             </div>
 
             <ScrollArea className="min-h-0 flex-1" type="hover">
-              <div className="px-3 pb-6 pt-1">
-                {error ? <p className="px-1 pb-2 text-sm text-muted-foreground">{error}</p> : null}
+              <div className="px-4 pb-6 pt-2">
+                {error ? <p className="px-0 pb-2 text-sm text-muted-foreground">{error}</p> : null}
                 {loading ? (
                   <div className="space-y-1">
                     <Skeleton className="h-9 w-full rounded-lg" />
@@ -429,7 +429,7 @@ export function NotebookPage({
                             <button
                               type="button"
                               className={cn(
-                                "min-w-0 flex-1 truncate px-3 py-2.5 text-left text-sm",
+                                "min-w-0 flex-1 truncate px-3 py-2 text-left text-sm",
                                 active
                                   ? "font-medium text-foreground"
                                   : "text-muted-foreground hover:text-foreground",
@@ -448,13 +448,13 @@ export function NotebookPage({
                             >
                               {title}
                             </button>
-                            <div className="shrink-0 pr-0.5">
+                            <div className="shrink-0 pr-1">
                               <ItemActionsMenu label={title} actions={noteActions(note)} />
                             </div>
                           </div>
                         )}
                         {note.excerpt ? (
-                          <p className="line-clamp-2 px-3 pb-1.5 text-[11px] text-muted-foreground">
+                          <p className="line-clamp-2 px-3 pb-2 text-[11px] text-muted-foreground">
                             {note.excerpt}
                           </p>
                         ) : null}

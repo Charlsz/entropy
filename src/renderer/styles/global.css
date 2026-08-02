@@ -475,6 +475,16 @@
   row-gap: 0.5rem;
 }
 
+/* Shared 8px-grid chrome strip: note list, editor tabs, inspector header. */
+.entropy-chrome-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3.5rem;
+  padding-inline: 1rem;
+  padding-block: 0.75rem;
+}
+
 .entropy-toolbar-trail {
   flex: 1 1 10rem;
   min-width: 0;
@@ -627,6 +637,12 @@
 }
 
 @container editor (min-width: 40rem) {
+  .entropy-prose-pad {
+    padding-inline: 1.5rem;
+  }
+}
+
+@container editor (min-width: 56rem) {
   .entropy-prose-pad {
     padding-inline: 2rem;
   }

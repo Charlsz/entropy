@@ -55,9 +55,9 @@ export interface WorkspaceState {
 }
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 16,
-  main: 66,
-  context: 18,
+  sidebar: 18,
+  main: 68,
+  context: 14,
 };
 
 export const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {

@@ -114,8 +114,8 @@ export function ThreeColumnLayout({
           <Panel
             id="context"
             className="min-h-0 min-w-0 bg-ink-2"
-            minSize={isInventory ? "16%" : "14%"}
-            maxSize={isInventory ? "55%" : "40%"}
+            minSize={isInventory ? "16%" : "12%"}
+            maxSize={isInventory ? "55%" : "28%"}
             defaultSize={`${defaultLayout.context}%`}
           >
             <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">{context}</div>

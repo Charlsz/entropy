@@ -526,7 +526,7 @@ export function FilesPage() {
               onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
               onDrop={(event) => void onDrop(event, workspace.currentFolder)}
             >
-              <div className="entropy-toolbar entropy-inventory-chrome px-4 py-3">
+              <div className="entropy-chrome-bar entropy-toolbar entropy-inventory-chrome">
                 <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
                   <SelectTrigger
                     className="entropy-sort-trigger h-8 w-[7.5rem] shrink-0"

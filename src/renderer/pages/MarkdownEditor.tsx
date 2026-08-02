@@ -416,13 +416,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }
 
   return (
-    <div className="entropy-editor-shell flex h-full min-h-0 flex-col">
+    <div className="entropy-editor-shell flex h-full min-h-0 flex-col bg-background">
       <div
-        className="entropy-toolbar entropy-notes-chrome h-10 shrink-0 border-b border-border px-2"
+        className="entropy-chrome-bar entropy-notes-chrome shrink-0 border-b border-border"
         aria-label="Open notes"
       >
         <div
-          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
+          className="flex min-h-8 min-w-0 flex-1 items-stretch gap-1 overflow-x-auto"
           role="tablist"
         >
           {tabs.map((tab) => {
@@ -432,17 +432,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               <div
                 key={tab.path}
                 className={cn(
-                  "group flex h-8 max-w-[12rem] shrink-0 items-center rounded-md px-1 text-xs",
+                  "group flex max-w-[12rem] shrink-0 items-center gap-0.5 border-b-2 px-1 text-xs",
                   active
-                    ? "bg-ink-2 text-foreground"
-                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
                 role="tab"
                 aria-selected={active}
               >
                 <button
                   type="button"
-                  className="min-w-0 flex-1 truncate px-1.5 py-1 text-left"
+                  className="min-w-0 flex-1 truncate px-1 py-1.5 text-left"
                   onClick={() => onActiveChange(tab.path)}
                 >
                   {tab.title}
@@ -451,7 +451,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 </button>
                 <button
                   type="button"
-                  className="rounded p-0.5 opacity-70 hover:bg-background group-hover:opacity-100"
+                  className="rounded p-0.5 opacity-0 hover:bg-ink-2 group-hover:opacity-100 focus-visible:opacity-100"
                   aria-label={`Close ${tab.title}`}
                   onClick={() => handleClose(tab.path)}
                 >
@@ -462,155 +462,155 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           })}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "h-8 w-8 text-muted-foreground",
-                    !split && surface === "preview" && "bg-ink-2 text-foreground",
-                  )}
-                  aria-label={surface === "edit" ? "Show preview" : "Show editor"}
-                  aria-pressed={!split && surface === "preview"}
-                  onClick={() => {
-                    setSplit(false);
-                    setSurface((prev) => (prev === "edit" ? "preview" : "edit"));
-                  }}
-                >
-                  {surface === "edit" ? (
-                    <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  ) : (
-                    <PenLine className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {surface === "edit" ? "Preview" : "Editor"}
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "entropy-split-toggle h-8 w-8 text-muted-foreground",
-                    split && "bg-ink-2 text-foreground",
-                  )}
-                  aria-label="Toggle split view"
-                  aria-pressed={split}
-                  onClick={() => setSplit((prev) => !prev)}
-                >
-                  <Columns2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Split</TooltipContent>
-            </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-8 w-8 text-muted-foreground",
+                  !split && surface === "preview" && "bg-ink-2 text-foreground",
+                )}
+                aria-label={surface === "edit" ? "Show preview" : "Show editor"}
+                aria-pressed={!split && surface === "preview"}
+                onClick={() => {
+                  setSplit(false);
+                  setSurface((prev) => (prev === "edit" ? "preview" : "edit"));
+                }}
+              >
+                {surface === "edit" ? (
+                  <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
+                ) : (
+                  <PenLine className="h-3.5 w-3.5" strokeWidth={1.75} />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {surface === "edit" ? "Preview" : "Editor"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "entropy-split-toggle h-8 w-8 text-muted-foreground",
+                  split && "bg-ink-2 text-foreground",
+                )}
+                aria-label="Toggle split view"
+                aria-pressed={split}
+                onClick={() => setSplit((prev) => !prev)}
+              >
+                <Columns2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Split</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
-        {statusMessage || activeTab?.missing || activeTab?.conflict ? (
-          <div
-            className="flex items-center justify-between gap-3 border-b border-border bg-secondary px-3 py-2 text-xs"
-            role="status"
-          >
-            <span className="text-foreground">
-              {statusMessage ??
-                (activeTab?.missing
-                  ? "This note is missing on disk."
-                  : "File changed outside Entropy.")}
-            </span>
-            <div className="flex shrink-0 gap-1">
-              {activeTab?.conflict || activeTab?.missing ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void reloadFromDisk()}
-                >
-                  Reload
-                </Button>
-              ) : null}
-              {activeTab?.conflict ? (
-                <Button type="button" size="sm" onClick={() => void overwriteDisk()}>
-                  Overwrite
-                </Button>
-              ) : null}
-              {activeTab?.missing ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleClose(activeTab.path)}
-                >
-                  Close tab
-                </Button>
-              ) : null}
-            </div>
+      {statusMessage || activeTab?.missing || activeTab?.conflict ? (
+        <div
+          className="flex items-center justify-between gap-3 border-b border-border bg-secondary px-4 py-2 text-xs"
+          role="status"
+        >
+          <span className="text-foreground">
+            {statusMessage ??
+              (activeTab?.missing
+                ? "This note is missing on disk."
+                : "File changed outside Entropy.")}
+          </span>
+          <div className="flex shrink-0 gap-1">
+            {activeTab?.conflict || activeTab?.missing ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => void reloadFromDisk()}
+              >
+                Reload
+              </Button>
+            ) : null}
+            {activeTab?.conflict ? (
+              <Button type="button" size="sm" onClick={() => void overwriteDisk()}>
+                Overwrite
+              </Button>
+            ) : null}
+            {activeTab?.missing ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleClose(activeTab.path)}
+              >
+                Close tab
+              </Button>
+            ) : null}
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        {activeTab?.loading ? (
-          <p className="p-4 text-sm text-muted-foreground">Loading note…</p>
-        ) : activeTab?.missing ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
-            <h1 className="text-lg font-medium">Note unavailable</h1>
-            <p className="text-sm text-muted-foreground">
-              It may have been deleted or moved outside Entropy.
-            </p>
+      {activeTab?.loading ? (
+        <p className="px-4 py-4 text-sm text-muted-foreground">Loading note…</p>
+      ) : activeTab?.missing ? (
+        <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
+          <h1 className="text-lg font-medium">Note unavailable</h1>
+          <p className="text-sm text-muted-foreground">
+            It may have been deleted or moved outside Entropy.
+          </p>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col">
+          {activeTab && noteMeta.cover ? (
+            <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
+              <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
+            </div>
+          ) : null}
+          <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
+            <h1 className="mb-4 text-left text-3xl font-semibold tracking-tight text-foreground">
+              {activeTab?.title}
+            </h1>
           </div>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col">
-            {activeTab && noteMeta.cover ? (
-              <div className="pt-6">
-                <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
+          <div
+            className={cn(
+              "min-h-0 flex-1",
+              mode === "split" ? "entropy-editor-split grid gap-0" : "flex flex-col",
+            )}
+          >
+            {mode !== "preview" ? (
+              <div
+                className={cn(
+                  "min-h-0 flex-1 overflow-y-auto",
+                  mode === "split" ? "border-r border-border" : "",
+                )}
+              >
+                <LiveMarkdownEditor
+                  ref={liveEditorRef}
+                  className={mode === "split" ? "" : "mx-auto max-w-[720px]"}
+                  value={activeTab?.content ?? ""}
+                  notePath={activeTab?.path}
+                  disabled={Boolean(activeTab?.conflict)}
+                  onChange={handleChange}
+                  onKeyDown={handleKeyDown}
+                  onDropPath={(path) => void insertFileLink(path)}
+                />
               </div>
             ) : null}
-            <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-8">
-              <h1 className="mb-4 text-center text-3xl font-semibold tracking-tight text-foreground">
-                {activeTab?.title}
-              </h1>
-            </div>
-            <div
-              className={cn(
-                "min-h-0 flex-1",
-                mode === "split" ? "entropy-editor-split grid gap-0" : "flex flex-col",
-              )}
-            >
-              {mode !== "preview" ? (
-                <div
-                  className={cn(
-                    "min-h-0 flex-1 overflow-y-auto",
-                    mode === "split" ? "border-r border-border" : "",
-                  )}
-                >
-                  <LiveMarkdownEditor
-                    ref={liveEditorRef}
-                    className={mode === "split" ? "" : "mx-auto max-w-[720px]"}
-                    value={activeTab?.content ?? ""}
-                    notePath={activeTab?.path}
-                    disabled={Boolean(activeTab?.conflict)}
-                    onChange={handleChange}
-                    onKeyDown={handleKeyDown}
-                    onDropPath={(path) => void insertFileLink(path)}
-                  />
-                </div>
-              ) : null}
-              {mode !== "edit" ? (
-                <ScrollArea className="min-h-0 flex-1">
-                  <MarkdownPreview
-                    content={noteMeta.body}
-                    notePath={activeTab?.path}
-                    onOpenLocal={onOpenLocalPath}
-                  />
-                </ScrollArea>
-              ) : null}
-            </div>
+            {mode !== "edit" ? (
+              <ScrollArea className="min-h-0 flex-1">
+                <MarkdownPreview
+                  content={noteMeta.body}
+                  notePath={activeTab?.path}
+                  onOpenLocal={onOpenLocalPath}
+                />
+              </ScrollArea>
+            ) : null}
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
   },

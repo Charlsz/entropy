@@ -152,22 +152,26 @@ export function NoteContextPanel({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="min-w-0 border-b border-border px-4 py-3">
-        <p className="truncate text-sm font-medium text-foreground">
-          {preview && !notePath
-            ? preview.name
-            : (meta?.title ?? notePath?.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note")}
-        </p>
-        {preview && notePath ? (
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{preview.name}</p>
-        ) : null}
+      <div className="entropy-chrome-bar shrink-0 border-b border-border">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium leading-none text-foreground">
+            {preview && !notePath
+              ? preview.name
+              : (meta?.title ?? notePath?.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note")}
+          </p>
+          {preview && notePath && preview.name !== meta?.title ? (
+            <p className="mt-1 truncate text-[11px] leading-none text-muted-foreground">
+              {preview.name}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <ScrollArea className="min-h-0 min-w-0 flex-1" type="hover">
-        <div className="min-w-0 space-y-5 p-4">
+        <div className="min-w-0 space-y-4 p-4">
           {preview ? (
-            <section className="min-w-0">
-              <div className="mb-2 flex min-w-0 items-center justify-end gap-0.5">
+            <section className="min-w-0 space-y-2">
+              <div className="flex min-w-0 items-center justify-end gap-0.5">
                 {onReference ? (
                   <Button
                     type="button"
@@ -203,11 +207,9 @@ export function NoteContextPanel({
                   </Button>
                 ) : null}
               </div>
-              <div className="min-w-0 w-full overflow-hidden">
+              <div className="min-w-0 w-full overflow-hidden rounded-lg">
                 {preview.isDirectory ? (
-                  <div className="w-full max-w-full overflow-hidden rounded-lg">
-                    <EntryPreview entry={preview} size="lg" className="max-h-40" />
-                  </div>
+                  <EntryPreview entry={preview} size="lg" className="max-h-40" />
                 ) : (
                   <FilePreview file={preview} compact />
                 )}
@@ -216,15 +218,15 @@ export function NoteContextPanel({
           ) : null}
 
           {broken.length > 0 ? (
-            <section>
-              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <section className="space-y-2">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Missing
               </h3>
               <ul className="space-y-1">
                 {broken.map((link) => (
                   <li
                     key={`broken-${link.label}-${link.href}`}
-                    className="flex min-w-0 items-start gap-1 rounded-md px-1 py-1"
+                    className="flex min-w-0 items-start gap-1 rounded-md py-1"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-foreground">{linkDisplayLabel(link)}</p>
@@ -256,16 +258,16 @@ export function NoteContextPanel({
           ) : null}
 
           {okLinks.length > 0 ? (
-            <section>
-              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <section className="space-y-2">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 In this note
               </h3>
-              <ul className="space-y-1">
+              <ul className="space-y-0.5">
                 {okLinks.map((link) => (
                   <li key={`${link.label}-${link.href}`}>
                     <button
                       type="button"
-                      className="flex w-full rounded-md px-2 py-2 text-left text-sm text-foreground hover:bg-accent"
+                      className="flex w-full rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
                       onClick={() => void openLinked(link.href)}
                     >
                       <span className="truncate">{linkDisplayLabel(link)}</span>
@@ -277,16 +279,16 @@ export function NoteContextPanel({
           ) : null}
 
           {backlinks.length > 0 ? (
-            <section>
-              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <section className="space-y-2">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Linked from
               </h3>
-              <ul className="space-y-1">
+              <ul className="space-y-0.5">
                 {backlinks.map((item) => (
                   <li key={item.path}>
                     <button
                       type="button"
-                      className="flex w-full flex-col rounded-md px-2 py-2 text-left hover:bg-accent"
+                      className="flex w-full flex-col rounded-md px-2 py-1.5 text-left hover:bg-accent"
                       onClick={() => onOpenNote(item.path)}
                     >
                       <span className="truncate text-sm text-foreground">
