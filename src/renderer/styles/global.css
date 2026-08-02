@@ -107,8 +107,8 @@
   }
 
   *::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 12px;
+    height: 12px;
   }
 
   *::-webkit-scrollbar-track {
@@ -118,13 +118,13 @@
   *::-webkit-scrollbar-thumb {
     background: var(--scrollbar);
     border-radius: 999px;
-    border: 2px solid transparent;
+    border: 3px solid transparent;
     background-clip: padding-box;
   }
 
   *::-webkit-scrollbar-thumb:hover {
     background: var(--scrollbar-hover);
-    border: 2px solid transparent;
+    border: 3px solid transparent;
     background-clip: padding-box;
   }
 
@@ -706,7 +706,7 @@
 }
 
 .entropy-breadcrumb::-webkit-scrollbar {
-  height: 4px;
+  height: 6px;
 }
 
 .entropy-breadcrumb::-webkit-scrollbar-thumb {
