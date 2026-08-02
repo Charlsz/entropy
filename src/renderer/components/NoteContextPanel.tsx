@@ -161,13 +161,23 @@ export function NoteContextPanel({
     <div className="entropy-note-context flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="entropy-chrome-bar shrink-0 border-b border-border">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium leading-none text-foreground">
+          <p
+            className="truncate text-sm font-medium leading-none text-foreground"
+            title={
+              preview && !notePath
+                ? preview.name
+                : (meta?.title ?? notePath?.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note")
+            }
+          >
             {preview && !notePath
               ? preview.name
               : (meta?.title ?? notePath?.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note")}
           </p>
           {preview && notePath && preview.name !== meta?.title ? (
-            <p className="entropy-context-subtitle mt-1 truncate text-[11px] leading-none text-muted-foreground">
+            <p
+              className="entropy-context-subtitle mt-1 truncate text-[11px] leading-none text-muted-foreground"
+              title={preview.name}
+            >
               {preview.name}
             </p>
           ) : null}
@@ -225,18 +235,22 @@ export function NoteContextPanel({
           ) : null}
 
           {broken.length > 0 ? (
-            <section className="space-y-2">
+            <section className="min-w-0 space-y-2">
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Missing
               </h3>
-              <ul className="space-y-1">
-                {broken.map((link) => (
+              <ul className="min-w-0 space-y-1">
+                {broken.map((link) => {
+                  const name = linkDisplayLabel(link);
+                  return (
                   <li
                     key={`broken-${link.label}-${link.href}`}
-                    className="flex min-w-0 items-start gap-1 rounded-md py-1"
+                    className="flex min-w-0 items-center gap-1 rounded-md py-1"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-foreground">{linkDisplayLabel(link)}</p>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <p className="truncate text-sm text-foreground" title={name}>
+                        {name}
+                      </p>
                     </div>
                     <Button
                       type="button"
@@ -259,47 +273,55 @@ export function NoteContextPanel({
                       <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
                     </Button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </section>
           ) : null}
 
           {okLinks.length > 0 ? (
-            <section className="space-y-2">
+            <section className="min-w-0 space-y-2">
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 In this note
               </h3>
-              <ul className="space-y-0.5">
-                {okLinks.map((link) => (
-                  <li key={`${link.label}-${link.href}`}>
+              <ul className="min-w-0 space-y-0.5">
+                {okLinks.map((link) => {
+                  const name = linkDisplayLabel(link);
+                  return (
+                  <li key={`${link.label}-${link.href}`} className="min-w-0">
                     <button
                       type="button"
-                      className="flex w-full rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
+                      className="flex w-full min-w-0 max-w-full overflow-hidden rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
+                      title={name}
                       onClick={() => void openLinked(link.href)}
                     >
-                      <span className="truncate">{linkDisplayLabel(link)}</span>
+                      <span className="block min-w-0 flex-1 truncate">{name}</span>
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </section>
           ) : null}
 
           {backlinks.length > 0 ? (
-            <section className="space-y-2">
+            <section className="min-w-0 space-y-2">
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Linked from
               </h3>
-              <ul className="space-y-0.5">
-                {backlinks.map((item) => (
-                  <li key={item.path}>
+              <ul className="min-w-0 space-y-0.5">
+                {backlinks.map((item) => {
+                  const name = item.name.replace(/\.md$/i, "");
+                  return (
+                  <li key={item.path} className="min-w-0">
                     <button
                       type="button"
-                      className="flex w-full flex-col rounded-md px-2 py-1.5 text-left hover:bg-accent"
+                      className="flex w-full min-w-0 max-w-full flex-col overflow-hidden rounded-md px-2 py-1.5 text-left hover:bg-accent"
+                      title={name}
                       onClick={() => onOpenNote(item.path)}
                     >
-                      <span className="truncate text-sm text-foreground">
-                        {item.name.replace(/\.md$/i, "")}
+                      <span className="block min-w-0 truncate text-sm text-foreground">
+                        {name}
                       </span>
                       {item.excerpt ? (
                         <span className="line-clamp-2 text-[11px] text-muted-foreground">
@@ -308,7 +330,8 @@ export function NoteContextPanel({
                       ) : null}
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </section>
           ) : null}
