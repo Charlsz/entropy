@@ -67,6 +67,7 @@ function attachShellGuards(win: BrowserWindow): void {
 
 function appIconPath(): string | undefined {
   const candidates = [
+    path.join(process.resourcesPath, "Entropy.png"),
     path.join(__dirname, "../../Entropy.png"),
     path.join(process.cwd(), "Entropy.png"),
   ];

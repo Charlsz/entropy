@@ -1,0 +1,80 @@
+name: Build installers
+
+# Builds Windows / macOS / Linux installers when a version tag is pushed.
+# Uploads GitHub Actions artifacts only — does NOT create a GitHub Release
+# and does NOT publish to any store. Confirm with a human before distributing.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-installers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows
+            args: --win --x64
+            artifact: entropy-windows
+            path: |
+              release/*.exe
+              release/*.blockmap
+          - os: macos-latest
+            label: macOS
+            args: --mac
+            artifact: entropy-macos
+            path: |
+              release/*.dmg
+              release/*.blockmap
+          - os: ubuntu-latest
+            label: Linux
+            args: --linux
+            artifact: entropy-linux
+            path: |
+              release/*.AppImage
+              release/*.deb
+              release/*.blockmap
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile app
+        run: npm run build
+
+      - name: Package installer
+        run: npx electron-builder ${{ matrix.args }} --publish never
+        env:
+          # Unsigned private builds until certificates are configured.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}-${{ github.ref_name }}
+          path: ${{ matrix.path }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

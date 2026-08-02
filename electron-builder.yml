@@ -1,0 +1,61 @@
+# Packaged app output — separate from compile output in dist/
+appId: app.entropy.desktop
+productName: Entropy
+copyright: Copyright © Entropy contributors
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+
+extraResources:
+  - from: Entropy.png
+    to: Entropy.png
+
+# Unsigned by default. Add certificates + CI secrets when ready to sign.
+# macOS: CSC_LINK / CSC_KEY_PASSWORD (+ Apple notarization env vars)
+# Windows: CSC_LINK / CSC_KEY_PASSWORD (or Windows certificate store)
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.png
+  artifactName: ${productName}-${version}-win-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - universal
+  category: public.app-category.productivity
+  icon: build/icon.png
+  identity: null
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+
+dmg:
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Office
+  icon: build/icon.png
+  maintainer: Entropy contributors
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
+
+# Never auto-publish from electron-builder. CI uploads Actions artifacts only.
+publish: null

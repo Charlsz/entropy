@@ -1,0 +1,5 @@
+# Optional local signing secrets — never commit certificates/private keys.
+*
+!.gitignore
+!README.md
+!icon.png
