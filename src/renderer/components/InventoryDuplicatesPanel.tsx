@@ -172,6 +172,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       const outcome = await window.entropy.fs.undoRemove(undoBatch.paths);
       if (outcome.failed.length > 0 && outcome.restored === 0) {
         setError("Could not restore automatically — open Trash to recover files.");
+        void window.entropy.fs.openTrash();
       } else {
         setUndoBatch(null);
         setPhase("choose");

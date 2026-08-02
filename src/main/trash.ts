@@ -1,25 +1,16 @@
 import { app, shell } from "electron";
-import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-interface TrashMeta {
-  originalPath: string;
-  trashedAt: number;
-  basename: string;
-}
+let legacyPurgeStarted = false;
 
-interface TrashEntry {
-  id: string;
-  originalPath: string;
-}
-
-/** Session journal of recent trash moves (Entropy recoverable bin). */
-let recent: TrashEntry[] = [];
-
-function trashRoot(): string {
-  return path.join(app.getPath("userData"), "trash-bin");
+/** Remove the old AppData trash-bin if a previous build created one. */
+function purgeLegacyBin(): void {
+  if (legacyPurgeStarted) return;
+  legacyPurgeStarted = true;
+  const legacy = path.join(app.getPath("userData"), "trash-bin");
+  void fs.rm(legacy, { recursive: true, force: true }).catch(() => undefined);
 }
 
 async function pathExists(target: string): Promise<boolean> {
@@ -32,35 +23,12 @@ async function pathExists(target: string): Promise<boolean> {
 }
 
 /**
- * Move into Entropy's recoverable trash (same-volume rename when possible).
- * Falls back to the system Trash when rename cannot complete — those items
- * remain recoverable in the OS Trash until emptied, but Undo may not restore them.
+ * Move into the user's Recycle Bin / Trash via the OS (Electron shell.trashItem).
+ * Entropy does not keep a parallel trash folder.
  */
 export async function removeToTrash(targetPath: string): Promise<void> {
-  const id = `${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
-  const destDir = path.join(trashRoot(), id);
-  const basename = path.basename(targetPath);
-  const destPath = path.join(destDir, basename);
-  const meta: TrashMeta = {
-    originalPath: targetPath,
-    trashedAt: Date.now(),
-    basename,
-  };
-
-  try {
-    await fs.mkdir(destDir, { recursive: true });
-    await fs.rename(targetPath, destPath);
-    await fs.writeFile(path.join(destDir, "meta.json"), JSON.stringify(meta), "utf8");
-    recent = [{ id, originalPath: targetPath }, ...recent.filter((e) => e.originalPath !== targetPath)].slice(
-      0,
-      200,
-    );
-  } catch {
-    await fs.rm(destDir, { recursive: true, force: true }).catch(() => undefined);
-    await shell.trashItem(targetPath);
-    // System trash — recorded without id so Undo can still try OS restore.
-    recent = [{ id: "", originalPath: targetPath }, ...recent].slice(0, 200);
-  }
+  purgeLegacyBin();
+  await shell.trashItem(path.normalize(targetPath));
 }
 
 export async function undoRemoves(originalPaths: string[]): Promise<{ restored: number; failed: string[] }> {
@@ -73,73 +41,74 @@ export async function undoRemoves(originalPaths: string[]): Promise<{ restored: 
     else failed.push(originalPath);
   }
 
-  recent = recent.filter((entry) => !originalPaths.includes(entry.originalPath));
   return { restored, failed };
 }
 
 async function undoOne(originalPath: string): Promise<boolean> {
-  if (await pathExists(originalPath)) return true;
-
-  const entry = recent.find((item) => item.originalPath === originalPath);
-  if (entry?.id) {
-    const destDir = path.join(trashRoot(), entry.id);
-    const metaPath = path.join(destDir, "meta.json");
-    try {
-      const meta = JSON.parse(await fs.readFile(metaPath, "utf8")) as TrashMeta;
-      const staged = path.join(destDir, meta.basename);
-      await fs.mkdir(path.dirname(originalPath), { recursive: true });
-      await fs.rename(staged, originalPath);
-      await fs.rm(destDir, { recursive: true, force: true });
-      return true;
-    } catch {
-      // Fall through to OS trash probes.
-    }
-  }
-
-  return restoreFromSystemTrash(originalPath);
+  const normalized = path.normalize(originalPath);
+  if (await pathExists(normalized)) return true;
+  return restoreFromSystemTrash(normalized);
 }
 
+/**
+ * Best-effort restore from the OS trash.
+ * macOS/Linux can often rename out of Trash; Windows Recycle Bin has no
+ * supported restore API — callers should open Recycle Bin for recovery.
+ */
 async function restoreFromSystemTrash(originalPath: string): Promise<boolean> {
   const name = path.basename(originalPath);
 
   if (process.platform === "darwin") {
     const candidate = path.join(os.homedir(), ".Trash", name);
     if (await pathExists(candidate)) {
+      await fs.mkdir(path.dirname(originalPath), { recursive: true });
       await fs.rename(candidate, originalPath);
       return true;
     }
+    return false;
   }
 
   if (process.platform === "linux") {
-    const candidate = path.join(os.homedir(), ".local", "share", "Trash", "files", name);
+    const filesDir = path.join(os.homedir(), ".local", "share", "Trash", "files");
+    const infoDir = path.join(os.homedir(), ".local", "share", "Trash", "info");
+    try {
+      const infos = await fs.readdir(infoDir);
+      for (const infoName of infos) {
+        if (!infoName.endsWith(".trashinfo")) continue;
+        const infoPath = path.join(infoDir, infoName);
+        const body = await fs.readFile(infoPath, "utf8");
+        const match = /^Path=(.+)$/m.exec(body);
+        if (!match) continue;
+        const trashedPath = decodeURIComponent(match[1].trim());
+        if (path.normalize(trashedPath) !== path.normalize(originalPath)) continue;
+        const stagedName = infoName.replace(/\.trashinfo$/i, "");
+        const staged = path.join(filesDir, stagedName);
+        if (!(await pathExists(staged))) continue;
+        await fs.mkdir(path.dirname(originalPath), { recursive: true });
+        await fs.rename(staged, originalPath);
+        await fs.rm(infoPath, { force: true }).catch(() => undefined);
+        return true;
+      }
+    } catch {
+      // Fall through to basename match.
+    }
+
+    const candidate = path.join(filesDir, name);
     if (await pathExists(candidate)) {
+      await fs.mkdir(path.dirname(originalPath), { recursive: true });
       await fs.rename(candidate, originalPath);
-      const info = path.join(
-        os.homedir(),
-        ".local",
-        "share",
-        "Trash",
-        "info",
-        `${name}.trashinfo`,
-      );
-      await fs.rm(info, { force: true }).catch(() => undefined);
+      await fs.rm(path.join(infoDir, `${name}.trashinfo`), { force: true }).catch(() => undefined);
       return true;
     }
   }
 
+  // Windows: Recycle Bin restore is intentional OS UI — no reliable Electron API.
   return false;
 }
 
-/** Reveal the recoverable trash location (Entropy bin, or OS Trash). */
+/** Open the real Recycle Bin (Windows) or Trash (macOS / Linux). */
 export async function openTrash(): Promise<void> {
-  const root = trashRoot();
-  try {
-    await fs.mkdir(root, { recursive: true });
-    const opened = await shell.openPath(root);
-    if (!opened) return;
-  } catch {
-    // Fall through.
-  }
+  purgeLegacyBin();
 
   if (process.platform === "win32") {
     await shell.openExternal("shell:RecycleBinFolder");

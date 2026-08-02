@@ -29,7 +29,7 @@ export function TrashUndoBar({
         </p>
         <p className="text-muted-foreground">
           {reclaimLabel ? `Reclaim ${reclaimLabel} · ` : ""}
-          Recoverable until Trash is emptied
+          Recoverable from system Trash until emptied
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1">

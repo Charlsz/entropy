@@ -410,7 +410,8 @@ export function FilesPage() {
         setUndoTrash(null);
         await refresh();
       } else {
-        setError("Could not restore automatically — open Trash to recover the file.");
+        setError("Could not restore automatically — open Trash (Recycle Bin) to recover the file.");
+        void window.entropy.fs.openTrash();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Undo failed");
@@ -657,7 +658,7 @@ export function FilesPage() {
         title="Move to Trash?"
         description={
           pendingDelete
-            ? `Move "${pendingDelete.name}" to Trash? You can Undo until Trash is emptied.`
+            ? `Move "${pendingDelete.name}" to Trash? Recover from system Trash until it is emptied.`
             : "Move this item to Trash?"
         }
         confirmLabel="Move to Trash"

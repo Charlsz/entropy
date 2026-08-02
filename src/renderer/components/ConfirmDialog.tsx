@@ -103,7 +103,7 @@ export function DeletePreviewLists({
         </div>
       ) : null}
       <p className="text-sm text-muted-foreground">
-        Files move to Trash. Use Undo to restore, or recover from Trash until it is emptied.
+        Files move to your system Trash (Recycle Bin on Windows). Recover from there until it is emptied.
       </p>
     </div>
   );
