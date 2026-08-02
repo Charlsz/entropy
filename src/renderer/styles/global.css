@@ -563,15 +563,30 @@
   container-name: duplicates;
 }
 
+/* Scan/results use horizontal space; choose-scope stays a quiet centered card. */
+.entropy-duplicates-stage {
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+}
+
 @container duplicates (min-width: 52rem) {
   .entropy-readable {
     max-width: 64rem;
+  }
+
+  .entropy-duplicates-stage {
+    max-width: 88rem;
   }
 }
 
 @container duplicates (min-width: 72rem) {
   .entropy-readable {
     max-width: 80rem;
+  }
+
+  .entropy-duplicates-stage {
+    max-width: 96rem;
   }
 }
 

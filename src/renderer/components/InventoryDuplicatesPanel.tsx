@@ -203,7 +203,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       aria-label="Duplicate files"
     >
       <div className="border-b border-border px-4 py-3">
-        <div className="entropy-readable flex items-center gap-2">
+        <div className="entropy-duplicates-stage flex items-center gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -308,7 +308,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       ) : (
         <>
           <div className="border-b border-border px-4 py-3">
-            <div className="entropy-readable">
+            <div className="entropy-duplicates-stage">
               <div className="mb-2 flex items-center justify-between gap-3 text-sm">
                 <span className="min-w-0 truncate text-muted-foreground">
                   {progress?.message ??
@@ -328,7 +328,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
 
           <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(5rem,7.5rem)]">
             <ScrollArea className="min-h-0">
-              <div className="entropy-readable space-y-3 px-4 py-4">
+              <div className="entropy-duplicates-stage space-y-3 px-4 py-4">
                 {!running && !error && groups.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center">
                     <p className="text-sm text-foreground">No exact duplicates found</p>
@@ -371,7 +371,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
             </ScrollArea>
 
             <div className="border-t border-border bg-ink/40 px-4 py-2">
-              <div className="entropy-readable">
+              <div className="entropy-duplicates-stage">
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Activity
                 </p>
@@ -405,7 +405,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
               />
             ) : null}
             <div className="px-4 py-2 text-sm text-muted-foreground">
-              <div className="entropy-readable min-w-0 truncate">
+              <div className="entropy-duplicates-stage min-w-0 truncate">
                 {result
                   ? `${result.filesScanned.toLocaleString()} files · ${formatDuration(result.durationMs)}`
                   : progress
