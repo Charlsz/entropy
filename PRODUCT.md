@@ -1,8 +1,5 @@
 # Product
 
-## Register
-product
-
 ## Vision
 
 Entropy is a **local-first workspace** built on top of the user’s existing filesystem — not a note-taking app that owns a vault, and not a file explorer replacement.
