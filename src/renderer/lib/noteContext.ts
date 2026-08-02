@@ -13,12 +13,14 @@ export async function noteContextIsUseful(
   notePath: string | null,
   previewEntry: FileEntry | null | undefined,
   workspacePath: string,
+  liveContent?: string | null,
 ): Promise<boolean> {
   if (previewEntry) return true;
   if (!notePath) return false;
 
   try {
-    const content = await window.entropy.fs.readText(notePath);
+    const content =
+      liveContent != null ? liveContent : await window.entropy.fs.readText(notePath);
     LINK_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = LINK_RE.exec(content)) !== null) {

@@ -12,7 +12,6 @@ import {
 } from "./ui/tooltip";
 import { useWorkspace } from "../state/useWorkspace";
 import { rewriteMarkdownHref } from "../lib/linkRepair";
-import { samePath } from "../lib/platform";
 
 const LINK_RE = /\!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
 
@@ -48,8 +47,8 @@ interface NoteLink {
 interface NoteContextPanelProps {
   notePath: string | null;
   previewEntry?: FileEntry | null;
-  /** Bump after editor inserts/rewrites so "In this note" refreshes. */
-  contentEpoch?: number;
+  /** Live editor buffer for the active note — preferred over disk reads. */
+  liveContent?: string | null;
   onOpenNote: (path: string) => void;
   onReference?: (entry: FileEntry) => void;
   onClearPreview?: () => void;
@@ -59,7 +58,7 @@ interface NoteContextPanelProps {
 export function NoteContextPanel({
   notePath,
   previewEntry = null,
-  contentEpoch = 0,
+  liveContent = null,
   onOpenNote,
   onReference,
   onClearPreview,
@@ -90,63 +89,43 @@ export function NoteContextPanel({
     }
 
     let cancelled = false;
+    // Short debounce so typing a path doesn't thrash exists() checks; file add/remove still feels instant.
+    const delayMs = liveContent != null ? 100 : 0;
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const content =
+            liveContent != null ? liveContent : await window.entropy.fs.readText(notePath);
+          if (cancelled) return;
+          setRawContent(content);
+          const found = await resolveLinks(notePath, content);
+          if (cancelled) return;
 
-    void (async () => {
-      try {
-        const content = await window.entropy.fs.readText(notePath);
-        if (cancelled) return;
-        setRawContent(content);
-        const found = await resolveLinks(notePath, content);
-        if (cancelled) return;
-
-        // After Add to Workspace, keep the preview listed under "In this note"
-        // even before the note save lands on disk.
-        if (previewEntry && contentEpoch > 0) {
-          let linked = false;
-          for (const link of found) {
-            if (link.missing) continue;
-            try {
-              const absolute = await resolveAbsolute(notePath, link.href);
-              if (samePath(absolute, previewEntry.path)) {
-                linked = true;
-                break;
-              }
-            } catch {
-              // Keep scanning.
-            }
-          }
-          if (!linked) {
-            found.push({
-              label: previewEntry.name,
-              href: previewEntry.path,
-              missing: false,
-            });
+          setLinks(found);
+          const words = content.trim() ? content.trim().split(/\s+/).length : 0;
+          setMeta({
+            title: notePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note",
+            words,
+            chars: content.length,
+          });
+          const related = await window.entropy.fs.findBacklinks(workspace.path, notePath);
+          if (!cancelled) setBacklinks(related);
+        } catch {
+          if (!cancelled) {
+            setLinks([]);
+            setRawContent("");
+            setBacklinks([]);
+            setMeta(null);
           }
         }
-
-        setLinks(found);
-        const words = content.trim() ? content.trim().split(/\s+/).length : 0;
-        setMeta({
-          title: notePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note",
-          words,
-          chars: content.length,
-        });
-        const related = await window.entropy.fs.findBacklinks(workspace.path, notePath);
-        if (!cancelled) setBacklinks(related);
-      } catch {
-        if (!cancelled) {
-          setLinks([]);
-          setRawContent("");
-          setBacklinks([]);
-          setMeta(null);
-        }
-      }
-    })();
+      })();
+    }, delayMs);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(handle);
     };
-  }, [notePath, workspace.path, contentEpoch, previewEntry]);
+  }, [notePath, workspace.path, liveContent]);
 
   const preview = previewEntry ?? linkedFile;
   const canGoBack = Boolean(preview);

@@ -53,6 +53,7 @@ export function NotebookPage({
   const activePathRef = useRef<string | null>(null);
   const insertedReferenceKeysRef = useRef(new Set<string>());
   const [queuedReference, setQueuedReference] = useState<string | null>(null);
+  const [liveContent, setLiveContent] = useState<string | null>(null);
   activePathRef.current = activePath;
 
   const refreshNotes = useCallback(async (options?: { quiet?: boolean }) => {
@@ -456,20 +457,25 @@ export function NotebookPage({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const useful = await noteContextIsUseful(activePath, previewEntry, workspace.path);
+      const useful = await noteContextIsUseful(
+        activePath,
+        previewEntry,
+        workspace.path,
+        liveContent,
+      );
       if (!cancelled) setContextUseful(useful);
     })();
     return () => {
       cancelled = true;
     };
-  }, [activePath, previewEntry, workspace.path, contextEpoch]);
+  }, [activePath, previewEntry, workspace.path, contextEpoch, liveContent]);
 
   const context =
     contextUseful || previewEntry ? (
       <NoteContextPanel
         notePath={activePath}
         previewEntry={previewEntry}
-        contentEpoch={contextEpoch}
+        liveContent={liveContent}
         onOpenNote={openNote}
         onReference={(entry) => void referenceEntry(entry)}
         onClearPreview={() => setPreviewEntry(null)}
@@ -607,6 +613,7 @@ export function NotebookPage({
             }}
             onCloseTab={closeTab}
             onStatsChange={setStatusRight}
+            onLiveContentChange={setLiveContent}
             onOpenLocalPath={(absolutePath) => {
               void (async () => {
                 try {

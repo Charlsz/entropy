@@ -44,6 +44,8 @@ interface MarkdownEditorProps {
   onActiveChange: (path: string) => void;
   onCloseTab: (path: string) => void;
   onStatsChange?: (stats: string) => void;
+  /** Fires when the active tab's in-memory markdown changes (before disk save). */
+  onLiveContentChange?: (content: string | null) => void;
   onOpenLocalPath?: (absolutePath: string) => void;
 }
 
@@ -63,7 +65,15 @@ function countWords(text: string): number {
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
   function MarkdownEditor(
-    { openPaths, activePath, onActiveChange, onCloseTab, onStatsChange, onOpenLocalPath },
+    {
+      openPaths,
+      activePath,
+      onActiveChange,
+      onCloseTab,
+      onStatsChange,
+      onLiveContentChange,
+      onOpenLocalPath,
+    },
     ref,
   ) {
   const { workspace } = useWorkspace();
@@ -265,6 +275,21 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       backlinks.length === 1 ? "1 backlink" : `${backlinks.length} backlinks`;
     onStatsChange(`${linkLabel} · ${words} words · ${chars} characters · ${saveState}`);
   }, [activeTab, isDirty, onStatsChange, backlinks.length]);
+
+  useEffect(() => {
+    if (!onLiveContentChange) return;
+    if (!activeTab || activeTab.loading || activeTab.missing) {
+      onLiveContentChange(null);
+      return;
+    }
+    onLiveContentChange(activeTab.content);
+  }, [
+    activeTab?.path,
+    activeTab?.content,
+    activeTab?.loading,
+    activeTab?.missing,
+    onLiveContentChange,
+  ]);
 
   const scheduleSave = useCallback(
     (filePath: string, content: string) => {
