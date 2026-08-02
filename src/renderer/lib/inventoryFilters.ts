@@ -1,5 +1,6 @@
 import type { FileEntry } from "../../shared/types";
 import { kindFromExtension, type FileKindId } from "../../shared/fileKinds";
+import { samePath } from "./platform";
 
 export type InventoryFilterId =
   | "images"
@@ -55,10 +56,6 @@ const TYPE_FILTER_KIND: Partial<Record<InventoryFilterId, FileKindId>> = {
   archives: "archive",
   code: "code",
 };
-
-function samePath(a: string, b: string): boolean {
-  return a.replace(/[/\\]+$/, "").toLowerCase() === b.replace(/[/\\]+$/, "").toLowerCase();
-}
 
 /** OR within a group, AND across groups that have active filters. */
 export function entryMatchesFilters(

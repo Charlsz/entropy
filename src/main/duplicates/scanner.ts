@@ -11,9 +11,12 @@ const SKIP_DIRS = new Set([
   "build",
   ".next",
   ".cache",
-  "$Recycle.Bin",
-  "System Volume Information",
 ]);
+
+if (process.platform === "win32") {
+  SKIP_DIRS.add("$Recycle.Bin");
+  SKIP_DIRS.add("System Volume Information");
+}
 
 export interface ScanOptions {
   signal?: AbortSignal;

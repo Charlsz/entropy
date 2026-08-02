@@ -1,11 +1,5 @@
 import { useEffect, useRef } from "react";
-
-function samePath(a: string, b: string): boolean {
-  return (
-    a.replace(/[/\\]+$/, "").replace(/\\/g, "/").toLowerCase() ===
-    b.replace(/[/\\]+$/, "").replace(/\\/g, "/").toLowerCase()
-  );
-}
+import { samePath } from "../lib/platform";
 
 /**
  * Keep a directory listing live with external disk changes.

@@ -8,6 +8,7 @@ import {
   type FileKindId,
 } from "../../shared/fileKinds";
 import { cn } from "../lib/utils";
+import { samePath } from "../lib/platform";
 import { squarify } from "../lib/squarify";
 
 const FOLDER_FILL = "#2c3136";
@@ -45,7 +46,7 @@ function isAggregateLeaf(leaf: TreemapFileLeaf): boolean {
 }
 
 function samePathKey(a: string, b: string): boolean {
-  return a.replace(/[/\\]+$/, "").toLowerCase() === b.replace(/[/\\]+$/, "").toLowerCase();
+  return samePath(a, b);
 }
 
 function kindLabelFor(leaf: TreemapFileLeaf): string {

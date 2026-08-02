@@ -1,4 +1,5 @@
 import type { ItemAction } from "../components/ItemActionsMenu";
+import { revealInFolderLabel } from "../../shared/platform";
 
 export async function copyPath(filePath: string): Promise<void> {
   try {
@@ -35,12 +36,7 @@ export function buildEntryActions(options: {
   onMoveTo: () => void;
   onDelete: () => void;
 }): ItemAction[] {
-  const revealLabel =
-    window.entropy.platform === "darwin"
-      ? "Show in Finder"
-      : window.entropy.platform === "win32"
-        ? "Show in Explorer"
-        : "Show in file manager";
+  const revealLabel = revealInFolderLabel(window.entropy.platform);
 
   const actions: ItemAction[] = [
     { label: "Rename", onSelect: options.onRename },

@@ -1,4 +1,5 @@
 import { Button } from "./ui/button";
+import { osOpenTrashLabel, osTrashName } from "../lib/platform";
 
 interface TrashUndoBarProps {
   fileCount: number;
@@ -9,7 +10,7 @@ interface TrashUndoBarProps {
   onDismiss: () => void;
 }
 
-/** Post-delete recovery affordance — files stay recoverable until Trash is emptied. */
+/** Post-delete recovery affordance — files stay in the OS trash until emptied. */
 export function TrashUndoBar({
   fileCount,
   reclaimLabel,
@@ -18,6 +19,7 @@ export function TrashUndoBar({
   onOpenTrash,
   onDismiss,
 }: TrashUndoBarProps) {
+  const trash = osTrashName();
   return (
     <div
       className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-ink-2 px-4 py-2.5"
@@ -25,11 +27,11 @@ export function TrashUndoBar({
     >
       <div className="min-w-0 text-sm">
         <p className="font-medium text-foreground">
-          {fileCount.toLocaleString()} file{fileCount === 1 ? "" : "s"} moved to Trash
+          {fileCount.toLocaleString()} file{fileCount === 1 ? "" : "s"} moved to {trash}
         </p>
         <p className="text-muted-foreground">
           {reclaimLabel ? `Reclaim ${reclaimLabel} · ` : ""}
-          Recoverable from system Trash until emptied
+          Recoverable from {trash} until emptied
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
@@ -51,7 +53,7 @@ export function TrashUndoBar({
           disabled={busy}
           onClick={onOpenTrash}
         >
-          Open Trash
+          {osOpenTrashLabel()}
         </Button>
         <Button
           type="button"

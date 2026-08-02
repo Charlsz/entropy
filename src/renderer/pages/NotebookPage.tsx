@@ -18,6 +18,7 @@ import { NoteContextPanel } from "../components/NoteContextPanel";
 import { NotebookLibrary } from "../components/NotebookLibrary";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { useDirWatch } from "../hooks/useDirWatch";
+import { osTrashName } from "../lib/platform";
 import { cn } from "../lib/utils";
 
 export function NotebookPage({
@@ -494,8 +495,8 @@ export function NotebookPage({
         title="Move to trash?"
         description={
           pendingDelete
-            ? `Move "${pendingDelete.split(/[/\\]/).pop() ?? "note"}" to the system trash?`
-            : "Move this note to the system trash?"
+            ? `Move "${pendingDelete.split(/[/\\]/).pop() ?? "note"}" to ${osTrashName()}?`
+            : `Move this note to ${osTrashName()}?`
         }
         confirmLabel="Delete"
         onConfirm={() => void confirmDelete()}

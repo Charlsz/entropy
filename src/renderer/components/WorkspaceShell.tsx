@@ -24,6 +24,7 @@ export function WorkspaceShell() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = workspace.settings.theme;
+    document.documentElement.dataset.platform = window.entropy.platform;
   }, [workspace.settings.theme]);
 
   useEffect(() => {

@@ -5,6 +5,8 @@ import { FILE_KIND_LABEL, kindFromExtension } from "../../shared/fileKinds";
 import { Button } from "./ui/button";
 import { useWorkspace } from "../state/useWorkspace";
 
+import { samePath, osRevealLabel } from "../lib/platform";
+
 function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
@@ -20,10 +22,6 @@ function formatRelative(value: number): string {
   if (delta < 30 * day) return `${Math.floor(delta / (7 * day))}w ago`;
   if (delta < 365 * day) return `${Math.floor(delta / (30 * day))}mo ago`;
   return `${Math.floor(delta / (365 * day))}y ago`;
-}
-
-function samePath(a: string, b: string): boolean {
-  return a.replace(/[/\\]+$/, "").toLowerCase() === b.replace(/[/\\]+$/, "").toLowerCase();
 }
 
 interface InventoryContextBarProps {
@@ -115,7 +113,7 @@ export function InventoryContextBar({
             onClick={onReveal}
           >
             <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
-            <span className="entropy-context-action-label">Reveal</span>
+            <span className="entropy-context-action-label">{osRevealLabel()}</span>
           </Button>
           {!selected.isDirectory ? (
             <Button

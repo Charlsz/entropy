@@ -14,6 +14,7 @@ import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { ConfirmDialog, DeletePreviewLists } from "./ConfirmDialog";
 import { TrashUndoBar } from "./TrashUndoBar";
+import { osTrashName } from "../lib/platform";
 import { cn } from "../lib/utils";
 
 function formatBytes(size: number): string {
@@ -157,7 +158,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
         return { ...prev, groups: pruneGroups(prev.groups, removed) };
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to move files to Trash");
+      setError(err instanceof Error ? err.message : `Failed to move files to ${osTrashName()}`);
     } finally {
       setDeleting(false);
       setPendingDelete(null);
@@ -171,7 +172,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     try {
       const outcome = await window.entropy.fs.undoRemove(undoBatch.paths);
       if (outcome.failed.length > 0 && outcome.restored === 0) {
-        setError("Could not restore automatically — open Trash to recover files.");
+        setError(`Could not restore automatically — open ${osTrashName()} to recover files.`);
         void window.entropy.fs.openTrash();
       } else {
         setUndoBatch(null);
@@ -403,7 +404,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       <ConfirmDialog
         open={pendingDelete !== null}
         title={pendingDelete?.title ?? "Delete files?"}
-        confirmLabel="Move to Trash"
+        confirmLabel={`Move to ${osTrashName()}`}
         onConfirm={() => void confirmDelete()}
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null);

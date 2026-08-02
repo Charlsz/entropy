@@ -10,6 +10,7 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { ScrollArea } from "./ui/scroll-area";
+import { trashDisplayName } from "../../shared/platform";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -103,7 +104,8 @@ export function DeletePreviewLists({
         </div>
       ) : null}
       <p className="text-sm text-muted-foreground">
-        Files move to your system Trash (Recycle Bin on Windows). Recover from there until it is emptied.
+        Files move to {trashDisplayName(window.entropy.platform)}. Recover from there until it is
+        emptied.
       </p>
     </div>
   );

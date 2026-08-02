@@ -6,7 +6,7 @@ import type { InventoryRoot, TreemapFileLeaf, TreemapScanResult, GlobalSearchHit
 import { kindFromExtension } from "../shared/fileKinds";
 import { mapPool } from "./asyncPool";
 
-const SKIP_DIRS = new Set([
+const SKIP_DIRS_COMMON = new Set([
   "node_modules",
   ".git",
   ".svn",
@@ -15,6 +15,10 @@ const SKIP_DIRS = new Set([
   "build",
   ".next",
   ".cache",
+]);
+
+/** Windows profile / system folders that thrash scans and confuse measure. */
+const SKIP_DIRS_WINDOWS = new Set([
   "$Recycle.Bin",
   "System Volume Information",
   "AppData",
@@ -32,6 +36,14 @@ const SKIP_DIRS = new Set([
   "My Pictures",
   "My Videos",
 ]);
+
+function shouldSkipMeasureDir(name: string): boolean {
+  if (SKIP_DIRS_COMMON.has(name)) return true;
+  if (process.platform === "win32" && SKIP_DIRS_WINDOWS.has(name)) return true;
+  // Library under Home is huge and rarely what users mean by “what's using space”.
+  if (process.platform === "darwin" && name === "Library") return true;
+  return false;
+}
 
 const MEASURE_CONCURRENCY = 6;
 const sizeCache = new Map<string, { size: number; mtimeMs: number }>();
@@ -193,7 +205,7 @@ async function measurePathUncached(normalized: string): Promise<number> {
   if (cached && cached.mtimeMs === info.mtimeMs) return cached.size;
 
   const name = path.basename(normalized);
-  if (SKIP_DIRS.has(name)) {
+  if (shouldSkipMeasureDir(name)) {
     sizeCache.set(normalized, { size: 0, mtimeMs: info.mtimeMs });
     return 0;
   }
@@ -206,7 +218,7 @@ async function measurePathUncached(normalized: string): Promise<number> {
   }
 
   const children = dirents
-    .filter((dirent) => dirent.name !== "." && dirent.name !== ".." && !SKIP_DIRS.has(dirent.name))
+    .filter((dirent) => dirent.name !== "." && dirent.name !== ".." && !shouldSkipMeasureDir(dirent.name))
     .map((dirent) => path.join(normalized, dirent.name));
 
   const sizes = await mapPool(children, MEASURE_CONCURRENCY, async (child) => {
@@ -235,7 +247,7 @@ export async function measureChildren(
   }
 
   const children = dirents
-    .filter((dirent) => dirent.name !== "." && dirent.name !== ".." && !SKIP_DIRS.has(dirent.name))
+    .filter((dirent) => dirent.name !== "." && dirent.name !== ".." && !shouldSkipMeasureDir(dirent.name))
     .map((dirent) => path.join(dirPath, dirent.name));
 
   return mapPool(children, MEASURE_CONCURRENCY, async (child) => ({
@@ -323,7 +335,7 @@ async function walkFiles(
   const location = path.basename(dirPath);
   for (const dirent of dirents) {
     if (dirent.name === "." || dirent.name === "..") continue;
-    if (SKIP_DIRS.has(dirent.name)) continue;
+    if (shouldSkipMeasureDir(dirent.name)) continue;
     if (dirent.name.startsWith(".")) continue;
     const fullPath = path.join(dirPath, dirent.name);
     try {
@@ -371,7 +383,7 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
     (dirent) =>
       dirent.name !== "." &&
       dirent.name !== ".." &&
-      !SKIP_DIRS.has(dirent.name) &&
+      !shouldSkipMeasureDir(dirent.name) &&
       !dirent.name.startsWith("."),
   );
 
@@ -489,7 +501,7 @@ export async function searchInventoryNames(
     for (const dirent of dirents) {
       if (results.length >= NAME_SEARCH_MAX_RESULTS) return;
       if (dirent.name === "." || dirent.name === "..") continue;
-      if (SKIP_DIRS.has(dirent.name)) continue;
+      if (shouldSkipMeasureDir(dirent.name)) continue;
       if (dirent.name.startsWith(".")) continue;
       const full = path.join(dir, dirent.name);
       try {

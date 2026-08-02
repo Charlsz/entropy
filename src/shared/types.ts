@@ -106,7 +106,7 @@ export interface DuplicateScanOptions {
 }
 
 export interface EntropyApi {
-  platform: string;
+  platform: "darwin" | "win32" | "linux" | string;
   versions: {
     electron: string;
     chrome: string;

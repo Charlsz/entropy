@@ -19,10 +19,7 @@ import {
   type WorkspaceSettings,
   type WorkspaceState,
 } from "./workspace";
-
-function samePath(a: string, b: string): boolean {
-  return a.replace(/[/\\]+$/, "").toLowerCase() === b.replace(/[/\\]+$/, "").toLowerCase();
-}
+import { samePath } from "../lib/platform";
 
 export type FolderNavMode = "push" | "replace";
 

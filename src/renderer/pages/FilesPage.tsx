@@ -39,6 +39,7 @@ import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isPreviewableEntry } from "../lib/media";
 import { useDirWatch } from "../hooks/useDirWatch";
+import { isUnderPath, osTrashName, samePath } from "../lib/platform";
 import { cn } from "../lib/utils";
 
 type SortKey = "name" | "modified" | "size" | "type";
@@ -48,16 +49,6 @@ function formatBytes(size: number): string {
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   if (size < 1024 * 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`;
   return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`;
-}
-
-function samePath(a: string, b: string): boolean {
-  return a.replace(/[/\\]+$/, "").toLowerCase() === b.replace(/[/\\]+$/, "").toLowerCase();
-}
-
-function isUnderPath(folder: string, root: string): boolean {
-  const left = folder.replace(/[/\\]+$/, "").toLowerCase();
-  const right = root.replace(/[/\\]+$/, "").toLowerCase();
-  return left === right || left.startsWith(`${right}\\`) || left.startsWith(`${right}/`);
 }
 
 function pickRoot(folder: string, roots: InventoryRoot[]): InventoryRoot | null {
@@ -410,7 +401,9 @@ export function FilesPage() {
         setUndoTrash(null);
         await refresh();
       } else {
-        setError("Could not restore automatically — open Trash (Recycle Bin) to recover the file.");
+        setError(
+          `Could not restore automatically — open ${osTrashName()} to recover the file.`,
+        );
         void window.entropy.fs.openTrash();
       }
     } catch (err) {
@@ -655,13 +648,13 @@ export function FilesPage() {
       ) : null}
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="Move to Trash?"
+        title={`Move to ${osTrashName()}?`}
         description={
           pendingDelete
-            ? `Move "${pendingDelete.name}" to Trash? Recover from system Trash until it is emptied.`
-            : "Move this item to Trash?"
+            ? `Move "${pendingDelete.name}" to ${osTrashName()}? Recover from there until it is emptied.`
+            : `Move this item to ${osTrashName()}?`
         }
-        confirmLabel="Move to Trash"
+        confirmLabel={`Move to ${osTrashName()}`}
         onConfirm={() => void confirmDelete()}
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null);

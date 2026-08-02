@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { WindowControls } from "./WindowControls";
 import { WorkspaceContext } from "../state/WorkspaceContext";
+import { osModKey } from "../lib/platform";
 import { cn } from "../lib/utils";
 
 interface TitlebarProps {
@@ -42,7 +43,11 @@ export function Titlebar({
         ) : null}
 
         {onOpenSearch ? (
-          <TitlebarIconButton label="Search" className="ml-1 shrink-0" onClick={onOpenSearch}>
+          <TitlebarIconButton
+            label={`Search (${osModKey()}+K)`}
+            className="ml-1 shrink-0"
+            onClick={onOpenSearch}
+          >
             <Search strokeWidth={1.75} />
           </TitlebarIconButton>
         ) : null}

@@ -3,9 +3,11 @@ import { Minus, Square, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
+import { hostIsMac } from "../lib/platform";
+
 export function WindowControls() {
   const [maximized, setMaximized] = useState(false);
-  const isMac = window.entropy?.platform === "darwin";
+  const isMac = hostIsMac();
   const canControl = Boolean(window.entropy?.window);
 
   useEffect(() => {
