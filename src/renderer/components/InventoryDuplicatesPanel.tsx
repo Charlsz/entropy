@@ -322,12 +322,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
               <div className="h-1.5 overflow-hidden rounded-full bg-ink-2">
                 <div className="h-full rounded-full bg-paper-2" style={{ width: `${percent}%` }} />
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {scopeLabel}
-                {groups.length > 0
-                  ? ` · ${groups.length} group${groups.length === 1 ? "" : "s"}`
-                  : ""}
-              </p>
+              <p className="mt-2 text-sm text-muted-foreground">{scopeLabel}</p>
             </div>
           </div>
 
@@ -410,17 +405,12 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
               />
             ) : null}
             <div className="px-4 py-2 text-sm text-muted-foreground">
-              <div className="entropy-readable flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate">
-                  {result
-                    ? `${result.filesScanned.toLocaleString()} files · ${formatDuration(result.durationMs)}`
-                    : progress
-                      ? `${progress.filesSeen.toLocaleString()} seen`
-                      : rootPath}
-                </span>
-                <span className="shrink-0">
-                  {groups.length > 0 ? `${groups.length} groups` : ""}
-                </span>
+              <div className="entropy-readable min-w-0 truncate">
+                {result
+                  ? `${result.filesScanned.toLocaleString()} files · ${formatDuration(result.durationMs)}`
+                  : progress
+                    ? `${progress.filesSeen.toLocaleString()} seen`
+                    : rootPath}
               </div>
             </div>
           </div>

@@ -441,7 +441,8 @@
   min-width: 0;
 }
 
-/* Readable column for list/detail modes — gallery stays full-bleed. */
+/* Readable column for list/detail modes — gallery stays full-bleed.
+   Scales up on wide containers so maximized windows don’t look empty. */
 .entropy-readable {
   width: 100%;
   max-width: 48rem;
@@ -450,13 +451,25 @@
 
 .entropy-readable-wide {
   width: 100%;
-  max-width: 56rem;
+  max-width: 72rem;
   margin-inline: auto;
 }
 
 .entropy-duplicates {
   container-type: inline-size;
   container-name: duplicates;
+}
+
+@container duplicates (min-width: 52rem) {
+  .entropy-readable {
+    max-width: 64rem;
+  }
+}
+
+@container duplicates (min-width: 72rem) {
+  .entropy-readable {
+    max-width: 80rem;
+  }
 }
 
 @container duplicates (max-width: 30rem) {
