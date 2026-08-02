@@ -496,12 +496,12 @@ export function NotebookPage({
       <StatusBar left={activePath ?? workspace.path} right={statusRight} />
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="Move to trash?"
-        description={
+        title={
           pendingDelete
-            ? `Move "${pendingDelete.split(/[/\\]/).pop() ?? "note"}" to ${osTrashName()}?`
-            : `Move this note to ${osTrashName()}?`
+            ? `Delete “${pendingDelete.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "note"}”?`
+            : "Delete note?"
         }
+        description={`Moves to ${osTrashName()}. Recover until emptied.`}
         confirmLabel="Delete"
         onConfirm={() => void confirmDelete()}
         onOpenChange={(open) => {

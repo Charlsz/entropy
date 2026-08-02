@@ -14,15 +14,10 @@ import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { ConfirmDialog, DeletePreviewLists } from "./ConfirmDialog";
 import { TrashUndoBar } from "./TrashUndoBar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { osTrashName } from "../lib/platform";
 import { cn } from "../lib/utils";
-
-function formatBytes(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
+import { formatBytes } from "../lib/format";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms} ms`;
@@ -393,7 +388,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
               </span>
               <span className="shrink-0">
                 {groups.length > 0
-                  ? `${groups.length} groups · use trash to remove copies`
+                  ? `${groups.length} groups`
                   : ""}
               </span>
             </div>
@@ -404,7 +399,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       <ConfirmDialog
         open={pendingDelete !== null}
         title={pendingDelete?.title ?? "Delete files?"}
-        confirmLabel={`Move to ${osTrashName()}`}
+        confirmLabel="Move"
         onConfirm={() => void confirmDelete()}
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null);
@@ -445,20 +440,26 @@ function DuplicateGroupCard({
           <h2 className="text-sm font-medium text-foreground">
             {group.copies.length} copies · {formatBytes(group.size)} each
           </h2>
-          <p className="text-[11px] text-muted-foreground">Exact duplicate · identical contents</p>
+          <p className="text-[11px] text-muted-foreground">Identical contents</p>
         </div>
         {extras.length > 0 ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground"
-            disabled={disabled}
-            onClick={onDeleteOtherCopies}
-          >
-            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-            Delete copies · {formatBytes(group.recoverableBytes)}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground"
+                disabled={disabled}
+                aria-label={`Delete other copies · ${formatBytes(group.recoverableBytes)}`}
+                onClick={onDeleteOtherCopies}
+              >
+                <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                {formatBytes(group.recoverableBytes)}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete other copies</TooltipContent>
+          </Tooltip>
         ) : null}
       </div>
       <ul className="mt-3 space-y-1.5">

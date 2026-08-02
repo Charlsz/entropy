@@ -693,19 +693,15 @@ export function FilesPage() {
           ) : null}
           <StatusBar
             left={workspace.currentFolder}
-            right={`${visible.length} items${selected ? ` · ${selected.name}` : ""}`}
+            right={`${visible.length} items`}
           />
         </>
       ) : null}
       <ConfirmDialog
         open={pendingDelete !== null}
-        title={`Move folder to ${osTrashName()}?`}
-        description={
-          pendingDelete
-            ? `Move "${pendingDelete.name}" and everything inside to ${osTrashName()}? You can recover from there until it is emptied.`
-            : `Move this folder to ${osTrashName()}?`
-        }
-        confirmLabel={`Move to ${osTrashName()}`}
+        title={pendingDelete ? `Move “${pendingDelete.name}”?` : "Move folder?"}
+        description={`Moves the folder and everything inside to ${osTrashName()}. Recover until emptied.`}
+        confirmLabel="Move"
         onConfirm={() => void confirmDelete()}
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null);

@@ -218,9 +218,9 @@ export function NoteContextPanel({
               </div>
             </section>
           ) : notePath ? (
-            <p className="text-xs text-muted-foreground">
-              Select a library file or click a link to preview it here.
-            </p>
+          <p className="text-xs text-muted-foreground">
+            Drag a library file here, or click a link.
+          </p>
           ) : null}
 
           {notePath && broken.length > 0 ? (
@@ -270,34 +270,37 @@ export function NoteContextPanel({
 
           {notePath ? (
             <>
-              <section>
-                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  In this note
-                </h3>
-                {links.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No links yet.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {links.map((link) => (
-                      <li key={`${link.label}-${link.href}`}>
-                        <button
-                          type="button"
-                          className="flex w-full flex-col rounded-md px-2 py-2 text-left hover:bg-accent"
-                          onClick={() => void openLinked(link.href)}
-                        >
-                          <span className="truncate text-sm text-foreground">
-                            {link.label || link.href}
-                            {link.missing ? (
-                              <span className="ml-1.5 text-[11px] text-muted-foreground">missing</span>
-                            ) : null}
-                          </span>
-                          <span className="truncate text-[11px] text-muted-foreground">{link.href}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
+              {links.length === 0 || links.some((link) => !link.missing) ? (
+                <section>
+                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    In this note
+                  </h3>
+                  {links.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No links yet.</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {links
+                        .filter((link) => !link.missing)
+                        .map((link) => (
+                          <li key={`${link.label}-${link.href}`}>
+                            <button
+                              type="button"
+                              className="flex w-full flex-col rounded-md px-2 py-2 text-left hover:bg-accent"
+                              onClick={() => void openLinked(link.href)}
+                            >
+                              <span className="truncate text-sm text-foreground">
+                                {link.label || link.href}
+                              </span>
+                              <span className="truncate text-[11px] text-muted-foreground">
+                                {link.href}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </section>
+              ) : null}
 
               <section>
                 <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
