@@ -90,7 +90,7 @@ export function InventoryContextBar({
 
   return (
     <aside
-      className="shrink-0 border-t border-border bg-ink/40 px-4 py-3"
+      className="entropy-context-bar shrink-0 border-t border-border bg-ink/40 px-4 py-3"
       aria-label="Selection context"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -107,27 +107,33 @@ export function InventoryContextBar({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={onReveal}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="entropy-context-action h-7 gap-1.5 px-2 text-xs"
+            onClick={onReveal}
+          >
             <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
-            Reveal
+            <span className="entropy-context-action-label">Reveal</span>
           </Button>
           {!selected.isDirectory ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 gap-1.5 px-2 text-xs"
+              className="entropy-context-action h-7 gap-1.5 px-2 text-xs"
               onClick={onOpenExternal}
             >
               <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
-              Open
+              <span className="entropy-context-action-label">Open</span>
             </Button>
           ) : null}
         </div>
       </div>
 
       {!selected.isDirectory ? (
-        <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] sm:grid-cols-4">
+        <dl className="entropy-context-meta mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
           <Meta label="Last opened" value={lastOpened} />
           <Meta label="In notes" value={loading ? "…" : String(noteRefs.length)} />
           <Meta label="Duplicate copies" value={loading ? "…" : String(duplicates.length)} />

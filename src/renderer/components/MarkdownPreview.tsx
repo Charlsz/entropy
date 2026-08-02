@@ -138,7 +138,7 @@ export function MarkdownPreview({
   return (
     <div
       className={cn(
-        "markdown-preview select-text mx-auto w-full max-w-[720px] px-8 pb-16 pt-2 text-[15px] leading-7 text-foreground",
+        "markdown-preview select-text entropy-prose-pad mx-auto w-full max-w-[720px] pb-16 pt-2 text-[15px] leading-7 text-foreground",
         className,
       )}
       dangerouslySetInnerHTML={{ __html: html }}

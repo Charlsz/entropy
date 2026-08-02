@@ -423,7 +423,7 @@ function HoverCard({
   lastOpened: string;
   hint: string | null;
 }) {
-  const cardW = 220;
+  const cardW = Math.min(220, Math.max(140, frameWidth - 16));
   const cardH = leaf.isDirectory ? 120 : 210;
   const left = Math.min(Math.max(8, x + 14), Math.max(8, frameWidth - cardW - 8));
   const top = Math.min(Math.max(8, y + 14), Math.max(8, frameHeight - cardH - 8));
@@ -433,8 +433,8 @@ function HoverCard({
 
   return (
     <div
-      className="pointer-events-none absolute z-20 w-[220px] rounded-lg border border-border bg-ink p-3"
-      style={{ left, top }}
+      className="pointer-events-none absolute z-20 rounded-lg border border-border bg-ink p-3"
+      style={{ left, top, width: cardW }}
       role="tooltip"
     >
       <p className="truncate text-[12px] font-semibold text-foreground" title={leaf.name}>

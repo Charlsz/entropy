@@ -116,7 +116,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
     return (
       <div
         className={cn(
-          "select-text mb-8 flex min-h-0 w-full flex-1 flex-col gap-3 px-8 pb-16",
+          "select-text entropy-prose-pad mb-8 flex min-h-0 w-full flex-1 flex-col gap-3 pb-16",
           className,
         )}
         onDragOver={(event) => event.preventDefault()}

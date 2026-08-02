@@ -511,9 +511,12 @@ export function FilesPage() {
               onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
               onDrop={(event) => void onDrop(event, workspace.currentFolder)}
             >
-              <div className="entropy-toolbar px-4 py-3">
+              <div className="entropy-toolbar entropy-inventory-chrome px-4 py-3">
                 <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
-                  <SelectTrigger className="h-8 w-[7.5rem] shrink-0" aria-label="Sort by">
+                  <SelectTrigger
+                    className="entropy-sort-trigger h-8 w-[7.5rem] shrink-0"
+                    aria-label="Sort by"
+                  >
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent>
@@ -552,11 +555,11 @@ export function FilesPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-8 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground"
+                      className="entropy-duplicates-btn h-8 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground"
                       onClick={() => setDuplicatesMode(true)}
                     >
                       <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      Duplicates
+                      <span className="entropy-duplicates-label">Duplicates</span>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Find exact duplicate files in this location</TooltipContent>

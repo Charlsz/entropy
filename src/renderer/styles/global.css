@@ -439,6 +439,94 @@
   min-width: 0;
 }
 
+/* Inventory chrome adapts to the Content column, not the whole window. */
+.entropy-inventory-chrome {
+  container-type: inline-size;
+  container-name: inventory-chrome;
+}
+
+@container inventory-chrome (max-width: 28rem) {
+  .entropy-sort-trigger {
+    width: 6.25rem;
+  }
+
+  .entropy-duplicates-btn {
+    width: 2rem;
+    padding-inline: 0;
+  }
+
+  .entropy-duplicates-label {
+    display: none;
+  }
+}
+
+.entropy-breadcrumb {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--paper-2) 35%, transparent) transparent;
+}
+
+.entropy-breadcrumb::-webkit-scrollbar {
+  height: 4px;
+}
+
+.entropy-breadcrumb::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper-2) 35%, transparent);
+}
+
+.entropy-context-bar {
+  container-type: inline-size;
+  container-name: context-bar;
+}
+
+@container context-bar (min-width: 36rem) {
+  .entropy-context-meta {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container context-bar (max-width: 24rem) {
+  .entropy-context-action {
+    width: 1.75rem;
+    padding-inline: 0;
+  }
+
+  .entropy-context-action-label {
+    display: none;
+  }
+}
+
+.entropy-editor-shell {
+  container-type: inline-size;
+  container-name: editor;
+}
+
+.entropy-editor-split {
+  grid-template-columns: 1fr 1fr;
+}
+
+@container editor (max-width: 36rem) {
+  .entropy-editor-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  .entropy-split-toggle {
+    display: none;
+  }
+}
+
+.entropy-prose-pad {
+  padding-inline: 1rem;
+}
+
+@container editor (min-width: 40rem) {
+  .entropy-prose-pad {
+    padding-inline: 2rem;
+  }
+}
+
 .entropy-list-table {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 8.5rem) 4.5rem 4rem 1.75rem;

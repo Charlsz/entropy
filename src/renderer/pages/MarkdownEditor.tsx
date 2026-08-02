@@ -414,12 +414,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="entropy-editor-shell flex h-full min-h-0 flex-col">
       <div
-        className="flex h-9 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-border bg-ink px-1"
-        role="tablist"
+        className="flex h-9 shrink-0 items-end border-b border-border bg-ink px-1"
         aria-label="Open notes"
       >
+        <div
+          className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto"
+          role="tablist"
+        >
           {tabs.map((tab) => {
             const dirty = tab.content !== tab.savedContent;
             const active = tab.path === activePath;
@@ -427,7 +430,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               <div
                 key={tab.path}
                 className={cn(
-                  "group flex h-8 max-w-[180px] items-center rounded-t-md border border-b-0 px-1 text-xs",
+                  "group flex h-8 max-w-[180px] shrink-0 items-center rounded-t-md border border-b-0 px-1 text-xs",
                   active
                     ? "border-border bg-background text-foreground"
                     : "border-transparent text-muted-foreground hover:bg-accent/60",
@@ -455,7 +458,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               </div>
             );
           })}
-          <div className="ml-auto flex items-center gap-0.5 px-1 pb-1">
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5 px-1 pb-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -490,7 +494,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className={cn("h-7 w-7 text-muted-foreground", split && "bg-ink-2 text-paper")}
+                  className={cn(
+                    "entropy-split-toggle h-7 w-7 text-muted-foreground",
+                    split && "bg-ink-2 text-paper",
+                  )}
                   aria-label="Toggle split view"
                   aria-pressed={split}
                   onClick={() => setSplit((prev) => !prev)}
@@ -500,8 +507,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               </TooltipTrigger>
               <TooltipContent side="bottom">Split</TooltipContent>
             </Tooltip>
-          </div>
         </div>
+      </div>
 
         {statusMessage || activeTab?.missing || activeTab?.conflict ? (
           <div
@@ -560,7 +567,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
               </div>
             ) : null}
-            <div className="mx-auto w-full max-w-[720px] px-8 pt-8">
+            <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-8">
               <h1 className="mb-4 text-center text-3xl font-semibold tracking-tight text-foreground">
                 {activeTab?.title}
               </h1>
@@ -568,7 +575,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             <div
               className={cn(
                 "min-h-0 flex-1",
-                mode === "split" ? "grid grid-cols-2 gap-0" : "flex flex-col",
+                mode === "split" ? "entropy-editor-split grid gap-0" : "flex flex-col",
               )}
             >
               {mode !== "preview" ? (
