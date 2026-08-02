@@ -2,7 +2,21 @@ import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { cn } from "../../lib/utils";
 
-export const TooltipProvider = TooltipPrimitive.Provider;
+export function TooltipProvider({
+  delayDuration = 400,
+  skipDelayDuration = 200,
+  disableHoverableContent = true,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Provider>) {
+  return (
+    <TooltipPrimitive.Provider
+      delayDuration={delayDuration}
+      skipDelayDuration={skipDelayDuration}
+      disableHoverableContent={disableHoverableContent}
+      {...props}
+    />
+  );
+}
 
 export const Tooltip = TooltipPrimitive.Root;
 export const TooltipTrigger = TooltipPrimitive.Trigger;
@@ -16,7 +30,7 @@ export const TooltipContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 max-w-xs overflow-hidden rounded-md border border-border bg-ink-2 px-2.5 py-1.5 text-xs text-paper shadow-none",
+        "z-50 max-w-xs overflow-hidden rounded-md border border-border bg-ink-2 px-2.5 py-1.5 text-xs text-foreground shadow-none",
         className,
       )}
       {...props}

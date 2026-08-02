@@ -5,7 +5,6 @@ import { FilePreview } from "../pages/FilePreview";
 import { EntryPreview } from "./EntryPreview";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
-import { Separator } from "./ui/separator";
 import { useWorkspace } from "../state/useWorkspace";
 import { rewriteMarkdownHref } from "../lib/linkRepair";
 
@@ -25,13 +24,6 @@ function linkDisplayLabel(link: NoteLink): string {
   const label = link.label.trim();
   if (!label || label === link.href || label === hrefBase) return hrefBase;
   return label;
-}
-
-function linkHrefAddsInfo(link: NoteLink): boolean {
-  const label = linkDisplayLabel(link);
-  const href = link.href.trim();
-  const hrefBase = href.split(/[/\\]/).pop() ?? href;
-  return href !== label && hrefBase !== label;
 }
 
 interface NoteLink {
@@ -151,74 +143,66 @@ export function NoteContextPanel({
     setLinks(await resolveLinks(notePath, next));
   }
 
+  const okLinks = links.filter((link) => !link.missing);
+  const hasUseful =
+    Boolean(preview) || broken.length > 0 || okLinks.length > 0 || backlinks.length > 0;
+
   if (!notePath && !previewEntry) return null;
+  if (!hasUseful && notePath) return null;
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="min-w-0 px-4 py-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          {preview && !notePath ? "Selection" : "Context"}
-        </h2>
-        {notePath && meta ? (
-          <>
-            <p className="mt-2 truncate text-sm text-paper" title={meta.title}>
-              {meta.title}
-            </p>
-          </>
+      <div className="min-w-0 border-b border-border px-4 py-3">
+        <p className="truncate text-sm font-medium text-foreground">
+          {preview && !notePath
+            ? preview.name
+            : (meta?.title ?? notePath?.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note")}
+        </p>
+        {preview && notePath ? (
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{preview.name}</p>
         ) : null}
-        {notePath && !meta ? <p className="mt-2 text-xs text-muted-foreground">Loading…</p> : null}
       </div>
 
-      <Separator />
-
-      <ScrollArea className="min-h-0 min-w-0 flex-1">
+      <ScrollArea className="min-h-0 min-w-0 flex-1" type="hover">
         <div className="min-w-0 space-y-5 p-4">
           {preview ? (
             <section className="min-w-0">
-              <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
-                <h3 className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  Media
-                </h3>
-                <div className="flex items-center gap-0.5">
-                  {onReference ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      aria-label="Reference in note"
-                      onClick={() => onReference(preview)}
-                    >
-                      <Link2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    </Button>
-                  ) : null}
+              <div className="mb-2 flex min-w-0 items-center justify-end gap-0.5">
+                {onReference ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    aria-label="Open externally"
-                    onClick={() => void window.entropy.fs.openExternal(preview.path)}
+                    aria-label="Reference in note"
+                    onClick={() => onReference(preview)}
                   >
-                    <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    <Link2 className="h-3.5 w-3.5" strokeWidth={1.75} />
                   </Button>
-                  {onClearPreview && previewEntry ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      aria-label="Clear selection"
-                      onClick={onClearPreview}
-                    >
-                      <X className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    </Button>
-                  ) : null}
-                </div>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  aria-label="Open externally"
+                  onClick={() => void window.entropy.fs.openExternal(preview.path)}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </Button>
+                {onClearPreview && previewEntry ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    aria-label="Clear selection"
+                    onClick={onClearPreview}
+                  >
+                    <X className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </Button>
+                ) : null}
               </div>
-              <p className="mb-2 min-w-0 truncate text-sm text-foreground" title={preview.name}>
-                {preview.name}
-              </p>
               <div className="min-w-0 w-full overflow-hidden">
                 {preview.isDirectory ? (
                   <div className="w-full max-w-full overflow-hidden rounded-lg">
@@ -229,13 +213,9 @@ export function NoteContextPanel({
                 )}
               </div>
             </section>
-          ) : notePath ? (
-          <p className="text-xs text-muted-foreground">
-            Drag a file here, or click a link.
-          </p>
           ) : null}
 
-          {notePath && broken.length > 0 ? (
+          {broken.length > 0 ? (
             <section>
               <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Missing
@@ -247,14 +227,7 @@ export function NoteContextPanel({
                     className="flex min-w-0 items-start gap-1 rounded-md px-1 py-1"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-foreground">
-                        {linkDisplayLabel(link)}
-                      </p>
-                      {linkHrefAddsInfo(link) ? (
-                        <p className="truncate text-[11px] text-muted-foreground" title={link.href}>
-                          {link.href}
-                        </p>
-                      ) : null}
+                      <p className="truncate text-sm text-foreground">{linkDisplayLabel(link)}</p>
                     </div>
                     <Button
                       type="button"
@@ -262,7 +235,6 @@ export function NoteContextPanel({
                       size="icon"
                       className="h-7 w-7 shrink-0"
                       aria-label="Locate file"
-                      title="Locate"
                       onClick={() => void locateLink(link.href)}
                     >
                       <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -273,7 +245,6 @@ export function NoteContextPanel({
                       size="icon"
                       className="h-7 w-7 shrink-0"
                       aria-label="Remove link"
-                      title="Remove"
                       onClick={() => void removeLink(link.href)}
                     >
                       <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -284,75 +255,53 @@ export function NoteContextPanel({
             </section>
           ) : null}
 
-          {notePath ? (
-            <>
-              {links.length === 0 || links.some((link) => !link.missing) ? (
-                <section>
-                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    In this note
-                  </h3>
-                  {links.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No links yet.</p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {links
-                        .filter((link) => !link.missing)
-                        .map((link) => {
-                          const title = linkDisplayLabel(link);
-                          const showHref = linkHrefAddsInfo(link);
-                          return (
-                            <li key={`${link.label}-${link.href}`}>
-                              <button
-                                type="button"
-                                className="flex w-full flex-col rounded-md px-2 py-2 text-left hover:bg-accent"
-                                title={link.href}
-                                onClick={() => void openLinked(link.href)}
-                              >
-                                <span className="truncate text-sm text-foreground">{title}</span>
-                                {showHref ? (
-                                  <span className="truncate text-[11px] text-muted-foreground">
-                                    {link.href}
-                                  </span>
-                                ) : null}
-                              </button>
-                            </li>
-                          );
-                        })}
-                    </ul>
-                  )}
-                </section>
-              ) : null}
+          {okLinks.length > 0 ? (
+            <section>
+              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                In this note
+              </h3>
+              <ul className="space-y-1">
+                {okLinks.map((link) => (
+                  <li key={`${link.label}-${link.href}`}>
+                    <button
+                      type="button"
+                      className="flex w-full rounded-md px-2 py-2 text-left text-sm text-foreground hover:bg-accent"
+                      onClick={() => void openLinked(link.href)}
+                    >
+                      <span className="truncate">{linkDisplayLabel(link)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
-              <section>
-                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  Linked from
-                </h3>
-                {backlinks.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nothing links here yet.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {backlinks.map((item) => (
-                      <li key={item.path}>
-                        <button
-                          type="button"
-                          className="flex w-full flex-col rounded-md px-2 py-2 text-left hover:bg-accent"
-                          onClick={() => onOpenNote(item.path)}
-                        >
-                          <span className="truncate text-sm text-foreground">
-                            {item.name.replace(/\.md$/i, "")}
-                          </span>
-                          {item.excerpt ? (
-                            <span className="line-clamp-2 text-[11px] text-muted-foreground">
-                              {item.excerpt}
-                            </span>
-                          ) : null}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </>
+          {backlinks.length > 0 ? (
+            <section>
+              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Linked from
+              </h3>
+              <ul className="space-y-1">
+                {backlinks.map((item) => (
+                  <li key={item.path}>
+                    <button
+                      type="button"
+                      className="flex w-full flex-col rounded-md px-2 py-2 text-left hover:bg-accent"
+                      onClick={() => onOpenNote(item.path)}
+                    >
+                      <span className="truncate text-sm text-foreground">
+                        {item.name.replace(/\.md$/i, "")}
+                      </span>
+                      {item.excerpt ? (
+                        <span className="line-clamp-2 text-[11px] text-muted-foreground">
+                          {item.excerpt}
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ) : null}
         </div>
       </ScrollArea>

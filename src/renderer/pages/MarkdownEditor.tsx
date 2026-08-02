@@ -418,11 +418,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   return (
     <div className="entropy-editor-shell flex h-full min-h-0 flex-col">
       <div
-        className="flex h-9 shrink-0 items-end border-b border-border bg-ink px-1"
+        className="entropy-toolbar entropy-notes-chrome h-10 shrink-0 border-b border-border px-2"
         aria-label="Open notes"
       >
         <div
-          className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto"
+          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
           role="tablist"
         >
           {tabs.map((tab) => {
@@ -432,10 +432,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               <div
                 key={tab.path}
                 className={cn(
-                  "group flex h-8 max-w-[180px] shrink-0 items-center rounded-t-md border border-b-0 px-1 text-xs",
+                  "group flex h-8 max-w-[12rem] shrink-0 items-center rounded-md px-1 text-xs",
                   active
-                    ? "border-border bg-background text-foreground"
-                    : "border-transparent text-muted-foreground hover:bg-accent/60",
+                    ? "bg-ink-2 text-foreground"
+                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                 )}
                 role="tab"
                 aria-selected={active}
@@ -451,7 +451,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 </button>
                 <button
                   type="button"
-                  className="rounded p-0.5 opacity-0 hover:bg-accent group-hover:opacity-100"
+                  className="rounded p-0.5 opacity-70 hover:bg-background group-hover:opacity-100"
                   aria-label={`Close ${tab.title}`}
                   onClick={() => handleClose(tab.path)}
                 >
@@ -461,7 +461,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             );
           })}
         </div>
-        <div className="flex shrink-0 items-center gap-0.5 px-1 pb-1">
+        <div className="flex shrink-0 items-center gap-0.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -469,8 +469,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    "h-7 w-7 text-muted-foreground",
-                    !split && surface === "preview" && "bg-ink-2 text-paper",
+                    "h-8 w-8 text-muted-foreground",
+                    !split && surface === "preview" && "bg-ink-2 text-foreground",
                   )}
                   aria-label={surface === "edit" ? "Show preview" : "Show editor"}
                   aria-pressed={!split && surface === "preview"}
@@ -497,8 +497,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    "entropy-split-toggle h-7 w-7 text-muted-foreground",
-                    split && "bg-ink-2 text-paper",
+                    "entropy-split-toggle h-8 w-8 text-muted-foreground",
+                    split && "bg-ink-2 text-foreground",
                   )}
                   aria-label="Toggle split view"
                   aria-pressed={split}

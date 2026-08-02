@@ -533,6 +533,23 @@
   container-name: inventory-chrome;
 }
 
+/* Notebook note list — same toolbar language as Inventory, Obsidian writing focus. */
+.entropy-notes-sidebar {
+  container-type: inline-size;
+  container-name: notes-sidebar;
+}
+
+.entropy-notes-chrome {
+  container-type: inline-size;
+  container-name: notes-chrome;
+}
+
+@container notes-sidebar (max-width: 14rem) {
+  .entropy-notes-chrome .entropy-new-note-label {
+    display: none;
+  }
+}
+
 @container inventory-chrome (max-width: 28rem) {
   .entropy-sort-trigger {
     width: 6.25rem;

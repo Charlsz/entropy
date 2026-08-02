@@ -3,6 +3,7 @@ import {
   LayoutGrid,
   type LucideIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "../lib/utils";
@@ -58,8 +59,14 @@ function RailButton({
   active: boolean;
   onClick: () => void;
 }) {
+  const [tipOpen, setTipOpen] = useState(false);
+
+  useEffect(() => {
+    if (active) setTipOpen(false);
+  }, [active]);
+
   return (
-    <Tooltip>
+    <Tooltip open={tipOpen} onOpenChange={setTipOpen}>
       <TooltipTrigger asChild>
         <Button
           type="button"
@@ -67,16 +74,22 @@ function RailButton({
           size="icon"
           aria-label={label}
           aria-current={active ? "page" : undefined}
-          onClick={onClick}
+          onClick={() => {
+            setTipOpen(false);
+            onClick();
+          }}
+          onPointerDown={() => setTipOpen(false)}
           className={cn(
             "rounded-md text-muted-foreground",
-            active && "bg-ink-2 text-paper",
+            active && "bg-ink-2 text-foreground",
           )}
         >
           <Icon strokeWidth={1.75} />
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="right">{label}</TooltipContent>
+      <TooltipContent side="right" sideOffset={8}>
+        {label}
+      </TooltipContent>
     </Tooltip>
   );
 }
