@@ -495,23 +495,23 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   "h-8 w-8 text-muted-foreground",
                   !split && surface === "preview" && "bg-ink-2 text-foreground",
                 )}
-                aria-label={surface === "edit" ? "Show preview" : "Show editor"}
-                aria-pressed={!split && surface === "preview"}
-                onClick={() => {
-                  setSplit(false);
-                  setSurface((prev) => (prev === "edit" ? "preview" : "edit"));
-                }}
-              >
-                {surface === "edit" ? (
-                  <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
-                ) : (
-                  <PenLine className="h-3.5 w-3.5" strokeWidth={1.75} />
-                )}
-              </Button>
+                  aria-label={surface === "edit" ? "Show reading view" : "Show live preview"}
+                  aria-pressed={!split && surface === "preview"}
+                  onClick={() => {
+                    setSplit(false);
+                    setSurface((prev) => (prev === "edit" ? "preview" : "edit"));
+                  }}
+                >
+                  {surface === "edit" ? (
+                    <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  ) : (
+                    <PenLine className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  )}
+                </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {surface === "edit" ? "Preview" : "Editor"}
-            </TooltipContent>
+              <TooltipContent side="bottom">
+                {surface === "edit" ? "Reading view" : "Live Preview"}
+              </TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -627,6 +627,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   onChange={handleChange}
                   onKeyDown={handleKeyDown}
                   onDropPath={(path) => void insertFileLink(path)}
+                  onOpenLocal={onOpenLocalPath}
                 />
               </div>
             ) : null}

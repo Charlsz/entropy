@@ -254,6 +254,18 @@
     border-radius: var(--radius);
   }
 
+  .live-preview-empty {
+    min-height: 1.75rem;
+  }
+
+  .live-preview-face > *:first-child {
+    margin-top: 0;
+  }
+
+  .live-preview-face > *:last-child {
+    margin-bottom: 0;
+  }
+
   .markdown-preview hr {
     border: 0;
     border-top: 1px solid var(--border);
