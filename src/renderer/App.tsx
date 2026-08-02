@@ -8,11 +8,13 @@ import { fromSessionSettings, toSessionSettings } from "./state/sessionSettings"
 import type { WorkspaceSettings } from "./state/workspace";
 import { DEFAULT_SETTINGS } from "./state/workspace";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { samePath } from "./lib/platform";
 
 export function App() {
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [initialSettings, setInitialSettings] = useState<WorkspaceSettings | null>(null);
   const [booting, setBooting] = useState(true);
+  const [pendingNotePath, setPendingNotePath] = useState<string | null>(null);
   const saveTimer = useRef<number | null>(null);
   const latestSettings = useRef<WorkspaceSettings | null>(null);
   const latestWorkspace = useRef<string | null>(null);
@@ -75,16 +77,27 @@ export function App() {
   }, []);
 
   const openWorkspace = useCallback(
-    async (nextPath: string) => {
+    async (nextPath: string, notePath?: string | null) => {
       const settings = initialSettings ?? DEFAULT_SETTINGS;
+      await window.entropy.workspace.remember(nextPath).catch(() => undefined);
       await window.entropy.session.save({
         lastWorkspace: nextPath,
         settings: toSessionSettings(settings),
       });
       latestWorkspace.current = nextPath;
+      setPendingNotePath(notePath ?? null);
       setWorkspacePath(nextPath);
     },
     [initialSettings],
+  );
+
+  const switchWorkspace = useCallback(
+    async (nextPath: string, notePath: string) => {
+      if (workspacePath && samePath(nextPath, workspacePath)) return;
+      await flushAll();
+      await openWorkspace(nextPath, notePath);
+    },
+    [openWorkspace, workspacePath],
   );
 
   const closeWorkspace = useCallback(async () => {
@@ -95,6 +108,7 @@ export function App() {
       settings: toSessionSettings(settings),
     });
     latestWorkspace.current = null;
+    setPendingNotePath(null);
     setWorkspacePath(null);
   }, [initialSettings]);
 
@@ -123,11 +137,14 @@ export function App() {
         key={workspacePath}
         path={workspacePath}
         initialSettings={initialSettings}
+        initialNotePath={pendingNotePath}
+        onInitialNoteConsumed={() => setPendingNotePath(null)}
         onSettingsChange={(settings) => {
           setInitialSettings(settings);
           persistSession(workspacePath, settings);
         }}
         onClose={() => void closeWorkspace()}
+        onOpenInWorkspace={(nextPath, notePath) => void switchWorkspace(nextPath, notePath)}
       >
         <WorkspaceShell />
       </WorkspaceProvider>

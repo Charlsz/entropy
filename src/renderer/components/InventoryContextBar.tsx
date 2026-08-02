@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, FolderOpen, Link2 } from "lucide-react";
-import type { FileEntry, NoteSearchResult } from "../../shared/types";
+import { ExternalLink, FileText, FolderOpen, Link2, NotebookPen } from "lucide-react";
+import type { FileEntry } from "../../shared/types";
 import { FILE_KIND_LABEL, kindFromExtension } from "../../shared/fileKinds";
 import { Button } from "./ui/button";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { EntryPreview } from "./EntryPreview";
 import { useWorkspace } from "../state/useWorkspace";
+import {
+  findFileConnections,
+  type FileConnection,
+} from "../lib/fileConnections";
 import { samePath, osRevealLabel } from "../lib/platform";
 import { formatBytes } from "../lib/format";
+import { cn } from "../lib/utils";
 
 function formatRelative(value: number): string {
   const delta = Date.now() - value;
@@ -34,14 +41,15 @@ export function InventoryContextBar({
   onAddToWorkspace,
   onOpenNote,
 }: InventoryContextBarProps) {
-  const { workspace } = useWorkspace();
-  const [noteRefs, setNoteRefs] = useState<NoteSearchResult[]>([]);
+  const { workspace, openInWorkspace } = useWorkspace();
+  const [connections, setConnections] = useState<FileConnection[]>([]);
   const [duplicates, setDuplicates] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pendingGo, setPendingGo] = useState<FileConnection | null>(null);
 
   useEffect(() => {
     if (selected.isDirectory) {
-      setNoteRefs([]);
+      setConnections([]);
       setDuplicates([]);
       setLoading(false);
       return;
@@ -51,13 +59,16 @@ export function InventoryContextBar({
     setLoading(true);
     void (async () => {
       const [refs, dups] = await Promise.all([
-        window.entropy.fs.findFileReferences(workspace.path, selected.path).catch(() => []),
+        findFileConnections(selected.path, {
+          path: workspace.path,
+          name: workspace.name,
+        }).catch(() => [] as FileConnection[]),
         scanRoot
           ? window.entropy.fs.findDuplicates(scanRoot, selected.path).catch(() => [])
           : Promise.resolve([]),
       ]);
       if (cancelled) return;
-      setNoteRefs(refs);
+      setConnections(refs);
       setDuplicates(dups);
       setLoading(false);
     })();
@@ -65,7 +76,7 @@ export function InventoryContextBar({
     return () => {
       cancelled = true;
     };
-  }, [scanRoot, selected.isDirectory, selected.path, workspace.path]);
+  }, [scanRoot, selected.isDirectory, selected.path, workspace.name, workspace.path]);
 
   const kind = selected.isDirectory
     ? "Folder"
@@ -74,23 +85,53 @@ export function InventoryContextBar({
     ? "Recently"
     : "Never";
 
+  function confirmGo(): void {
+    if (!pendingGo) return;
+    const target = pendingGo;
+    setPendingGo(null);
+    if (samePath(target.workspacePath, workspace.path)) {
+      onOpenNote?.(target.notePath);
+      return;
+    }
+    openInWorkspace(target.workspacePath, target.notePath);
+  }
+
   return (
     <aside
       className="entropy-context-bar shrink-0 border-t border-border bg-ink/40 px-4 py-3"
       aria-label="Selection context"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-foreground" title={selected.name}>
-            {selected.name}
-          </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {kind}
-            <span className="mx-1.5 text-border">·</span>
-            {formatBytes(selected.size)}
-            <span className="mx-1.5 text-border">·</span>
-            {formatRelative(selected.modifiedAt)}
-          </p>
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          {!selected.isDirectory ? (
+            <div className="shrink-0 overflow-hidden rounded-md">
+              <EntryPreview entry={selected} size="md" />
+            </div>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-foreground" title={selected.name}>
+              {selected.name}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {kind}
+              <span className="mx-1.5 text-border">·</span>
+              {formatBytes(selected.size)}
+              <span className="mx-1.5 text-border">·</span>
+              {formatRelative(selected.modifiedAt)}
+            </p>
+            {!selected.isDirectory ? (
+              <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Link2 className="h-3 w-3 shrink-0" strokeWidth={1.75} />
+                <span>
+                  {loading
+                    ? "Checking connections…"
+                    : connections.length === 1
+                      ? "1 connection"
+                      : `${connections.length} connections`}
+                </span>
+              </p>
+            ) : null}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {!selected.isDirectory ? (
@@ -103,7 +144,7 @@ export function InventoryContextBar({
               title="Add to Workspace"
               onClick={onAddToWorkspace}
             >
-              <Link2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+              <NotebookPen className="h-3.5 w-3.5" strokeWidth={1.75} />
             </Button>
           ) : null}
           <Button
@@ -140,28 +181,53 @@ export function InventoryContextBar({
         </dl>
       ) : null}
 
-      {!loading && noteRefs.length > 0 ? (
+      {!selected.isDirectory ? (
         <div className="mt-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Referenced in
+            Used by
           </p>
-          <ul className="mt-1.5 flex flex-wrap gap-1.5">
-            {noteRefs.slice(0, 6).map((note) => (
-              <li key={note.path}>
-                <button
-                  type="button"
-                  className="rounded-md bg-background/50 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-ink-2 hover:text-foreground"
-                  title={note.path}
-                  onClick={() => onOpenNote?.(note.path)}
-                >
-                  {note.name.replace(/\.md$/i, "")}
-                </button>
-              </li>
-            ))}
-            {noteRefs.length > 6 ? (
-              <li className="px-1 text-[10px] text-muted-foreground">+{noteRefs.length - 6}</li>
-            ) : null}
-          </ul>
+          {loading ? (
+            <p className="mt-1.5 text-[11px] text-muted-foreground">Looking across workspaces…</p>
+          ) : connections.length === 0 ? (
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              No notes in recent workspaces reference this file.
+            </p>
+          ) : (
+            <ul className="relative mt-2 space-y-1.5 border-l border-dashed border-border pl-3">
+              {connections.slice(0, 8).map((conn) => {
+                const current = samePath(conn.workspacePath, workspace.path);
+                return (
+                  <li key={`${conn.workspacePath}:${conn.notePath}`}>
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full min-w-0 items-center gap-2 rounded-lg bg-background/50 px-2.5 py-2 text-left",
+                        "hover:bg-ink-2",
+                      )}
+                      title={`${conn.noteName} — ${conn.workspaceName}`}
+                      onClick={() => setPendingGo(conn)}
+                    >
+                      <FileText
+                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                        strokeWidth={1.75}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                        {conn.noteName}
+                      </span>
+                      <span className="shrink-0 truncate text-[11px] text-muted-foreground">
+                        {current ? "this workspace" : conn.workspaceName}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+              {connections.length > 8 ? (
+                <li className="px-1 text-[10px] text-muted-foreground">
+                  +{connections.length - 8} more
+                </li>
+              ) : null}
+            </ul>
+          )}
         </div>
       ) : null}
 
@@ -174,6 +240,25 @@ export function InventoryContextBar({
           ))}
         </ul>
       ) : null}
+
+      <ConfirmDialog
+        open={pendingGo !== null}
+        title="Open note?"
+        description={
+          pendingGo
+            ? `Open “${pendingGo.noteName}” in ${pendingGo.workspaceName}?${
+                samePath(pendingGo.workspacePath, workspace.path)
+                  ? ""
+                  : " This switches your workspace."
+              }`
+            : ""
+        }
+        confirmLabel="Open"
+        onConfirm={confirmGo}
+        onOpenChange={(open) => {
+          if (!open) setPendingGo(null);
+        }}
+      />
     </aside>
   );
 }

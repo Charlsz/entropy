@@ -57,6 +57,8 @@ interface WorkspaceContextValue {
   updateSettings: (patch: Partial<WorkspaceSettings>) => void;
   resetSettings: () => void;
   closeWorkspace: () => void;
+  /** Open a note in another workspace (flushes and remounts the session). */
+  openInWorkspace: (workspacePath: string, notePath: string) => void;
   openNote: (notePath: string) => void;
   visitNote: (notePath: string) => void;
   openFolder: (folderPath: string) => void;
@@ -68,8 +70,12 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 interface WorkspaceProviderProps {
   path: string;
   initialSettings?: WorkspaceSettings;
+  /** Open this note once after the workspace mounts (e.g. after switching). */
+  initialNotePath?: string | null;
+  onInitialNoteConsumed?: () => void;
   onSettingsChange?: (settings: WorkspaceSettings) => void;
   onClose: () => void;
+  onOpenInWorkspace: (workspacePath: string, notePath: string) => void;
   children: ReactNode;
 }
 
@@ -126,8 +132,11 @@ function pushEntry(prev: WorkspaceState, entry: NavEntry, mode: FolderNavMode): 
 export function WorkspaceProvider({
   path,
   initialSettings,
+  initialNotePath = null,
+  onInitialNoteConsumed,
   onSettingsChange,
   onClose,
+  onOpenInWorkspace,
   children,
 }: WorkspaceProviderProps) {
   const [workspace, setWorkspace] = useState(() => {
@@ -141,10 +150,22 @@ export function WorkspaceProvider({
   const [pendingNote, setPendingNote] = useState<string | null>(null);
   const [pendingReference, setPendingReference] = useState<string | null>(null);
   const restoreRef = useRef<NavEntry | null>(null);
+  const consumedInitialNote = useRef(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = workspace.settings.theme;
   }, [workspace.settings.theme]);
+
+  useEffect(() => {
+    if (!initialNotePath || consumedInitialNote.current) return;
+    consumedInitialNote.current = true;
+    setPendingNote(initialNotePath);
+    setWorkspace((prev) => {
+      const next = pushEntry(prev, navNote(initialNotePath), "push");
+      return { ...next, activeNotePath: initialNotePath };
+    });
+    onInitialNoteConsumed?.();
+  }, [initialNotePath, onInitialNoteConsumed]);
 
   useEffect(() => {
     const entry = restoreRef.current;
@@ -412,6 +433,7 @@ export function WorkspaceProvider({
       updateSettings,
       resetSettings,
       closeWorkspace: onClose,
+      openInWorkspace: onOpenInWorkspace,
       openNote,
       visitNote,
       openFolder,
@@ -442,6 +464,7 @@ export function WorkspaceProvider({
       updateSettings,
       resetSettings,
       onClose,
+      onOpenInWorkspace,
       openNote,
       visitNote,
       openFolder,
