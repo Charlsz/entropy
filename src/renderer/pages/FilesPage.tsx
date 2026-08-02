@@ -499,7 +499,7 @@ export function FilesPage() {
       <div className="min-h-0 flex-1">
         {duplicatesMode ? (
           <InventoryDuplicatesPanel
-            rootPath={scanRoot || workspace.currentFolder}
+            rootPath={workspace.currentFolder}
             onBack={() => setDuplicatesMode(false)}
           />
         ) : (
