@@ -1,14 +1,8 @@
 import type { SectionId } from "../types/section";
-import { useWorkspace } from "../state/useWorkspace";
 import { NotebookPage } from "../pages/NotebookPage";
 import { FilesPage } from "../pages/FilesPage";
 import { CanvasPage } from "../pages/CanvasPage";
-import { Button } from "./ui/button";
-import { StatusBar } from "./StatusBar";
-import { Label } from "./ui/label";
-import { Switch } from "./ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { Eraser, RotateCcw } from "lucide-react";
+import { SettingsPanel } from "./SettingsPanel";
 import { cn } from "../lib/utils";
 
 interface ContentAreaProps {
@@ -66,77 +60,6 @@ function SectionPane({
       aria-hidden={!active}
     >
       {children}
-    </div>
-  );
-}
-
-function SettingsPanel() {
-  const { workspace, updateSettings, clearRecentFiles, resetSettings } = useWorkspace();
-  const dark = workspace.settings.theme === "dark";
-
-  return (
-    <div className="flex h-full flex-col">
-      <main className="min-h-0 flex-1 overflow-auto px-4 py-6 sm:p-8" aria-label="Settings">
-        <div className="mx-auto w-full max-w-lg space-y-5">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-paper">Settings</h1>
-            <p className="mt-1 break-all text-xs text-paper-2">{workspace.path}</p>
-          </div>
-
-          <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-ink-2 px-4 py-3">
-            <Label htmlFor="theme-switch">Dark theme</Label>
-            <Switch
-              id="theme-switch"
-              checked={dark}
-              onCheckedChange={(checked) =>
-                updateSettings({ theme: checked ? "dark" : "light" })
-              }
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-ink-2 px-4 py-3">
-            <span className="text-sm text-paper">
-              Recent files
-              <span className="ml-2 text-xs text-paper-2">({workspace.recentFiles.length})</span>
-            </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon"
-                  className="h-8 w-8"
-                  aria-label="Clear recent files"
-                  onClick={clearRecentFiles}
-                >
-                  <Eraser className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Clear recent files</TooltipContent>
-            </Tooltip>
-          </div>
-
-          <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-ink-2 px-4 py-3">
-            <span className="text-sm text-paper">Defaults</span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon"
-                  className="h-8 w-8"
-                  aria-label="Reset settings"
-                  onClick={resetSettings}
-                >
-                  <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Reset settings</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-      </main>
-      <StatusBar left="Settings" right={workspace.settings.theme} />
     </div>
   );
 }
