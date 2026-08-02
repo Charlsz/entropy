@@ -14,6 +14,10 @@ interface TitlebarProps {
   onOpenSettings?: () => void;
 }
 
+/**
+ * Frameless caption bar. The header itself is the drag region; only interactive
+ * controls use `no-drag` so empty gutters stay grabable like a native titlebar.
+ */
 export function Titlebar({
   workspaceName,
   onCloseWorkspace,
@@ -24,7 +28,7 @@ export function Titlebar({
 
   return (
     <header className="drag-region grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b border-border bg-ink pl-2 pr-0">
-      <div className="no-drag flex min-w-0 items-center gap-0.5 pl-[env(titlebar-area-x,0px)]">
+      <div className="flex min-w-0 items-center gap-0.5 pl-[env(titlebar-area-x,0px)]">
         {workspaceCtx ? (
           <>
             <TitlebarIconButton
@@ -53,11 +57,11 @@ export function Titlebar({
         ) : null}
       </div>
 
-      <div className="no-drag flex items-center justify-center px-2">
+      <div className="flex items-center justify-center px-2">
         {workspaceName && onCloseWorkspace ? (
           <button
             type="button"
-            className="group inline-flex max-w-[12rem] items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-ink-2 sm:max-w-[16rem]"
+            className="no-drag group inline-flex max-w-[min(16rem,40vw)] items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-ink-2"
             onClick={onCloseWorkspace}
             title="Switch workspace"
           >
@@ -71,13 +75,13 @@ export function Titlebar({
             />
           </button>
         ) : (
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <span className="select-none text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Entropy
           </span>
         )}
       </div>
 
-      <div className="no-drag flex shrink-0 items-center justify-end gap-0.5 pr-1">
+      <div className="flex min-w-0 items-center justify-end gap-0.5 pr-1">
         {onOpenSettings ? (
           <TitlebarIconButton label="Settings" onClick={onOpenSettings}>
             <Settings strokeWidth={1.75} />
@@ -107,7 +111,7 @@ function TitlebarIconButton({
           type="button"
           variant="ghost"
           size="icon"
-          className={cn("h-7 w-7 shrink-0 text-muted-foreground", className)}
+          className={cn("no-drag h-7 w-7 shrink-0 text-muted-foreground", className)}
           aria-label={label}
           onClick={onClick}
           disabled={!onClick}

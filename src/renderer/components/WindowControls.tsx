@@ -24,7 +24,7 @@ export function WindowControls() {
   if (isMac || !canControl) return null;
 
   return (
-    <div className="ml-1 flex items-center">
+    <div className="no-drag ml-1 flex items-center">
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
