@@ -100,51 +100,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     activePathRef.current = activePath;
   }, [activePath]);
 
-  const persistTab = useCallback(async (tab: EditorTab): Promise<void> => {
-    if (tab.missing || tab.content === tab.savedContent) return;
-
-    const result = await window.entropy.fs.writeTextSafe(tab.path, tab.content, tab.mtimeMs);
-
-    if (result.ok) {
-      setTabs((prev) =>
-        prev.map((item) =>
-          item.path === tab.path
-            ? {
-                ...item,
-                savedContent: tab.content,
-                mtimeMs: result.mtimeMs,
-                conflict: false,
-                missing: false,
-              }
-            : item,
-        ),
-      );
-      setStatusMessage(null);
-      return;
-    }
-
-    if (result.reason === "missing") {
-      setTabs((prev) =>
-        prev.map((item) =>
-          item.path === tab.path ? { ...item, missing: true, conflict: false } : item,
-        ),
-      );
-      setStatusMessage("This note was deleted or moved on disk.");
-      return;
-    }
-
-    // Disk moved on — drop pending save so we don't keep fighting Obsidian/Explorer.
-    const pending = saveTimers.current.get(tab.path);
-    if (pending) {
-      window.clearTimeout(pending);
-      saveTimers.current.delete(tab.path);
-    }
-    setTabs((prev) =>
-      prev.map((item) => (item.path === tab.path ? { ...item, conflict: true } : item)),
-    );
-    setStatusMessage("This note changed outside Entropy. Reload or overwrite to continue.");
-  }, []);
-
   const clearSaveTimer = useCallback((filePath: string) => {
     const pending = saveTimers.current.get(filePath);
     if (pending) {
@@ -152,6 +107,83 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       saveTimers.current.delete(filePath);
     }
   }, []);
+
+  /** Disk is the source of truth — apply file bytes immediately, no Reload click. */
+  const applyDiskSnapshot = useCallback(
+    (filePath: string, content: string, mtimeMs: number) => {
+      clearSaveTimer(filePath);
+      const title = filePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled";
+      setTabs((prev) =>
+        prev.map((item) =>
+          item.path === filePath
+            ? {
+                ...item,
+                title,
+                content,
+                savedContent: content,
+                mtimeMs,
+                missing: false,
+                conflict: false,
+              }
+            : item,
+        ),
+      );
+      if (activePathRef.current === filePath) setStatusMessage(null);
+    },
+    [clearSaveTimer],
+  );
+
+  const persistTab = useCallback(
+    async (tab: EditorTab): Promise<void> => {
+      if (tab.missing || tab.content === tab.savedContent) return;
+
+      const result = await window.entropy.fs.writeTextSafe(tab.path, tab.content, tab.mtimeMs);
+
+      if (result.ok) {
+        setTabs((prev) =>
+          prev.map((item) =>
+            item.path === tab.path
+              ? {
+                  ...item,
+                  savedContent: tab.content,
+                  mtimeMs: result.mtimeMs,
+                  conflict: false,
+                  missing: false,
+                }
+              : item,
+          ),
+        );
+        setStatusMessage(null);
+        return;
+      }
+
+      if (result.reason === "missing") {
+        clearSaveTimer(tab.path);
+        setTabs((prev) =>
+          prev.map((item) =>
+            item.path === tab.path ? { ...item, missing: true, conflict: false } : item,
+          ),
+        );
+        setStatusMessage("This note was deleted or moved on disk.");
+        return;
+      }
+
+      // Someone else wrote first — take disk instantly (no Reload button).
+      try {
+        const content = await window.entropy.fs.readText(tab.path);
+        const info = await window.entropy.fs.stat(tab.path);
+        applyDiskSnapshot(tab.path, content, info.modifiedAt);
+      } catch {
+        clearSaveTimer(tab.path);
+        setTabs((prev) =>
+          prev.map((item) =>
+            item.path === tab.path ? { ...item, missing: true, conflict: false } : item,
+          ),
+        );
+      }
+    },
+    [applyDiskSnapshot, clearSaveTimer],
+  );
 
   const syncOpenTabsFromDisk = useCallback(async () => {
     const paths = tabsRef.current.filter((tab) => !tab.loading).map((tab) => tab.path);
@@ -182,83 +214,32 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         const diskNewer =
           latest.mtimeMs == null || Math.abs(info.modifiedAt - latest.mtimeMs) > 1;
 
-        if (latest.missing) {
-          clearSaveTimer(latest.path);
-          const content = await window.entropy.fs.readText(latest.path);
-          const title =
-            latest.path.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled";
+        if (!diskNewer && !latest.missing) continue;
+
+        const content = await window.entropy.fs.readText(latest.path);
+        if (
+          !latest.missing &&
+          content === latest.content &&
+          content === latest.savedContent &&
+          !latest.conflict
+        ) {
+          // Touch-only mtime change (or we already match disk).
           setTabs((prev) =>
             prev.map((item) =>
               item.path === latest.path
-                ? {
-                    ...item,
-                    title,
-                    content,
-                    savedContent: content,
-                    mtimeMs: info.modifiedAt,
-                    missing: false,
-                    conflict: false,
-                  }
+                ? { ...item, mtimeMs: info.modifiedAt, conflict: false, missing: false }
                 : item,
             ),
           );
-          if (activePathRef.current === latest.path) setStatusMessage(null);
           continue;
         }
 
-        if (!diskNewer) continue;
-
-        const clean = latest.content === latest.savedContent;
-        if (clean) {
-          clearSaveTimer(latest.path);
-          const content = await window.entropy.fs.readText(latest.path);
-          // Skip no-op reloads (same bytes, mtime touch only).
-          if (content === latest.savedContent) {
-            setTabs((prev) =>
-              prev.map((item) =>
-                item.path === latest.path
-                  ? { ...item, mtimeMs: info.modifiedAt, conflict: false, missing: false }
-                  : item,
-              ),
-            );
-            continue;
-          }
-          const title =
-            latest.path.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled";
-          setTabs((prev) =>
-            prev.map((item) =>
-              item.path === latest.path
-                ? {
-                    ...item,
-                    title,
-                    content,
-                    savedContent: content,
-                    mtimeMs: info.modifiedAt,
-                    conflict: false,
-                    missing: false,
-                  }
-                : item,
-            ),
-          );
-          if (activePathRef.current === latest.path) setStatusMessage(null);
-        } else if (!latest.conflict) {
-          clearSaveTimer(latest.path);
-          setTabs((prev) =>
-            prev.map((item) =>
-              item.path === latest.path ? { ...item, conflict: true } : item,
-            ),
-          );
-          if (activePathRef.current === latest.path) {
-            setStatusMessage(
-              "This note changed outside Entropy. Reload or overwrite to continue.",
-            );
-          }
-        }
+        applyDiskSnapshot(latest.path, content, info.modifiedAt);
       } catch {
         // Ignore transient FS errors during a sync tick.
       }
     }
-  }, [clearSaveTimer]);
+  }, [applyDiskSnapshot, clearSaveTimer]);
 
   const flushPending = useCallback(async () => {
     for (const [, timer] of saveTimers.current) {
@@ -364,7 +345,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     };
 
     tick();
-    const timer = window.setInterval(tick, 500);
+    const timer = window.setInterval(tick, 200);
 
     return () => {
       cancelled = true;
