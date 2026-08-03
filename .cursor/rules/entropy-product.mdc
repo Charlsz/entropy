@@ -22,3 +22,4 @@ Follow those documents over habit or generic SaaS patterns.
 - Layout: three columns, resizable, remembered, collapsible
 - Icons (Lucide) for obvious chrome; calm 150–200ms motion; whitespace over borders
 - Obsidian writing × Refern organization — do not clone either
+- Protected OS paths: never trash/rename/move/write under system trees; skip them in duplicates/storage scans
