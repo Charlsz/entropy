@@ -19,7 +19,9 @@ import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../l
 import { noteContextIsUseful } from "../lib/noteContext";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isLiveEmbedExt, linkMarkdown, mediaEmbedMarkdown } from "../lib/markdownBlocks";
+import { formatBytes } from "../lib/format";
 import { osTrashName } from "../lib/platform";
+import { TrashUndoBar } from "../components/TrashUndoBar";
 import { cn } from "../lib/utils";
 
 export function NotebookPage({
@@ -46,6 +48,12 @@ export function NotebookPage({
   const [loading, setLoading] = useState(true);
   const [statusRight, setStatusRight] = useState("");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [undoTrash, setUndoTrash] = useState<{
+    paths: string[];
+    name: string;
+    size: number;
+  } | null>(null);
+  const [undoBusy, setUndoBusy] = useState(false);
   const [movingPath, setMovingPath] = useState<string | null>(null);
   const [contextUseful, setContextUseful] = useState(false);
   const [contextEpoch, setContextEpoch] = useState(0);
@@ -335,11 +343,41 @@ export function NotebookPage({
     if (!notePath) return;
     setPendingDelete(null);
     try {
+      const info = await window.entropy.fs.stat(notePath).catch(() => null);
       await window.entropy.fs.remove(notePath);
       closeTab(notePath);
+      setUndoTrash({
+        paths: [notePath],
+        name: notePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note",
+        size: info?.size ?? 0,
+      });
+      setError(null);
       await refreshNotes();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete note");
+    }
+  }
+
+  async function undoTrashAction(): Promise<void> {
+    if (!undoTrash) return;
+    setUndoBusy(true);
+    try {
+      const result = await window.entropy.fs.undoRemove(undoTrash.paths);
+      if (result.restored > 0) {
+        const restored = undoTrash.paths[0];
+        setUndoTrash(null);
+        await refreshNotes();
+        if (restored) openNote(restored);
+      } else {
+        setError(
+          `Could not restore automatically — open ${osTrashName()} to recover the note.`,
+        );
+        void window.entropy.fs.openTrash();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Undo failed");
+    } finally {
+      setUndoBusy(false);
     }
   }
 
@@ -647,6 +685,16 @@ export function NotebookPage({
         }
       />
       <StatusBar left={activePath ?? workspace.path} right={statusRight} />
+      {undoTrash ? (
+        <TrashUndoBar
+          fileCount={1}
+          reclaimLabel={undoTrash.size > 0 ? formatBytes(undoTrash.size) : undefined}
+          busy={undoBusy}
+          onUndo={() => void undoTrashAction()}
+          onOpenTrash={() => void window.entropy.fs.openTrash()}
+          onDismiss={() => setUndoTrash(null)}
+        />
+      ) : null}
       <ConfirmDialog
         open={pendingDelete !== null}
         title={
@@ -655,7 +703,7 @@ export function NotebookPage({
             : "Delete note?"
         }
         description={`Moves to ${osTrashName()}. Recover until emptied.`}
-        confirmLabel="Delete"
+        confirmLabel="Move to trash"
         onConfirm={() => void confirmDelete()}
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null);
