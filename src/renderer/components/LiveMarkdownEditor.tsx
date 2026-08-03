@@ -71,13 +71,31 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
     const [openSourceIndex, setOpenSourceIndex] = useState<number | null>(null);
     const pendingCaret = useRef<"start" | "end" | number | null>(null);
     const sourceSelectAll = useRef(false);
+    const undoStack = useRef<string[]>([]);
+    const redoStack = useRef<string[]>([]);
+    const applyingHistory = useRef(false);
+    const knownValue = useRef(value);
 
-    const commitBlocks = useCallback(
-      (next: MarkdownBlock[]) => {
-        onChange(joinMarkdownBlocks(next));
-      },
-      [onChange],
-    );
+    // External value changes (disk sync / note switch) reset typing history.
+    useEffect(() => {
+      if (applyingHistory.current) {
+        knownValue.current = value;
+        return;
+      }
+      if (value !== knownValue.current) {
+        undoStack.current = [];
+        redoStack.current = [];
+        knownValue.current = value;
+      }
+    }, [value]);
+
+    useEffect(() => {
+      undoStack.current = [];
+      redoStack.current = [];
+      knownValue.current = value;
+      // Reset when switching notes; `value` is the newly opened note content.
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- only on notePath
+    }, [notePath]);
 
     const focusText = useCallback(
       (index: number, at: "start" | "end" | number = "end") => {
@@ -98,6 +116,70 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
         });
       },
       [disabled],
+    );
+
+    const commitBlocks = useCallback(
+      (next: MarkdownBlock[]) => {
+        const joined = joinMarkdownBlocks(next);
+        if (joined === value) return;
+        if (!applyingHistory.current) {
+          const stack = undoStack.current;
+          if (stack[stack.length - 1] !== value) {
+            stack.push(value);
+            if (stack.length > 400) stack.shift();
+          }
+          redoStack.current = [];
+        }
+        knownValue.current = joined;
+        onChange(joined);
+      },
+      [onChange, value],
+    );
+
+    const applyHistoryValue = useCallback(
+      (next: string) => {
+        applyingHistory.current = true;
+        knownValue.current = next;
+        onChange(next);
+        window.requestAnimationFrame(() => {
+          applyingHistory.current = false;
+          focusText(firstTextBlockIndex(parseMarkdownBlocks(next), true), "end");
+        });
+      },
+      [focusText, onChange],
+    );
+
+    const undo = useCallback(() => {
+      if (disabled || undoStack.current.length === 0) return;
+      const prev = undoStack.current.pop()!;
+      redoStack.current.push(value);
+      applyHistoryValue(prev);
+    }, [applyHistoryValue, disabled, value]);
+
+    const redo = useCallback(() => {
+      if (disabled || redoStack.current.length === 0) return;
+      const next = redoStack.current.pop()!;
+      undoStack.current.push(value);
+      applyHistoryValue(next);
+    }, [applyHistoryValue, disabled, value]);
+
+    const handleHistoryKeys = useCallback(
+      (event: KeyboardEvent<Element>): boolean => {
+        if (!(event.ctrlKey || event.metaKey) || event.altKey) return false;
+        const key = event.key.toLowerCase();
+        if (key === "z" && !event.shiftKey) {
+          event.preventDefault();
+          undo();
+          return true;
+        }
+        if (key === "y" || (key === "z" && event.shiftKey)) {
+          event.preventDefault();
+          redo();
+          return true;
+        }
+        return false;
+      },
+      [redo, undo],
     );
 
     const mergeAdjacentText = useCallback((items: MarkdownBlock[]): MarkdownBlock[] => {
@@ -342,6 +424,10 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
           className,
         )}
         onDragOver={(event) => event.preventDefault()}
+        onKeyDownCapture={(event) => {
+          if (disabled) return;
+          handleHistoryKeys(event);
+        }}
         onMouseDown={(event) => {
           if (disabled) return;
           const target = event.target as HTMLElement;
