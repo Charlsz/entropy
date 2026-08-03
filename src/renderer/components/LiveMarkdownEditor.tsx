@@ -16,6 +16,7 @@ import {
   parseMarkdownBlocks,
   type MarkdownBlock,
 } from "../lib/markdownBlocks";
+import { useWorkspace } from "../state/useWorkspace";
 
 export interface LiveMarkdownEditorHandle {
   insertMarkdown: (markdown: string) => void;
@@ -60,6 +61,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
     { value, notePath, disabled, className, onChange, onKeyDown, onDropPath },
     ref,
   ) {
+    const { workspace } = useWorkspace();
     const blocks = useMemo(() => parseMarkdownBlocks(value), [value]);
     const activeTextIndex = useRef(0);
     const textRefs = useRef(new Map<number, HTMLTextAreaElement>());
@@ -426,6 +428,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
               alt={block.alt}
               src={block.src}
               notePath={notePath}
+              workspacePath={workspace.path}
               disabled={disabled}
               onOpenSource={() => openMediaAsSource(index)}
               onRemove={() => removeMediaAt(index)}
@@ -441,12 +444,21 @@ interface MediaFaceProps {
   alt: string;
   src: string;
   notePath?: string | null;
+  workspacePath?: string | null;
   disabled?: boolean;
   onOpenSource: () => void;
   onRemove: () => void;
 }
 
-function MediaFace({ alt, src, notePath, disabled, onOpenSource, onRemove }: MediaFaceProps) {
+function MediaFace({
+  alt,
+  src,
+  notePath,
+  workspacePath,
+  disabled,
+  onOpenSource,
+  onRemove,
+}: MediaFaceProps) {
   const [url, setUrl] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const kind = embedKind(src);
@@ -471,12 +483,12 @@ function MediaFace({ alt, src, notePath, disabled, onOpenSource, onRemove }: Med
       }
 
       try {
-        let absolute = src;
-        if (!/^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(src)) {
-          const noteDir = await window.entropy.fs.dirname(notePath);
-          absolute = await window.entropy.fs.join(noteDir, src);
-        }
-        if (!(await window.entropy.fs.exists(absolute))) {
+        const absolute = await window.entropy.fs.resolveEmbedTarget(
+          src,
+          notePath,
+          workspacePath,
+        );
+        if (!absolute) {
           if (!cancelled) {
             setUrl(null);
             setMissing(true);
@@ -498,7 +510,7 @@ function MediaFace({ alt, src, notePath, disabled, onOpenSource, onRemove }: Med
     return () => {
       cancelled = true;
     };
-  }, [notePath, src]);
+  }, [notePath, src, workspacePath]);
 
   const caption = fileLabel(alt, src);
 

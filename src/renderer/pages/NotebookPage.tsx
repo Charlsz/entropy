@@ -18,7 +18,7 @@ import { NoteContextPanel } from "../components/NoteContextPanel";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { noteContextIsUseful } from "../lib/noteContext";
 import { useDirWatch } from "../hooks/useDirWatch";
-import { isLiveEmbedExt, linkMarkdown, mediaMarkdown } from "../lib/markdownBlocks";
+import { isLiveEmbedExt, linkMarkdown, mediaEmbedMarkdown } from "../lib/markdownBlocks";
 import { osTrashName } from "../lib/platform";
 import { cn } from "../lib/utils";
 
@@ -105,7 +105,7 @@ export function NotebookPage({
     const href = hrefSource.replace(/\\/g, "/");
     const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
     return isLiveEmbedExt(entry.extension)
-      ? mediaMarkdown(label, href)
+      ? mediaEmbedMarkdown(href, label)
       : linkMarkdown(label, href);
   }, []);
 
@@ -386,7 +386,7 @@ export function NotebookPage({
       const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
       const href = relative.replace(/\\/g, "/");
       const insert = isLiveEmbedExt(entry.extension)
-        ? mediaMarkdown(label, href)
+        ? mediaEmbedMarkdown(href, label)
         : linkMarkdown(label, href);
       editorRef.current?.insertMarkdown(insert);
       setPreviewEntry(entry);

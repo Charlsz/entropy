@@ -15,6 +15,7 @@ import { rewriteMarkdownHref } from "../lib/linkRepair";
 import { formatMarkdownHref } from "../lib/markdownBlocks";
 
 const LINK_RE = /\!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
+const WIKI_EMBED_RE = /!\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]/g;
 
 function normalizeHref(raw: string): string {
   const trimmed = raw.trim();
@@ -99,7 +100,7 @@ export function NoteContextPanel({
             liveContent != null ? liveContent : await window.entropy.fs.readText(notePath);
           if (cancelled) return;
           setRawContent(content);
-          const found = await resolveLinks(notePath, content);
+          const found = await resolveLinks(notePath, content, workspace.path);
           if (cancelled) return;
 
           setLinks(found);
@@ -152,8 +153,12 @@ export function NoteContextPanel({
   async function openLinked(href: string): Promise<void> {
     if (!notePath) return;
     try {
-      const absolute = await resolveAbsolute(notePath, href);
-      if (!(await window.entropy.fs.exists(absolute))) {
+      const absolute = await window.entropy.fs.resolveEmbedTarget(
+        href,
+        notePath,
+        workspace.path,
+      );
+      if (!absolute) {
         setLinkedFile(null);
         return;
       }
@@ -177,7 +182,7 @@ export function NoteContextPanel({
     const next = rewriteMarkdownHref(rawContent, href, null);
     setRawContent(next);
     onRewriteHref?.(href, null);
-    if (notePath) setLinks(await resolveLinks(notePath, next));
+    if (notePath) setLinks(await resolveLinks(notePath, next, workspace.path));
   }
 
   async function locateLink(href: string): Promise<void> {
@@ -191,7 +196,7 @@ export function NoteContextPanel({
     const next = rewriteMarkdownHref(rawContent, href, wrapped);
     setRawContent(next);
     onRewriteHref?.(href, wrapped);
-    setLinks(await resolveLinks(notePath, next));
+    setLinks(await resolveLinks(notePath, next, workspace.path));
   }
 
   const okLinks = links.filter((link) => !link.missing);
@@ -402,35 +407,49 @@ export function NoteContextPanel({
   );
 }
 
-async function resolveAbsolute(notePath: string, href: string): Promise<string> {
-  const clean = normalizeHref(href);
-  if (/^[a-zA-Z]:[\\/]/.test(clean) || clean.startsWith("\\\\") || clean.startsWith("/")) {
-    return clean;
-  }
-  const noteDir = await window.entropy.fs.dirname(notePath);
-  return window.entropy.fs.join(noteDir, clean);
-}
-
-async function resolveLinks(notePath: string, content: string): Promise<NoteLink[]> {
+async function resolveLinks(
+  notePath: string,
+  content: string,
+  workspacePath: string,
+): Promise<NoteLink[]> {
   const found: NoteLink[] = [];
   const seen = new Set<string>();
-  LINK_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = LINK_RE.exec(content)) !== null) {
-    const label = match[1];
-    const href = normalizeHref(match[2]);
-    if (/^(https?:|mailto:|data:)/i.test(href)) continue;
+
+  async function push(label: string, href: string): Promise<void> {
+    if (/^(https?:|mailto:|data:)/i.test(href)) return;
     const key = `${label}\0${href}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key)) return;
     seen.add(key);
     let missing = true;
     try {
-      const absolute = await resolveAbsolute(notePath, href);
-      missing = !(await window.entropy.fs.exists(absolute));
+      const absolute = await window.entropy.fs.resolveEmbedTarget(
+        href,
+        notePath,
+        workspacePath,
+      );
+      missing = !absolute;
     } catch {
       missing = true;
     }
     found.push({ label, href, missing });
   }
+
+  LINK_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = LINK_RE.exec(content)) !== null) {
+    await push(match[1]!, normalizeHref(match[2]!));
+  }
+
+  WIKI_EMBED_RE.lastIndex = 0;
+  while ((match = WIKI_EMBED_RE.exec(content)) !== null) {
+    const href = match[1]!.trim();
+    const alias = match[2]?.trim();
+    const label =
+      alias && !/^\d+(?:x\d+)?$/i.test(alias)
+        ? alias
+        : href.split(/[/\\]/).pop() ?? href;
+    await push(label, href);
+  }
+
   return found;
 }

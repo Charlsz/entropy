@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { marked } from "marked";
 import { cn } from "../lib/utils";
+import { expandWikiEmbedsForPreview } from "../lib/markdownBlocks";
+import { useWorkspace } from "../state/useWorkspace";
 
 marked.setOptions({
   gfm: true,
@@ -30,6 +32,7 @@ export function MarkdownPreview({
   className,
   onOpenLocal,
 }: MarkdownPreviewProps) {
+  const { workspace } = useWorkspace();
   const [html, setHtml] = useState("<p></p>");
   const localMap = useRef(new Map<string, string>());
 
@@ -39,7 +42,8 @@ export function MarkdownPreview({
     void (async () => {
       let rendered: string;
       try {
-        rendered = marked.parse(content, { async: false }) as string;
+        const expanded = expandWikiEmbedsForPreview(content);
+        rendered = marked.parse(expanded, { async: false }) as string;
       } catch {
         rendered = "<p>Could not render this note.</p>";
       }
@@ -48,7 +52,6 @@ export function MarkdownPreview({
 
       if (notePath) {
         try {
-          const noteDir = await window.entropy.fs.dirname(notePath);
           ATTR_RE.lastIndex = 0;
           let match: RegExpExecArray | null;
           const seen = new Set<string>();
@@ -58,10 +61,12 @@ export function MarkdownPreview({
             if (seen.has(raw)) continue;
             seen.add(raw);
             try {
-              const absolute = isAbsolutePath(raw)
-                ? raw
-                : await window.entropy.fs.join(noteDir, raw);
-              if (!(await window.entropy.fs.exists(absolute))) continue;
+              const absolute = await window.entropy.fs.resolveEmbedTarget(
+                raw,
+                notePath,
+                workspace.path,
+              );
+              if (!absolute) continue;
               const info = await window.entropy.fs.stat(absolute);
               map.set(raw, absolute);
               if (!info.isDirectory) {
@@ -110,7 +115,7 @@ export function MarkdownPreview({
     return () => {
       cancelled = true;
     };
-  }, [content, notePath]);
+  }, [content, notePath, workspace.path]);
 
   function onClick(event: MouseEvent<HTMLDivElement>): void {
     const target = event.target as HTMLElement | null;
@@ -149,8 +154,4 @@ export function MarkdownPreview({
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function isAbsolutePath(value: string): boolean {
-  return /^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(value);
 }

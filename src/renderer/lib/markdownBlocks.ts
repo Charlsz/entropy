@@ -1,5 +1,8 @@
-/** Standalone markdown image embed on its own line: ![alt](src) or ![alt](src "title") */
+/** Standalone markdown image embed: ![alt](src) or ![alt](src "title") */
 export const MEDIA_LINE_RE = /^!\[([^\]]*)\]\((<[^>\n]+>|[^)\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\)$/;
+
+/** Obsidian embed on its own line: ![[target]] or ![[target|alias]] */
+export const WIKI_EMBED_LINE_RE = /^!\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]\s*$/;
 
 export type MarkdownBlock =
   | { type: "text"; value: string }
@@ -8,6 +11,34 @@ export type MarkdownBlock =
 function unwrapSrc(raw: string): string {
   if (raw.startsWith("<") && raw.endsWith(">")) return raw.slice(1, -1);
   return raw;
+}
+
+function basenameHint(target: string): string {
+  const clean = target.replace(/\\/g, "/");
+  return clean.split("/").pop() || target;
+}
+
+/** Obsidian size aliases like `|300` or `|300x200` are not captions. */
+function wikiAlt(target: string, alias: string | undefined): string {
+  const trimmed = alias?.trim();
+  if (!trimmed) return basenameHint(target);
+  if (/^\d+(?:x\d+)?$/i.test(trimmed)) return basenameHint(target);
+  return trimmed;
+}
+
+function matchMediaLine(line: string): { alt: string; src: string } | null {
+  const wiki = WIKI_EMBED_LINE_RE.exec(line.trimEnd());
+  if (wiki) {
+    const src = wiki[1]!.trim();
+    return { alt: wikiAlt(src, wiki[2]), src };
+  }
+
+  const md = MEDIA_LINE_RE.exec(line.trimEnd());
+  if (md) {
+    return { alt: md[1]!, src: unwrapSrc(md[2]!) };
+  }
+
+  return null;
 }
 
 /** Split markdown into text and standalone media-embed blocks (Obsidian-style live embeds). */
@@ -25,14 +56,13 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
   };
 
   for (const line of lines) {
-    const match = MEDIA_LINE_RE.exec(line.trimEnd());
-    if (match) {
+    const media = matchMediaLine(line);
+    if (media) {
       flushText();
-      const src = unwrapSrc(match[2]);
       blocks.push({
         type: "media",
-        alt: match[1],
-        src,
+        alt: media.alt,
+        src: media.src,
         raw: line,
       });
     } else {
@@ -74,12 +104,38 @@ export function markdownHrefFromPath(path: string): string {
   return formatMarkdownHref(path.replace(/\\/g, "/"));
 }
 
+/** Obsidian-style embed (preferred for Entropy inserts — matches vault notes). */
+export function mediaEmbedMarkdown(src: string, alias?: string): string {
+  const target = src.replace(/\\/g, "/");
+  const base = basenameHint(target);
+  if (alias && alias.trim() && alias.trim() !== base && alias.trim() !== src) {
+    return `![[${target}|${alias.trim()}]]`;
+  }
+  return `![[${target}]]`;
+}
+
 export function mediaMarkdown(alt: string, src: string): string {
-  return `![${alt}](${formatMarkdownHref(src)})`;
+  return mediaEmbedMarkdown(src, alt);
 }
 
 export function linkMarkdown(label: string, href: string): string {
   return `[${label}](${formatMarkdownHref(href)})`;
+}
+
+/**
+ * Turn Obsidian `![[…]]` lines into standard image markdown so marked can render them.
+ */
+export function expandWikiEmbedsForPreview(content: string): string {
+  return content
+    .split("\n")
+    .map((line) => {
+      const wiki = WIKI_EMBED_LINE_RE.exec(line.trimEnd());
+      if (!wiki) return line;
+      const src = wiki[1]!.trim();
+      const alt = wikiAlt(src, wiki[2]);
+      return `![${alt}](${formatMarkdownHref(src)})`;
+    })
+    .join("\n");
 }
 
 const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv", ".m4v"]);
@@ -114,7 +170,7 @@ export function embedKind(href: string): EmbedKind {
   return "other";
 }
 
-/** True when a dropped/linked path should become a live `![]()` face. */
+/** True when a dropped/linked path should become a live `![]()` / `![[]]` face. */
 export function isLiveEmbedExt(extension: string): boolean {
   const ext = extension.toLowerCase();
   return IMAGE_EXT.has(ext) || VIDEO_EXT.has(ext) || PDF_EXT.has(ext);

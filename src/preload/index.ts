@@ -88,6 +88,8 @@ const api: EntropyApi = {
     relative: (fromPath, toPath) => ipcRenderer.invoke("fs:relative", fromPath, toPath),
     toUrl: (filePath) => ipcRenderer.invoke("fs:toUrl", filePath),
     toThumbUrl: (filePath) => ipcRenderer.invoke("fs:toThumbUrl", filePath),
+    resolveEmbedTarget: (target, notePath, workspacePath) =>
+      ipcRenderer.invoke("fs:resolveEmbedTarget", target, notePath, workspacePath),
     duplicate: (targetPath) => ipcRenderer.invoke("fs:duplicate", targetPath),
     reveal: (targetPath) => ipcRenderer.invoke("fs:reveal", targetPath),
     openExternal: (targetPath) => ipcRenderer.invoke("fs:openExternal", targetPath),

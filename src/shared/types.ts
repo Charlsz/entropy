@@ -167,6 +167,12 @@ export interface EntropyApi {
     relative: (fromPath: string, toPath: string) => Promise<string>;
     toUrl: (filePath: string) => Promise<string>;
     toThumbUrl: (filePath: string) => Promise<string>;
+    /** Resolve `![[target]]` / image href: absolute, note-relative, workspace, then basename search. */
+    resolveEmbedTarget: (
+      target: string,
+      notePath: string,
+      workspacePath?: string | null,
+    ) => Promise<string | null>;
     duplicate: (targetPath: string) => Promise<string>;
     reveal: (targetPath: string) => Promise<void>;
     openExternal: (targetPath: string) => Promise<void>;

@@ -197,6 +197,11 @@ function registerIpc(): void {
   );
   ipcMain.handle("fs:toUrl", (_event, filePath: string) => toEntropyUrl(filePath));
   ipcMain.handle("fs:toThumbUrl", (_event, filePath: string) => toEntropyThumbUrl(filePath));
+  ipcMain.handle(
+    "fs:resolveEmbedTarget",
+    (_event, target: string, notePath: string, workspacePath?: string | null) =>
+      filesystem.resolveEmbedTarget(target, notePath, workspacePath),
+  );
   ipcMain.handle("fs:duplicate", (_event, targetPath: string) => filesystem.duplicate(targetPath));
   ipcMain.handle("fs:reveal", (_event, targetPath: string) =>
     filesystem.revealInFolder(targetPath),

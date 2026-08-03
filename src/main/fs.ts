@@ -636,3 +636,95 @@ export async function revealInFolder(targetPath: string): Promise<void> {
 export async function openExternal(targetPath: string): Promise<void> {
   await shell.openPath(targetPath);
 }
+
+const EMBED_FIND_MAX_DEPTH = 14;
+const EMBED_FIND_MAX_FILES = 8000;
+
+async function findFileByName(rootPath: string, fileName: string): Promise<string | null> {
+  const want = fileName.toLowerCase();
+  let seen = 0;
+
+  async function walk(dir: string, depth: number): Promise<string | null> {
+    if (depth > EMBED_FIND_MAX_DEPTH || seen >= EMBED_FIND_MAX_FILES) return null;
+    if (isProtectedOsPath(dir, platform)) return null;
+    let dirents;
+    try {
+      dirents = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return null;
+    }
+
+    const subdirs: string[] = [];
+    for (const dirent of dirents) {
+      if (dirent.name === "." || dirent.name === "..") continue;
+      if (shouldSkipDirName(dirent.name)) continue;
+      const full = path.join(dir, dirent.name);
+      if (dirent.isFile()) {
+        seen += 1;
+        if (dirent.name.toLowerCase() === want) return full;
+      } else if (dirent.isDirectory()) {
+        subdirs.push(full);
+      }
+    }
+
+    for (const sub of subdirs) {
+      const hit = await walk(sub, depth + 1);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  return walk(path.normalize(rootPath), 0);
+}
+
+/**
+ * Resolve Obsidian `![[target]]` / markdown image targets:
+ * absolute path, relative to note, relative to workspace, then basename search in workspace.
+ */
+export async function resolveEmbedTarget(
+  target: string,
+  notePath: string,
+  workspacePath?: string | null,
+): Promise<string | null> {
+  const cleaned = target.trim().replace(/^<|>$/g, "");
+  if (!cleaned) return null;
+
+  const candidates: string[] = [];
+
+  if (/^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(cleaned)) {
+    candidates.push(path.normalize(cleaned));
+  }
+
+  const noteDir = path.dirname(notePath);
+  candidates.push(path.resolve(noteDir, cleaned));
+
+  if (workspacePath) {
+    candidates.push(path.resolve(workspacePath, cleaned));
+  }
+
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const key = normalizePathKey(candidate);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    try {
+      const info = await fs.stat(candidate);
+      if (info.isFile()) return candidate;
+    } catch {
+      // try next
+    }
+  }
+
+  const baseName = path.basename(cleaned);
+  const searchRoots = [noteDir, workspacePath].filter(Boolean) as string[];
+  const searched = new Set<string>();
+  for (const root of searchRoots) {
+    const key = normalizePathKey(root);
+    if (searched.has(key)) continue;
+    searched.add(key);
+    const hit = await findFileByName(root, baseName);
+    if (hit) return hit;
+  }
+
+  return null;
+}
