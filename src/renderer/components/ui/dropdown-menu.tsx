@@ -29,16 +29,16 @@ export const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
     inset?: boolean;
+    /** Kept for call-site clarity; Entropy uses the same palette for all items (no danger red). */
     variant?: "default" | "destructive";
   }
->(({ className, inset, variant = "default", ...props }, ref) => (
+>(({ className, inset, variant: _variant = "default", ...props }, ref) => (
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md border border-transparent px-2.5 py-1.5 text-sm outline-none",
+      "relative flex cursor-default select-none items-center rounded-md border border-transparent px-2.5 py-1.5 text-sm text-paper outline-none",
       "data-[highlighted]:border-paper-2 data-[highlighted]:bg-transparent",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-      variant === "destructive" ? "text-paper-2" : "text-paper",
       inset && "pl-8",
       className,
     )}
