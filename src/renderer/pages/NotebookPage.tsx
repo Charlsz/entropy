@@ -92,6 +92,16 @@ export function NotebookPage({
     },
   );
 
+  // Slow safety net if directory watch drops events (Obsidian/Windows).
+  useEffect(() => {
+    if (!workspace.path) return;
+    const timer = window.setInterval(() => {
+      void refreshNotes({ quiet: true });
+      setDiskEpoch((value) => value + 1);
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [workspace.path, refreshNotes]);
+
   useEffect(() => {
     if (!pendingNote) return;
     setOpenPaths((prev) => (prev.includes(pendingNote) ? prev : [...prev, pendingNote]));

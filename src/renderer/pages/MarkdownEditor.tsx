@@ -133,11 +133,132 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       return;
     }
 
+    // Disk moved on — drop pending save so we don't keep fighting Obsidian/Explorer.
+    const pending = saveTimers.current.get(tab.path);
+    if (pending) {
+      window.clearTimeout(pending);
+      saveTimers.current.delete(tab.path);
+    }
     setTabs((prev) =>
       prev.map((item) => (item.path === tab.path ? { ...item, conflict: true } : item)),
     );
     setStatusMessage("This note changed outside Entropy. Reload or overwrite to continue.");
   }, []);
+
+  const clearSaveTimer = useCallback((filePath: string) => {
+    const pending = saveTimers.current.get(filePath);
+    if (pending) {
+      window.clearTimeout(pending);
+      saveTimers.current.delete(filePath);
+    }
+  }, []);
+
+  const syncOpenTabsFromDisk = useCallback(async () => {
+    const paths = tabsRef.current.filter((tab) => !tab.loading).map((tab) => tab.path);
+    for (const filePath of paths) {
+      const tab = tabsRef.current.find((item) => item.path === filePath);
+      if (!tab || tab.loading) continue;
+      try {
+        const exists = await window.entropy.fs.exists(tab.path);
+        if (!exists) {
+          if (!tab.missing) {
+            clearSaveTimer(tab.path);
+            setTabs((prev) =>
+              prev.map((item) =>
+                item.path === tab.path
+                  ? { ...item, missing: true, conflict: false }
+                  : item,
+              ),
+            );
+            if (activePathRef.current === tab.path) {
+              setStatusMessage("This note was deleted or moved on disk.");
+            }
+          }
+          continue;
+        }
+
+        const info = await window.entropy.fs.stat(tab.path);
+        const latest = tabsRef.current.find((item) => item.path === filePath) ?? tab;
+        const diskNewer =
+          latest.mtimeMs == null || Math.abs(info.modifiedAt - latest.mtimeMs) > 1;
+
+        if (latest.missing) {
+          clearSaveTimer(latest.path);
+          const content = await window.entropy.fs.readText(latest.path);
+          const title =
+            latest.path.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled";
+          setTabs((prev) =>
+            prev.map((item) =>
+              item.path === latest.path
+                ? {
+                    ...item,
+                    title,
+                    content,
+                    savedContent: content,
+                    mtimeMs: info.modifiedAt,
+                    missing: false,
+                    conflict: false,
+                  }
+                : item,
+            ),
+          );
+          if (activePathRef.current === latest.path) setStatusMessage(null);
+          continue;
+        }
+
+        if (!diskNewer) continue;
+
+        const clean = latest.content === latest.savedContent;
+        if (clean) {
+          clearSaveTimer(latest.path);
+          const content = await window.entropy.fs.readText(latest.path);
+          // Skip no-op reloads (same bytes, mtime touch only).
+          if (content === latest.savedContent) {
+            setTabs((prev) =>
+              prev.map((item) =>
+                item.path === latest.path
+                  ? { ...item, mtimeMs: info.modifiedAt, conflict: false, missing: false }
+                  : item,
+              ),
+            );
+            continue;
+          }
+          const title =
+            latest.path.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled";
+          setTabs((prev) =>
+            prev.map((item) =>
+              item.path === latest.path
+                ? {
+                    ...item,
+                    title,
+                    content,
+                    savedContent: content,
+                    mtimeMs: info.modifiedAt,
+                    conflict: false,
+                    missing: false,
+                  }
+                : item,
+            ),
+          );
+          if (activePathRef.current === latest.path) setStatusMessage(null);
+        } else if (!latest.conflict) {
+          clearSaveTimer(latest.path);
+          setTabs((prev) =>
+            prev.map((item) =>
+              item.path === latest.path ? { ...item, conflict: true } : item,
+            ),
+          );
+          if (activePathRef.current === latest.path) {
+            setStatusMessage(
+              "This note changed outside Entropy. Reload or overwrite to continue.",
+            );
+          }
+        }
+      } catch {
+        // Ignore transient FS errors during a sync tick.
+      }
+    }
+  }, [clearSaveTimer]);
 
   const flushPending = useCallback(async () => {
     for (const [, timer] of saveTimers.current) {
@@ -232,105 +353,24 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     };
   }, [openKey, openPaths]);
 
-  /** External disk changes: reload clean tabs, flag dirty conflicts, notice deletes. */
+  /** External disk changes: poll + directory watch. Windows/Obsidian atomic saves are flaky on fs.watch alone. */
   useEffect(() => {
-    if (!diskEpoch) return;
+    if (openPaths.length === 0) return;
     let cancelled = false;
 
-    void (async () => {
-      const snapshot = tabsRef.current.filter((tab) => !tab.loading);
-      for (const tab of snapshot) {
-        try {
-          const exists = await window.entropy.fs.exists(tab.path);
-          if (cancelled) return;
+    const tick = () => {
+      if (cancelled) return;
+      void syncOpenTabsFromDisk();
+    };
 
-          if (!exists) {
-            if (!tab.missing) {
-              setTabs((prev) =>
-                prev.map((item) =>
-                  item.path === tab.path
-                    ? { ...item, missing: true, conflict: false }
-                    : item,
-                ),
-              );
-              if (activePathRef.current === tab.path) {
-                setStatusMessage("This note was deleted or moved on disk.");
-              }
-            }
-            continue;
-          }
-
-          const info = await window.entropy.fs.stat(tab.path);
-          if (cancelled) return;
-
-          if (tab.missing) {
-            const content = await window.entropy.fs.readText(tab.path);
-            if (cancelled) return;
-            const title =
-              tab.path.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled";
-            setTabs((prev) =>
-              prev.map((item) =>
-                item.path === tab.path
-                  ? {
-                      ...item,
-                      title,
-                      content,
-                      savedContent: content,
-                      mtimeMs: info.modifiedAt,
-                      missing: false,
-                      conflict: false,
-                    }
-                  : item,
-              ),
-            );
-            continue;
-          }
-
-          if (tab.mtimeMs != null && info.modifiedAt !== tab.mtimeMs) {
-            const clean = tab.content === tab.savedContent;
-            if (clean) {
-              const content = await window.entropy.fs.readText(tab.path);
-              if (cancelled) return;
-              const title =
-                tab.path.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled";
-              setTabs((prev) =>
-                prev.map((item) =>
-                  item.path === tab.path
-                    ? {
-                        ...item,
-                        title,
-                        content,
-                        savedContent: content,
-                        mtimeMs: info.modifiedAt,
-                        conflict: false,
-                        missing: false,
-                      }
-                    : item,
-                ),
-              );
-            } else if (!tab.conflict) {
-              setTabs((prev) =>
-                prev.map((item) =>
-                  item.path === tab.path ? { ...item, conflict: true } : item,
-                ),
-              );
-              if (activePathRef.current === tab.path) {
-                setStatusMessage(
-                  "This note changed outside Entropy. Reload or overwrite to continue.",
-                );
-              }
-            }
-          }
-        } catch {
-          // Ignore transient FS errors during a watch burst.
-        }
-      }
-    })();
+    tick();
+    const timer = window.setInterval(tick, 500);
 
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
-  }, [diskEpoch]);
+  }, [openKey, openPaths.length, diskEpoch, syncOpenTabsFromDisk]);
 
   const activeTab = tabs.find((tab) => tab.path === activePath) ?? null;
   const isDirty = activeTab ? activeTab.content !== activeTab.savedContent : false;

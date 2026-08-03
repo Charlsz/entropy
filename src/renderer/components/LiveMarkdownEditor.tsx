@@ -466,12 +466,22 @@ function MediaFace({
 }: MediaFaceProps) {
   const [url, setUrl] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
+  const [missProbe, setMissProbe] = useState(0);
+  const resolvedPath = useRef<string | null>(null);
   const kind = embedKind(src);
+
+  // Keep looking for missing media without waiting for a directory-watch event.
+  useEffect(() => {
+    if (!missing) return;
+    const timer = window.setInterval(() => setMissProbe((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [missing]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       if (/^(https?:|data:|entropy:)/i.test(src)) {
+        resolvedPath.current = null;
         if (!cancelled) {
           setUrl(src);
           setMissing(false);
@@ -480,6 +490,7 @@ function MediaFace({
       }
 
       if (!notePath) {
+        resolvedPath.current = null;
         if (!cancelled) {
           setUrl(null);
           setMissing(true);
@@ -488,24 +499,34 @@ function MediaFace({
       }
 
       try {
-        const absolute = await window.entropy.fs.resolveEmbedTarget(
-          src,
-          notePath,
-          workspacePath,
-        );
+        let absolute = resolvedPath.current;
+        if (absolute && (await window.entropy.fs.exists(absolute))) {
+          // Keep previous resolution when the file is still there.
+        } else {
+          absolute = await window.entropy.fs.resolveEmbedTarget(
+            src,
+            notePath,
+            workspacePath,
+          );
+        }
+
         if (!absolute) {
+          resolvedPath.current = null;
           if (!cancelled) {
             setUrl(null);
             setMissing(true);
           }
           return;
         }
+
+        resolvedPath.current = absolute;
         const next = await window.entropy.fs.toUrl(absolute);
         if (!cancelled) {
           setUrl(next);
           setMissing(false);
         }
       } catch {
+        resolvedPath.current = null;
         if (!cancelled) {
           setUrl(null);
           setMissing(true);
@@ -515,7 +536,12 @@ function MediaFace({
     return () => {
       cancelled = true;
     };
-  }, [notePath, src, workspacePath, diskEpoch]);
+  }, [notePath, src, workspacePath, diskEpoch, missProbe]);
+
+  // Reset cached path when the markdown target changes.
+  useEffect(() => {
+    resolvedPath.current = null;
+  }, [src, notePath]);
 
   const caption = fileLabel(alt, src);
 
