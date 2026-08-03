@@ -23,7 +23,7 @@ import { NoteCover } from "../components/NoteCover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { cn } from "../lib/utils";
 import { parseNoteFrontmatter } from "../lib/noteMeta";
-import { isLiveEmbedExt } from "../lib/markdownBlocks";
+import { isLiveEmbedExt, linkMarkdown, mediaMarkdown } from "../lib/markdownBlocks";
 import { rewriteMarkdownHref } from "../lib/linkRepair";
 import { useWorkspace } from "../state/useWorkspace";
 
@@ -450,9 +450,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const relative = await window.entropy.fs.relative(noteDir, filePath);
     const name = await window.entropy.fs.basename(filePath);
     const info = await window.entropy.fs.stat(filePath);
+    const href = (relative || filePath).replace(/\\/g, "/");
     const snippet = isLiveEmbedExt(info.extension)
-      ? `![${name}](${relative})`
-      : `[${name}](${relative})`;
+      ? mediaMarkdown(name, href)
+      : linkMarkdown(name, href);
     liveEditorRef.current?.insertMarkdown(snippet);
   }
 

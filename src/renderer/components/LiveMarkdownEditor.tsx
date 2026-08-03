@@ -48,6 +48,10 @@ function firstTextBlockIndex(blocks: MarkdownBlock[], fromEnd: boolean): number 
   return fromEnd ? indices[indices.length - 1]! : indices[0]!;
 }
 
+function countMedia(blocks: MarkdownBlock[]): number {
+  return blocks.reduce((n, block) => n + (block.type === "media" ? 1 : 0), 0);
+}
+
 /**
  * Writing surface: Markdown source for text, live faces for embedded files.
  * Full rendered reading is Reading View only (MarkdownEditor surface toggle).
@@ -71,16 +75,6 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
       [onChange],
     );
 
-    const updateTextBlock = useCallback(
-      (blockIndex: number, text: string) => {
-        const next = parseMarkdownBlocks(value).map((block, index) =>
-          index === blockIndex && block.type === "text" ? { ...block, value: text } : block,
-        );
-        commitBlocks(parseMarkdownBlocks(joinMarkdownBlocks(next)));
-      },
-      [commitBlocks, value],
-    );
-
     const focusText = useCallback(
       (index: number, at: "start" | "end" | number = "end") => {
         if (disabled) return;
@@ -100,6 +94,93 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
         });
       },
       [disabled],
+    );
+
+    const mergeAdjacentText = useCallback((items: MarkdownBlock[]): MarkdownBlock[] => {
+      const merged: MarkdownBlock[] = [];
+      for (const block of items) {
+        const prev = merged[merged.length - 1];
+        if (block.type === "text" && prev?.type === "text") {
+          const sep = prev.value && block.value ? "\n" : "";
+          merged[merged.length - 1] = {
+            type: "text",
+            value: `${prev.value}${sep}${block.value}`,
+          };
+        } else {
+          merged.push(block);
+        }
+      }
+      return merged.length ? merged : [{ type: "text", value: "" }];
+    }, []);
+
+    /** Remove a media face; keep caret in the surrounding markdown stream. */
+    const removeMediaAt = useCallback(
+      (mediaIndex: number, caretFrom: "before" | "after" | "end") => {
+        const current = parseMarkdownBlocks(value);
+        if (current[mediaIndex]?.type !== "media") return;
+
+        const before = current[mediaIndex - 1];
+        const after = current[mediaIndex + 1];
+        const beforeText = before?.type === "text" ? before.value : "";
+        const afterText = after?.type === "text" ? after.value : "";
+        const sep = beforeText && afterText ? "\n" : "";
+
+        let caret = 0;
+        if (caretFrom === "before") {
+          caret = beforeText.length;
+        } else if (caretFrom === "after") {
+          caret = beforeText.length + sep.length;
+        } else {
+          caret = beforeText.length + sep.length + afterText.length;
+        }
+
+        const next = mergeAdjacentText(current.filter((_, i) => i !== mediaIndex));
+        const parsed = parseMarkdownBlocks(joinMarkdownBlocks(next));
+        commitBlocks(parsed);
+        setEditingMedia(null);
+
+        // Text block that absorbed the neighbors is the last text at/before mediaIndex.
+        window.requestAnimationFrame(() => {
+          let textIndex = -1;
+          for (let i = 0; i < parsed.length; i++) {
+            if (parsed[i]?.type === "text" && i <= mediaIndex) textIndex = i;
+          }
+          if (textIndex < 0) textIndex = firstTextBlockIndex(parsed, false);
+          focusText(textIndex, caret);
+        });
+      },
+      [commitBlocks, focusText, mergeAdjacentText, value],
+    );
+
+    const updateTextBlock = useCallback(
+      (blockIndex: number, text: string) => {
+        const before = parseMarkdownBlocks(value);
+        const next = before.map((block, index) =>
+          index === blockIndex && block.type === "text" ? { ...block, value: text } : block,
+        );
+        const parsed = parseMarkdownBlocks(joinMarkdownBlocks(next));
+        commitBlocks(parsed);
+
+        // After a line becomes a live embed, keep writing after it (and Backspace can undo).
+        if (countMedia(parsed) > countMedia(before)) {
+          let mediaAfter = -1;
+          for (let i = 0; i < parsed.length; i++) {
+            if (parsed[i]?.type === "media") mediaAfter = i;
+            // Prefer the first new media at/after the edited region.
+            if (i >= blockIndex && parsed[i]?.type === "media") {
+              mediaAfter = i;
+              break;
+            }
+          }
+          const follow = parsed.findIndex(
+            (block, i) => i > mediaAfter && block.type === "text",
+          );
+          if (follow >= 0) {
+            window.requestAnimationFrame(() => focusText(follow, "start"));
+          }
+        }
+      },
+      [commitBlocks, focusText, value],
     );
 
     useEffect(() => {
@@ -162,6 +243,36 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
       [blocks, commitBlocks, focusText, value],
     );
 
+    const handleTextKeyDown = useCallback(
+      (blockIndex: number, event: KeyboardEvent<HTMLTextAreaElement>) => {
+        onKeyDown?.(event);
+        if (event.defaultPrevented || disabled) return;
+
+        const el = event.currentTarget;
+        const atStart = el.selectionStart === 0 && el.selectionEnd === 0;
+        const atEnd =
+          el.selectionStart === el.value.length && el.selectionEnd === el.value.length;
+
+        if (event.key === "Backspace" && atStart) {
+          const prev = blocks[blockIndex - 1];
+          if (prev?.type === "media") {
+            event.preventDefault();
+            removeMediaAt(blockIndex - 1, "before");
+            return;
+          }
+        }
+
+        if (event.key === "Delete" && atEnd) {
+          const next = blocks[blockIndex + 1];
+          if (next?.type === "media") {
+            event.preventDefault();
+            removeMediaAt(blockIndex + 1, "before");
+          }
+        }
+      },
+      [blocks, disabled, onKeyDown, removeMediaAt],
+    );
+
     return (
       <div
         className={cn(
@@ -210,7 +321,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
                   updateTextBlock(index, event.target.value);
                   autoResize(event.target);
                 }}
-                onKeyDown={onKeyDown}
+                onKeyDown={(event) => handleTextKeyDown(index, event)}
               />
             );
           }
@@ -228,20 +339,20 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
               onEdit={() => setEditingMedia(index)}
               onCancelEdit={() => setEditingMedia(null)}
               onCommitRaw={(raw) => {
+                const trimmed = raw.trimEnd();
+                if (!trimmed) {
+                  removeMediaAt(index, "before");
+                  return;
+                }
                 const next = parseMarkdownBlocks(value).map((item, i) => {
                   if (i !== index) return item;
-                  const trimmed = raw.trimEnd();
                   const parsed = parseMarkdownBlocks(trimmed);
                   return parsed[0] ?? { type: "text" as const, value: raw };
                 });
                 commitBlocks(parseMarkdownBlocks(joinMarkdownBlocks(next)));
                 setEditingMedia(null);
               }}
-              onRemove={() => {
-                const next = parseMarkdownBlocks(value).filter((_, i) => i !== index);
-                commitBlocks(next.length ? next : [{ type: "text", value: "" }]);
-                setEditingMedia(null);
-              }}
+              onRemove={() => removeMediaAt(index, "before")}
             />
           );
         })}
@@ -341,6 +452,13 @@ function MediaEmbedBlock({
         <Textarea
           ref={(el) => {
             sourceRef.current = el;
+            if (el) {
+              autoResize(el);
+              window.requestAnimationFrame(() => {
+                el.focus();
+                el.setSelectionRange(el.value.length, el.value.length);
+              });
+            }
           }}
           className="min-h-[2.5rem] w-full resize-none border-0 bg-transparent font-mono text-sm font-normal shadow-none focus-visible:ring-0"
           value={draft}
@@ -359,6 +477,10 @@ function MediaEmbedBlock({
               event.preventDefault();
               onCommitRaw(draft.trim() ? draft : mediaMarkdown(alt, src));
             }
+            if (event.key === "Backspace" && !draft.trim()) {
+              event.preventDefault();
+              onRemove();
+            }
           }}
           onBlur={() => onCommitRaw(draft.trim() ? draft : mediaMarkdown(alt, src))}
         />
@@ -370,21 +492,29 @@ function MediaEmbedBlock({
   const caption = fileLabel(alt, src);
 
   return (
-    <figure className="group relative my-1">
-      <button
-        type="button"
-        className="absolute right-2 top-2 z-10 rounded-md bg-ink/80 px-2 py-1 text-[11px] text-paper opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
-        onClick={onRemove}
-        disabled={disabled}
-      >
-        Remove
-      </button>
+    <figure
+      className="group relative my-1 outline-none"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={caption ? `Embedded media: ${caption}` : "Embedded media"}
+      onKeyDown={(event) => {
+        if (disabled) return;
+        if (event.key === "Backspace" || event.key === "Delete") {
+          event.preventDefault();
+          onRemove();
+          return;
+        }
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onEdit();
+        }
+      }}
+    >
       <button
         type="button"
         className="block w-full overflow-hidden rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={onEdit}
         disabled={disabled}
-        aria-label={caption ? `Edit media: ${caption}` : "Edit media embed"}
+        aria-label={caption ? `Edit media markdown: ${caption}` : "Edit media markdown"}
       >
         {missing || !url ? (
           <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">

@@ -59,9 +59,27 @@ export function joinMarkdownBlocks(blocks: MarkdownBlock[]): string {
     .join("\n");
 }
 
+/**
+ * Wrap a destination so CommonMark / marked / live embeds accept it.
+ * Bare destinations cannot contain spaces or unescaped parentheses.
+ */
+export function formatMarkdownHref(href: string): string {
+  if (href.startsWith("<") && href.endsWith(">")) return href;
+  if (/[\s()]/.test(href)) return `<${href}>`;
+  return href;
+}
+
+/** Normalize path separators and format for a markdown href. */
+export function markdownHrefFromPath(path: string): string {
+  return formatMarkdownHref(path.replace(/\\/g, "/"));
+}
+
 export function mediaMarkdown(alt: string, src: string): string {
-  const safeSrc = /\s/.test(src) ? `<${src}>` : src;
-  return `![${alt}](${safeSrc})`;
+  return `![${alt}](${formatMarkdownHref(src)})`;
+}
+
+export function linkMarkdown(label: string, href: string): string {
+  return `[${label}](${formatMarkdownHref(href)})`;
 }
 
 const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv", ".m4v"]);

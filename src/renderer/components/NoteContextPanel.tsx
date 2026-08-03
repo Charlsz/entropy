@@ -12,6 +12,7 @@ import {
 } from "./ui/tooltip";
 import { useWorkspace } from "../state/useWorkspace";
 import { rewriteMarkdownHref } from "../lib/linkRepair";
+import { formatMarkdownHref } from "../lib/markdownBlocks";
 
 const LINK_RE = /\!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
 
@@ -186,7 +187,7 @@ export function NoteContextPanel({
     const noteDir = await window.entropy.fs.dirname(notePath);
     const relative = await window.entropy.fs.relative(noteDir, picked);
     const nextHref = relative.replace(/\\/g, "/");
-    const wrapped = /\s/.test(nextHref) ? `<${nextHref}>` : nextHref;
+    const wrapped = formatMarkdownHref(nextHref);
     const next = rewriteMarkdownHref(rawContent, href, wrapped);
     setRawContent(next);
     onRewriteHref?.(href, wrapped);
