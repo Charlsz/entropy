@@ -104,10 +104,10 @@ export function invalidateFolderPreview(folderPath?: string): void {
     folderPreviewCache.clear();
     return;
   }
-  const needle = folderPath.replace(/\\/g, "/").toLowerCase();
-  for (const key of folderPreviewCache.keys()) {
-    const bare = key.replace(/^v\d+:/, "").replace(/\\/g, "/").toLowerCase();
-    if (bare === needle) {
+  const needle = folderPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  for (const key of [...folderPreviewCache.keys()]) {
+    const bare = key.replace(/^v\d+:/, "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+    if (bare === needle || bare.startsWith(`${needle}/`)) {
       folderPreviewCache.delete(key);
     }
   }

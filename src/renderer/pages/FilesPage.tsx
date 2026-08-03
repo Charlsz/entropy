@@ -137,8 +137,9 @@ export function FilesPage() {
       setDiskEpoch((value) => value + 1);
     },
     {
-      enabled:
-        Boolean(workspace.currentFolder) && workspace.currentSection === "inventory",
+      // Nested creates/deletes under the open folder must refresh gallery + treemap.
+      recursive: true,
+      enabled: Boolean(workspace.currentFolder),
     },
   );
 
