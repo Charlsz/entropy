@@ -49,6 +49,7 @@ export function NotebookPage({
   const [movingPath, setMovingPath] = useState<string | null>(null);
   const [contextUseful, setContextUseful] = useState(false);
   const [contextEpoch, setContextEpoch] = useState(0);
+  const [diskEpoch, setDiskEpoch] = useState(0);
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const activePathRef = useRef<string | null>(null);
   const insertedReferenceKeysRef = useRef(new Set<string>());
@@ -81,10 +82,13 @@ export function NotebookPage({
     workspace.path,
     () => {
       void refreshNotes({ quiet: true });
+      setContextEpoch((value) => value + 1);
+      setDiskEpoch((value) => value + 1);
     },
     {
+      // Stay live even while Inventory is focused (sections keep-alive).
       recursive: true,
-      enabled: Boolean(workspace.path) && workspace.currentSection === "notebook",
+      enabled: Boolean(workspace.path),
     },
   );
 
@@ -607,6 +611,7 @@ export function NotebookPage({
             ref={editorRef}
             openPaths={openPaths}
             activePath={activePath}
+            diskEpoch={diskEpoch}
             onActiveChange={(notePath) => {
               openNoteLocal(notePath);
               visitNote(notePath);

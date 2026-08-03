@@ -26,6 +26,8 @@ export interface LiveMarkdownEditorHandle {
 interface LiveMarkdownEditorProps {
   value: string;
   notePath?: string | null;
+  /** Workspace disk changes — re-resolve embeds when files appear/disappear. */
+  diskEpoch?: number;
   disabled?: boolean;
   className?: string;
   onChange: (value: string) => void;
@@ -58,7 +60,7 @@ function countMedia(blocks: MarkdownBlock[]): number {
  */
 export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkdownEditorProps>(
   function LiveMarkdownEditor(
-    { value, notePath, disabled, className, onChange, onKeyDown, onDropPath },
+    { value, notePath, diskEpoch = 0, disabled, className, onChange, onKeyDown, onDropPath },
     ref,
   ) {
     const { workspace } = useWorkspace();
@@ -429,6 +431,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
               src={block.src}
               notePath={notePath}
               workspacePath={workspace.path}
+              diskEpoch={diskEpoch}
               disabled={disabled}
               onOpenSource={() => openMediaAsSource(index)}
               onRemove={() => removeMediaAt(index)}
@@ -445,6 +448,7 @@ interface MediaFaceProps {
   src: string;
   notePath?: string | null;
   workspacePath?: string | null;
+  diskEpoch?: number;
   disabled?: boolean;
   onOpenSource: () => void;
   onRemove: () => void;
@@ -455,6 +459,7 @@ function MediaFace({
   src,
   notePath,
   workspacePath,
+  diskEpoch = 0,
   disabled,
   onOpenSource,
   onRemove,
@@ -510,7 +515,7 @@ function MediaFace({
     return () => {
       cancelled = true;
     };
-  }, [notePath, src, workspacePath]);
+  }, [notePath, src, workspacePath, diskEpoch]);
 
   const caption = fileLabel(alt, src);
 

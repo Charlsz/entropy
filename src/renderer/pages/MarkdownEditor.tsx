@@ -41,6 +41,8 @@ interface EditorTab {
 interface MarkdownEditorProps {
   openPaths: string[];
   activePath: string | null;
+  /** Bumps when workspace files change on disk — recheck open notes + embeds. */
+  diskEpoch?: number;
   onActiveChange: (path: string) => void;
   onCloseTab: (path: string) => void;
   onStatsChange?: (stats: string) => void;
@@ -68,6 +70,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     {
       openPaths,
       activePath,
+      diskEpoch = 0,
       onActiveChange,
       onCloseTab,
       onStatsChange,
@@ -228,6 +231,106 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       cancelled = true;
     };
   }, [openKey, openPaths]);
+
+  /** External disk changes: reload clean tabs, flag dirty conflicts, notice deletes. */
+  useEffect(() => {
+    if (!diskEpoch) return;
+    let cancelled = false;
+
+    void (async () => {
+      const snapshot = tabsRef.current.filter((tab) => !tab.loading);
+      for (const tab of snapshot) {
+        try {
+          const exists = await window.entropy.fs.exists(tab.path);
+          if (cancelled) return;
+
+          if (!exists) {
+            if (!tab.missing) {
+              setTabs((prev) =>
+                prev.map((item) =>
+                  item.path === tab.path
+                    ? { ...item, missing: true, conflict: false }
+                    : item,
+                ),
+              );
+              if (activePathRef.current === tab.path) {
+                setStatusMessage("This note was deleted or moved on disk.");
+              }
+            }
+            continue;
+          }
+
+          const info = await window.entropy.fs.stat(tab.path);
+          if (cancelled) return;
+
+          if (tab.missing) {
+            const content = await window.entropy.fs.readText(tab.path);
+            if (cancelled) return;
+            const title =
+              tab.path.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled";
+            setTabs((prev) =>
+              prev.map((item) =>
+                item.path === tab.path
+                  ? {
+                      ...item,
+                      title,
+                      content,
+                      savedContent: content,
+                      mtimeMs: info.modifiedAt,
+                      missing: false,
+                      conflict: false,
+                    }
+                  : item,
+              ),
+            );
+            continue;
+          }
+
+          if (tab.mtimeMs != null && info.modifiedAt !== tab.mtimeMs) {
+            const clean = tab.content === tab.savedContent;
+            if (clean) {
+              const content = await window.entropy.fs.readText(tab.path);
+              if (cancelled) return;
+              const title =
+                tab.path.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled";
+              setTabs((prev) =>
+                prev.map((item) =>
+                  item.path === tab.path
+                    ? {
+                        ...item,
+                        title,
+                        content,
+                        savedContent: content,
+                        mtimeMs: info.modifiedAt,
+                        conflict: false,
+                        missing: false,
+                      }
+                    : item,
+                ),
+              );
+            } else if (!tab.conflict) {
+              setTabs((prev) =>
+                prev.map((item) =>
+                  item.path === tab.path ? { ...item, conflict: true } : item,
+                ),
+              );
+              if (activePathRef.current === tab.path) {
+                setStatusMessage(
+                  "This note changed outside Entropy. Reload or overwrite to continue.",
+                );
+              }
+            }
+          }
+        } catch {
+          // Ignore transient FS errors during a watch burst.
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [diskEpoch]);
 
   const activeTab = tabs.find((tab) => tab.path === activePath) ?? null;
   const isDirty = activeTab ? activeTab.content !== activeTab.savedContent : false;
@@ -651,6 +754,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   className={mode === "split" ? "" : "mx-auto max-w-[720px]"}
                   value={activeTab?.content ?? ""}
                   notePath={activeTab?.path}
+                  diskEpoch={diskEpoch}
                   disabled={Boolean(activeTab?.conflict)}
                   onChange={handleChange}
                   onKeyDown={handleKeyDown}
@@ -675,6 +779,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 <MarkdownPreview
                   content={noteMeta.body}
                   notePath={activeTab?.path}
+                  diskEpoch={diskEpoch}
                   onOpenLocal={onOpenLocalPath}
                 />
               </ScrollArea>

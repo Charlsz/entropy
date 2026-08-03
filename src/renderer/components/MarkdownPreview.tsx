@@ -20,6 +20,7 @@ marked.use({
 interface MarkdownPreviewProps {
   content: string;
   notePath?: string | null;
+  diskEpoch?: number;
   className?: string;
   onOpenLocal?: (absolutePath: string) => void;
 }
@@ -29,6 +30,7 @@ const ATTR_RE = /\b(?:src|href)=["']([^"']+)["']/gi;
 export function MarkdownPreview({
   content,
   notePath,
+  diskEpoch = 0,
   className,
   onOpenLocal,
 }: MarkdownPreviewProps) {
@@ -115,7 +117,7 @@ export function MarkdownPreview({
     return () => {
       cancelled = true;
     };
-  }, [content, notePath, workspace.path]);
+  }, [content, notePath, workspace.path, diskEpoch]);
 
   function onClick(event: MouseEvent<HTMLDivElement>): void {
     const target = event.target as HTMLElement | null;
