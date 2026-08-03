@@ -381,13 +381,30 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
   return <QuietFace />;
 }
 
+function unloadVideoEl(video: HTMLVideoElement | null): void {
+  if (!video) return;
+  try {
+    video.pause();
+  } catch {
+    // Ignore.
+  }
+  video.removeAttribute("src");
+  video.src = "";
+  video.load();
+}
+
 function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
   const { ref, inView } = useInView<HTMLDivElement>("80px", { sticky: false });
   const [url, setUrl] = useState<string | null>(null);
   const [poster, setPoster] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const [releasing, setReleasing] = useState(() => isMediaReleasing(path));
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Live decode only while hovered on large faces — keeps Windows file locks off
+  // until the user actually inspects the clip (⋯ menu sits below the face).
+  const wantsLive = size === "lg" && hovered && inView && !releasing;
 
   useEffect(() => {
     return subscribeMediaRelease(() => {
@@ -413,10 +430,9 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
   }, [path]);
 
   useEffect(() => {
-    // Collage / compact faces: poster only — avoid decoding many looping videos.
-    // Also stay on poster while the path is being trashed so Windows can unlock it.
-    if (releasing || !inView || size === "sm" || size === "md") {
+    if (!wantsLive) {
       setUrl(null);
+      unloadVideoEl(videoRef.current);
       return;
     }
     let cancelled = false;
@@ -430,23 +446,17 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
     }, () => cancelled);
     return () => {
       cancelled = true;
+      unloadVideoEl(videoRef.current);
     };
-  }, [path, inView, size, releasing]);
+  }, [path, wantsLive]);
 
   useEffect(() => {
-    if (releasing) {
-      const video = videoRef.current;
-      if (video) {
-        video.pause();
-        video.removeAttribute("src");
-        video.load();
-      }
-    }
+    if (releasing) unloadVideoEl(videoRef.current);
   }, [releasing]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !url || !inView || releasing) return;
+    if (!video || !url || !wantsLive) return;
 
     let timer = 0;
     let cancelled = false;
@@ -483,13 +493,20 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
       cancelled = true;
       clearTimer();
       video.removeEventListener("loadeddata", onLoaded);
-      video.pause();
+      unloadVideoEl(video);
     };
-  }, [url, inView, releasing]);
+  }, [url, wantsLive]);
+
+  const shellProps = {
+    ref,
+    className: "relative h-full w-full overflow-hidden bg-ink-2",
+    onPointerEnter: () => setHovered(true),
+    onPointerLeave: () => setHovered(false),
+  } as const;
 
   if (failed) {
     return (
-      <div ref={ref} className="flex h-full w-full items-center justify-center bg-ink-2">
+      <div {...shellProps} className="flex h-full w-full items-center justify-center bg-ink-2">
         <FileText
           className={cn(
             "text-muted-foreground/70",
@@ -501,9 +518,9 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
     );
   }
 
-  if (!inView || !url || releasing) {
+  if (!url || !wantsLive) {
     return (
-      <div ref={ref} className="relative h-full w-full overflow-hidden bg-ink-2">
+      <div {...shellProps}>
         {poster ? (
           <img
             src={poster}
@@ -521,7 +538,7 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
   }
 
   return (
-    <div ref={ref} className="relative h-full w-full overflow-hidden bg-ink-2">
+    <div {...shellProps}>
       <video
         ref={videoRef}
         src={url}

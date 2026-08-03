@@ -186,7 +186,7 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
     );
   }
 
-  if (kind === "audio" && url) {
+  if (kind === "audio" && url && !releasing) {
     return (
       <div className="rounded-lg border border-border bg-secondary p-3">
         <audio className="w-full" src={url} controls />
@@ -194,11 +194,27 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
     );
   }
 
+  if (kind === "audio") {
+    return <p className="p-3 text-sm text-muted-foreground">Preview paused</p>;
+  }
+
   if (kind === "text" && text !== null) {
     return <pre className="file-preview file-preview-text">{text}</pre>;
   }
 
   return <p className="text-sm text-muted-foreground">Unable to preview this file.</p>;
+}
+
+function unloadVideo(video: HTMLVideoElement | null): void {
+  if (!video) return;
+  try {
+    video.pause();
+  } catch {
+    // Ignore.
+  }
+  video.removeAttribute("src");
+  video.src = "";
+  video.load();
 }
 
 function VideoPlayer({
@@ -211,6 +227,10 @@ function VideoPlayer({
   compact: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    return () => unloadVideo(videoRef.current);
+  }, []);
 
   useEffect(() => {
     if (!compact) return;
@@ -253,7 +273,7 @@ function VideoPlayer({
       cancelled = true;
       clearTimer();
       video.removeEventListener("loadeddata", onLoaded);
-      video.pause();
+      unloadVideo(video);
     };
   }, [compact, url]);
 

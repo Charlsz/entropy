@@ -29,7 +29,7 @@ function sleep(ms: number): Promise<void> {
 
 function isRetryableTrashError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err ?? "");
-  return /operation was aborted|ebusy|eperm|access is denied|being used by another process|locked|eacces/i.test(
+  return /operation was aborted|ebusy|eperm|access is denied|being used by another process|locked|eacces|failed to move|file is in use/i.test(
     message,
   );
 }
@@ -38,7 +38,7 @@ function friendlyTrashError(targetPath: string, err: unknown): Error {
   const name = path.basename(targetPath).replace(/^\.entropy-trash-\d+-[a-z0-9]+-/i, "");
   if (isRetryableTrashError(err)) {
     return new Error(
-      `Couldn't move "${name}" to the Recycle Bin - the file is still in use. Close any preview and try again.`,
+      `Couldn't move "${name}" to the Recycle Bin — the file is still in use. Close any preview and try again.`,
     );
   }
   return err instanceof Error ? err : new Error(`Failed to delete "${name}"`);
@@ -59,14 +59,14 @@ async function renameAside(targetPath: string): Promise<string> {
   const staging = path.join(dir, `.entropy-trash-${stamp}-${base}`);
 
   let lastError: unknown;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     try {
       await fs.rename(targetPath, staging);
       return staging;
     } catch (err) {
       lastError = err;
-      if (!isRetryableTrashError(err) || attempt === 5) break;
-      await sleep(80 * (attempt + 1));
+      if (!isRetryableTrashError(err) || attempt === 11) break;
+      await sleep(120 * (attempt + 1));
     }
   }
   throw friendlyTrashError(targetPath, lastError);
@@ -89,9 +89,9 @@ export async function removeToTrash(targetPath: string): Promise<void> {
     if (!isRetryableTrashError(err)) throw friendlyTrashError(normalized, err);
   }
 
-  // Retry direct trash briefly.
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    await sleep(100 * (attempt + 1));
+  // Brief direct retries, then break Chromium/video locks by renaming aside.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await sleep(120 * (attempt + 1));
     try {
       await trashOnce(normalized);
       return;
@@ -100,11 +100,19 @@ export async function removeToTrash(targetPath: string): Promise<void> {
     }
   }
 
-  // Break common preview locks (especially video) by renaming, then trash the new path.
   let staging: string | null = null;
   try {
     staging = await renameAside(normalized);
-    await trashOnce(staging);
+    // Staging name is no longer mapped by the renderer — trash usually succeeds immediately.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        await trashOnce(staging);
+        return;
+      } catch (err) {
+        if (!isRetryableTrashError(err) || attempt === 5) throw err;
+        await sleep(150 * (attempt + 1));
+      }
+    }
   } catch (err) {
     if (staging && (await pathExists(staging)) && !(await pathExists(normalized))) {
       await fs.rename(staging, normalized).catch(() => undefined);

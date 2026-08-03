@@ -31,20 +31,40 @@ export function subscribeMediaRelease(listener: () => void): () => void {
   };
 }
 
-function releaseDomMedia(filePath: string): void {
+function mediaMatchesPath(el: HTMLMediaElement, filePath: string): boolean {
   const token = encodePathToken(filePath);
+  const candidates = [el.currentSrc, el.getAttribute("src"), el.src].filter(
+    (value): value is string => Boolean(value),
+  );
+  for (const src of candidates) {
+    if (src.includes(token)) return true;
+    // Fallback: raw path fragments (legacy / decoded URLs).
+    const normalized = filePath.replace(/\\/g, "/");
+    if (src.includes(encodeURIComponent(filePath)) || src.includes(encodeURIComponent(normalized))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Tear down Chromium media mappings so Windows can rename/trash the file. */
+export function unloadDomMedia(filePath: string): void {
   const media = document.querySelectorAll("video, audio");
   for (const node of media) {
     const el = node as HTMLMediaElement;
-    const src = el.currentSrc || el.getAttribute("src") || "";
-    if (!src.includes(token)) continue;
+    if (!mediaMatchesPath(el, filePath)) continue;
     try {
       el.pause();
     } catch {
       // Ignore pause failures on unmounted media.
     }
-    el.removeAttribute("src");
-    el.load();
+    try {
+      el.removeAttribute("src");
+      el.src = "";
+      el.load();
+    } catch {
+      // Ignore teardown races during unmount.
+    }
   }
 }
 
@@ -53,8 +73,9 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Unload Chromium media for a path briefly so Windows can move the file to Recycle Bin.
- * Gallery video previews otherwise leave the file locked (shell.trashItem -> "Operation was aborted").
+ * Unload Chromium media for a path so Windows can move the file to Recycle Bin.
+ * Gallery / context video previews otherwise leave the file locked
+ * (shell.trashItem -> "Operation was aborted").
  */
 export async function withMediaReleased<T>(
   filePath: string,
@@ -63,17 +84,16 @@ export async function withMediaReleased<T>(
   releasing.add(filePath);
   notify();
   try {
-    releaseDomMedia(filePath);
-    // Two frames so React can swap video faces to posters, then a short settle.
+    unloadDomMedia(filePath);
+    // Two frames so React can swap video faces to posters, then a settle for Chromium.
     await new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => resolve());
       });
     });
-    // Settle so Chromium drops the mapping before Windows Recycle Bin / rename.
-    await sleep(280);
-    releaseDomMedia(filePath);
-    await sleep(80);
+    await sleep(450);
+    unloadDomMedia(filePath);
+    await sleep(150);
     return await task();
   } finally {
     releasing.delete(filePath);

@@ -407,18 +407,20 @@ export function FilesPage() {
     try {
       // Commit unmount of this card's video before Windows tries Recycle Bin.
       flushSync(() => {
-        if (selected?.path === targetPath) setSelected(null);
-        setEntries((prev) => prev.filter((item) => item.path !== targetPath));
+        if (selected && samePath(selected.path, targetPath)) setSelected(null);
+        setEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
         setSizeByPath((prev) => {
-          if (!(targetPath in prev)) return prev;
+          const key = Object.keys(prev).find((item) => samePath(item, targetPath));
+          if (!key) return prev;
           const next = { ...prev };
-          delete next[targetPath];
+          delete next[key];
           return next;
         });
       });
 
       await withMediaReleased(targetPath, () => window.entropy.fs.remove(targetPath));
       setUndoTrash({ paths: [targetPath], name: entry.name, size: entry.size });
+      setError(null);
       const parent = await window.entropy.fs.dirname(targetPath).catch(() => "");
       if (parent) invalidateFolderPreview(parent);
       await refresh();
