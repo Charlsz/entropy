@@ -2,6 +2,7 @@ import { app, shell } from "electron";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { assertPathMutable } from "../shared/protectedPaths";
 
 let legacyPurgeStarted = false;
 
@@ -78,6 +79,7 @@ async function renameAside(targetPath: string): Promise<string> {
 export async function removeToTrash(targetPath: string): Promise<void> {
   purgeLegacyBin();
   const normalized = path.normalize(targetPath);
+  assertPathMutable(normalized, process.platform, "delete");
 
   // Fast path: unlocked files.
   try {

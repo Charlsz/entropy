@@ -26,6 +26,7 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 
 - **Local-first filesystem:** Entropy never imports, copies, or claims ownership of user files. Workspace holds notes/settings; media stays in place. Indexes/caches are rebuildable only.
 - **No automatic file moves/copies:** User-initiated rename/move/trash/reveal only.
+- **Protected OS paths:** Never trash, rename, move into, or write under Windows/macOS/Linux system trees (e.g. `Windows`, `Program Files`, `/System`, `/usr`). Duplicate scans and storage measure skip those trees so reclaim cannot target them.
 - **No accounts / no required cloud:** Offline must work fully. AI is optional and never a dependency.
 - **Color palette only:** `#131413`, `#1C1D1C`, `#FAFAF9`, `#C8C8C6`. No other brand/accent/status colors (including no red for delete). Light theme remaps ink/paper roles via CSS variables.
 - **Typography:** One UI font — **Geist** (or Inter only if Geist is unavailable). No display/decorative font pairing.

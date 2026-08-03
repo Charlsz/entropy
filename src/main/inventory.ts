@@ -4,45 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import type { InventoryRoot, TreemapFileLeaf, TreemapScanResult, GlobalSearchHit } from "../shared/types";
 import { kindFromExtension } from "../shared/fileKinds";
+import { isProtectedOsDirName, isProtectedOsPath } from "../shared/protectedPaths";
 import { mapPool } from "./asyncPool";
 
-const SKIP_DIRS_COMMON = new Set([
-  "node_modules",
-  ".git",
-  ".svn",
-  ".hg",
-  "dist",
-  "build",
-  ".next",
-  ".cache",
-]);
-
-/** Windows profile / system folders that thrash scans and confuse measure. */
-const SKIP_DIRS_WINDOWS = new Set([
-  "$Recycle.Bin",
-  "System Volume Information",
-  "AppData",
-  "Application Data",
-  "Cookies",
-  "Local Settings",
-  "My Documents",
-  "NetHood",
-  "PrintHood",
-  "Recent",
-  "SendTo",
-  "Start Menu",
-  "Templates",
-  "My Music",
-  "My Pictures",
-  "My Videos",
-]);
-
 function shouldSkipMeasureDir(name: string): boolean {
-  if (SKIP_DIRS_COMMON.has(name)) return true;
-  if (process.platform === "win32" && SKIP_DIRS_WINDOWS.has(name)) return true;
-  // Library under Home is huge and rarely what users mean by “what's using space”.
-  if (process.platform === "darwin" && name === "Library") return true;
-  return false;
+  return isProtectedOsDirName(name, process.platform);
 }
 
 const MEASURE_CONCURRENCY = 6;
@@ -205,6 +171,10 @@ export async function measurePath(targetPath: string): Promise<number> {
 }
 
 async function measurePathUncached(normalized: string): Promise<number> {
+  if (isProtectedOsPath(normalized, process.platform)) {
+    return 0;
+  }
+
   let info;
   try {
     info = await fs.lstat(normalized);

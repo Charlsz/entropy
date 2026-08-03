@@ -1,22 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { isProtectedOsDirName, isProtectedOsPath } from "../../shared/protectedPaths";
 import type { ScannedFile } from "./types";
-
-const SKIP_DIRS = new Set([
-  "node_modules",
-  ".git",
-  ".svn",
-  ".hg",
-  "dist",
-  "build",
-  ".next",
-  ".cache",
-]);
-
-if (process.platform === "win32") {
-  SKIP_DIRS.add("$Recycle.Bin");
-  SKIP_DIRS.add("System Volume Information");
-}
 
 export interface ScanOptions {
   signal?: AbortSignal;
@@ -28,6 +13,7 @@ export interface ScanOptions {
 
 /**
  * Recursively collect file metadata only — never reads file contents.
+ * Skips OS-protected trees so duplicate reclaim cannot target system files.
  */
 export async function scanFiles(
   rootPath: string,
@@ -37,11 +23,25 @@ export async function scanFiles(
   const files: ScannedFile[] = [];
   const errors: Array<{ path: string; error: string }> = [];
   const maxDepth = options.maxDepth ?? 32;
+  const platform = process.platform;
   let seen = 0;
+
+  if (isProtectedOsPath(root, platform)) {
+    return {
+      files: [],
+      errors: [
+        {
+          path: root,
+          error: "Protected system path — skipped for duplicate scanning",
+        },
+      ],
+    };
+  }
 
   async function walk(dir: string, depth: number): Promise<void> {
     if (options.signal?.aborted) return;
     if (depth > maxDepth) return;
+    if (isProtectedOsPath(dir, platform)) return;
 
     let dirents;
     try {
@@ -57,10 +57,11 @@ export async function scanFiles(
     for (const dirent of dirents) {
       if (options.signal?.aborted) return;
       if (dirent.name === "." || dirent.name === "..") continue;
-      if (dirent.name.startsWith(".")) continue;
-      if (SKIP_DIRS.has(dirent.name)) continue;
+      if (isProtectedOsDirName(dirent.name, platform)) continue;
 
       const full = path.join(dir, dirent.name);
+      if (isProtectedOsPath(full, platform)) continue;
+
       try {
         const link = await fs.lstat(full);
         if (link.isSymbolicLink()) continue;

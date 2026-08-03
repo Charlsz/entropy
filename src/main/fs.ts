@@ -4,43 +4,14 @@ import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { DuplicateGroup, FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
+import { assertPathMutable, isProtectedOsDirName, isProtectedOsPath } from "../shared/protectedPaths";
 import { removeToTrash } from "./trash";
 import { mapPool } from "./asyncPool";
 
-const SKIP_DIRS = new Set([
-  "node_modules",
-  ".git",
-  ".svn",
-  ".hg",
-  "dist",
-  "build",
-  ".next",
-  ".cache",
-]);
-
-/** Legacy Windows profile junctions that often raise EPERM when scanned. */
-const WINDOWS_PROFILE_ALIASES = new Set([
-  "application data",
-  "cookies",
-  "local settings",
-  "my documents",
-  "my music",
-  "my pictures",
-  "my videos",
-  "nethood",
-  "printhood",
-  "recent",
-  "sendto",
-  "start menu",
-  "templates",
-]);
+const platform = process.platform;
 
 function shouldSkipDirName(name: string): boolean {
-  if (SKIP_DIRS.has(name) || name.startsWith(".")) return true;
-  if (process.platform === "win32" && WINDOWS_PROFILE_ALIASES.has(name.toLowerCase())) {
-    return true;
-  }
-  return false;
+  return isProtectedOsDirName(name, platform);
 }
 
 function toEntry(filePath: string, stat: { isDirectory(): boolean; size: number; mtimeMs: number }): FileEntry {
@@ -133,6 +104,7 @@ export async function readText(filePath: string): Promise<string> {
 
 /** Atomic write: temp file in same directory, then rename. */
 export async function writeText(filePath: string, content: string): Promise<void> {
+  assertPathMutable(filePath, platform, "write");
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
   const tempPath = path.join(
@@ -175,14 +147,18 @@ export async function writeTextIfUnchanged(
 }
 
 export async function mkdir(dirPath: string): Promise<void> {
+  assertPathMutable(dirPath, platform, "create");
   await fs.mkdir(dirPath, { recursive: true });
 }
 
 export async function rename(fromPath: string, toPath: string): Promise<void> {
+  assertPathMutable(fromPath, platform, "rename");
+  assertPathMutable(toPath, platform, "rename into");
   await fs.rename(fromPath, toPath);
 }
 
 export async function remove(targetPath: string): Promise<void> {
+  assertPathMutable(targetPath, platform, "delete");
   await removeToTrash(targetPath);
 }
 
@@ -444,6 +420,9 @@ export async function findDuplicates(
   filePath: string,
 ): Promise<FileEntry[]> {
   const target = path.resolve(filePath);
+  if (isProtectedOsPath(target, platform) || isProtectedOsPath(rootPath, platform)) {
+    return [];
+  }
   let targetStat;
   try {
     targetStat = await fs.stat(target);
@@ -465,6 +444,7 @@ export async function findDuplicates(
 
   async function walk(dir: string, depth: number): Promise<void> {
     if (depth > DUP_MAX_DEPTH || candidates.length >= DUP_MAX_RESULTS * 4) return;
+    if (isProtectedOsPath(dir, platform)) return;
     let dirents;
     try {
       dirents = await fs.readdir(dir, { withFileTypes: true });
@@ -475,8 +455,9 @@ export async function findDuplicates(
     const subdirs: string[] = [];
     for (const dirent of dirents) {
       if (dirent.name === "." || dirent.name === "..") continue;
-      if (dirent.name.startsWith(".")) continue;
+      if (shouldSkipDirName(dirent.name)) continue;
       const full = path.join(dir, dirent.name);
+      if (isProtectedOsPath(full, platform)) continue;
       try {
         if (dirent.isSymbolicLink()) continue;
         if (dirent.isDirectory()) {
@@ -522,11 +503,13 @@ export async function findDuplicates(
 /** Content-hash duplicate groups under root (size-bucketed, then hashed). */
 export async function findDuplicateGroups(rootPath: string): Promise<DuplicateGroup[]> {
   const root = path.normalize(rootPath);
+  if (isProtectedOsPath(root, platform)) return [];
   const bySize = new Map<number, FileEntry[]>();
   let seen = 0;
 
   async function walk(dir: string, depth: number): Promise<void> {
     if (depth > DUP_MAX_DEPTH || seen >= DUP_GROUP_MAX_FILES) return;
+    if (isProtectedOsPath(dir, platform)) return;
     let dirents;
     try {
       dirents = await fs.readdir(dir, { withFileTypes: true });
@@ -536,8 +519,9 @@ export async function findDuplicateGroups(rootPath: string): Promise<DuplicateGr
     for (const dirent of dirents) {
       if (seen >= DUP_GROUP_MAX_FILES) return;
       if (dirent.name === "." || dirent.name === "..") continue;
-      if (dirent.name.startsWith(".")) continue;
+      if (shouldSkipDirName(dirent.name)) continue;
       const full = path.join(dir, dirent.name);
+      if (isProtectedOsPath(full, platform)) continue;
       try {
         const link = await fs.lstat(full);
         if (link.isSymbolicLink()) continue;
@@ -623,6 +607,7 @@ export async function createNote(dirPath: string, name?: string): Promise<string
 
 export async function duplicate(targetPath: string): Promise<string> {
   const dir = path.dirname(targetPath);
+  assertPathMutable(dir, platform, "duplicate into");
   const ext = path.extname(targetPath);
   const base = path.basename(targetPath, ext);
   let next = path.join(dir, `${base} copy${ext}`);
@@ -633,6 +618,7 @@ export async function duplicate(targetPath: string): Promise<string> {
     suffix += 1;
   }
 
+  assertPathMutable(next, platform, "duplicate into");
   const info = await fs.stat(targetPath);
   if (info.isDirectory()) {
     await fs.cp(targetPath, next, { recursive: true });

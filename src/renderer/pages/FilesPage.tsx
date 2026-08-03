@@ -44,7 +44,8 @@ import { isPreviewableEntry } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
 import { formatBytes } from "../lib/format";
 import { useDirWatch } from "../hooks/useDirWatch";
-import { isUnderPath, osTrashName, samePath } from "../lib/platform";
+import { isUnderPath, osTrashName, samePath, hostPlatform } from "../lib/platform";
+import { isProtectedOsPath, protectedPathMessage } from "../../shared/protectedPaths";
 import { cn } from "../lib/utils";
 
 type SortKey = "name" | "modified" | "size" | "type";
@@ -362,6 +363,10 @@ export function FilesPage() {
   }
 
   async function handleRename(entry: FileEntry): Promise<void> {
+    if (isProtectedOsPath(entry.path, hostPlatform())) {
+      setError(protectedPathMessage(entry.path, "rename"));
+      return;
+    }
     const nextName = window.prompt("Rename", entry.name)?.trim();
     if (!nextName || nextName === entry.name) return;
 
@@ -381,6 +386,10 @@ export function FilesPage() {
   }
 
   function requestDelete(entry: FileEntry): void {
+    if (isProtectedOsPath(entry.path, hostPlatform())) {
+      setError(protectedPathMessage(entry.path, "delete"));
+      return;
+    }
     // Single files: trash immediately — Undo bar is enough. Folders still confirm.
     if (!entry.isDirectory) {
       void trashEntry(entry);
@@ -391,6 +400,10 @@ export function FilesPage() {
 
   async function trashEntry(entry: FileEntry): Promise<void> {
     const targetPath = entry.path;
+    if (isProtectedOsPath(targetPath, hostPlatform())) {
+      setError(protectedPathMessage(targetPath, "delete"));
+      return;
+    }
     try {
       // Commit unmount of this card's video before Windows tries Recycle Bin.
       flushSync(() => {
@@ -458,6 +471,15 @@ export function FilesPage() {
     const entry = movingEntry;
     setMovingEntry(null);
     if (!entry) return;
+    const platform = hostPlatform();
+    if (isProtectedOsPath(entry.path, platform)) {
+      setError(protectedPathMessage(entry.path, "move"));
+      return;
+    }
+    if (isProtectedOsPath(destinationFolder, platform)) {
+      setError(protectedPathMessage(destinationFolder, "move into"));
+      return;
+    }
     try {
       const target = await moveEntryToFolder(entry.path, destinationFolder);
       await refresh();
