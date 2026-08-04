@@ -32,19 +32,22 @@ export const DropdownMenuItem = React.forwardRef<
     /** Kept for call-site clarity; Entropy uses the same palette for all items (no danger red). */
     variant?: "default" | "destructive";
   }
->(({ className, inset, variant: _variant = "default", ...props }, ref) => (
-  <DropdownMenuPrimitive.Item
-    ref={ref}
-    className={cn(
-      "relative flex cursor-default select-none items-center rounded-md border border-transparent px-2.5 py-1.5 text-sm text-paper outline-none",
-      "data-[highlighted]:border-paper-2 data-[highlighted]:bg-transparent",
-      "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-      inset && "pl-8",
-      className,
-    )}
-    {...props}
-  />
-));
+>(({ className, inset, variant, ...props }, ref) => {
+  void variant;
+  return (
+    <DropdownMenuPrimitive.Item
+      ref={ref}
+      className={cn(
+        "relative flex cursor-default select-none items-center rounded-md border border-transparent px-2.5 py-1.5 text-sm text-paper outline-none",
+        "data-[highlighted]:border-paper-2 data-[highlighted]:bg-transparent",
+        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        inset && "pl-8",
+        className,
+      )}
+      {...props}
+    />
+  );
+});
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
 export const DropdownMenuSeparator = React.forwardRef<

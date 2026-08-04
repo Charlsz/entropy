@@ -14,7 +14,7 @@ import { useWorkspace } from "../state/useWorkspace";
 import { rewriteMarkdownHref } from "../lib/linkRepair";
 import { formatMarkdownHref } from "../lib/markdownBlocks";
 
-const LINK_RE = /\!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
+const LINK_RE = /!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
 const WIKI_EMBED_RE = /!\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]/g;
 
 function normalizeHref(raw: string): string {

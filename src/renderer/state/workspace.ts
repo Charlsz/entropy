@@ -133,9 +133,9 @@ export function normalizePanelLayout(
 ): PanelLayoutState {
   if (!value || typeof value !== "object") return { ...fallback };
   const record = value as Record<string, unknown>;
-  let sidebar = typeof record.sidebar === "number" ? record.sidebar : fallback.sidebar;
-  let main = typeof record.main === "number" ? record.main : fallback.main;
-  let context = typeof record.context === "number" ? record.context : fallback.context;
+  const sidebar = typeof record.sidebar === "number" ? record.sidebar : fallback.sidebar;
+  const main = typeof record.main === "number" ? record.main : fallback.main;
+  const context = typeof record.context === "number" ? record.context : fallback.context;
 
   // Migrate the previous default proportions toward a larger main pane.
   if (

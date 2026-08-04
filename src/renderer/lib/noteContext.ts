@@ -1,6 +1,6 @@
 import type { FileEntry } from "../../shared/types";
 
-const LINK_RE = /\!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
+const LINK_RE = /!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
 
 function normalizeHref(raw: string): string {
   const trimmed = raw.trim();
