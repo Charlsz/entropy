@@ -13,7 +13,6 @@ import {
   type DuplicateScanScopeId,
 } from "../shared/duplicateScopes";
 import { FILE_PROTOCOL, registerFileProtocol, toEntropyThumbUrl, toEntropyUrl } from "./protocol";
-import { loadCanvas, saveCanvas, type PersistedCanvas } from "./canvasStore";
 import { loadSession, saveSession, type AppSession } from "./session";
 import { unwatchAll, unwatchDir, watchDir } from "./folderWatch";
 import {
@@ -278,9 +277,6 @@ function registerIpc(): void {
   ipcMain.handle("duplicates:cancel", (event) => {
     duplicateAbortBySender.get(event.sender.id)?.abort();
   });
-
-  ipcMain.handle("canvas:load", (_event, workspacePath: string) => loadCanvas(workspacePath));
-  ipcMain.handle("canvas:save", (_event, doc: PersistedCanvas) => saveCanvas(doc));
 
   ipcMain.handle("window:minimize", (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize();

@@ -1,7 +1,6 @@
 import type { SectionId } from "../types/section";
 import { NotebookPage } from "../pages/NotebookPage";
 import { FilesPage } from "../pages/FilesPage";
-import { CanvasPage } from "../pages/CanvasPage";
 import { SettingsPanel } from "./SettingsPanel";
 import { cn } from "../lib/utils";
 
@@ -32,10 +31,6 @@ export function ContentArea({
       </SectionPane>
       <SectionPane active={section === "inventory"}>
         <FilesPage />
-      </SectionPane>
-      {/* Canvas retained for a future release; not exposed in v1 navigation. */}
-      <SectionPane active={section === "canvas"}>
-        <CanvasPage />
       </SectionPane>
       <SectionPane active={section === "settings"}>
         <SettingsPanel />

@@ -106,7 +106,6 @@ export function navSection(section: SectionId): NavEntry {
   const labels: Record<SectionId, string> = {
     notebook: "Notebook",
     inventory: "Inventory",
-    canvas: "Canvas",
     settings: "Settings",
   };
   return {

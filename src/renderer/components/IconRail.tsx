@@ -13,14 +13,12 @@ import { VISIBLE_SECTIONS } from "../types/section";
 const LABELS: Record<SectionId, string> = {
   notebook: "Notebook",
   inventory: "File Inventory",
-  canvas: "Canvas",
   settings: "Settings",
 };
 
 const ICONS: Record<SectionId, LucideIcon> = {
   notebook: BookOpen,
   inventory: LayoutGrid,
-  canvas: LayoutGrid,
   settings: LayoutGrid,
 };
 

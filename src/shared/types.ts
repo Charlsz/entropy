@@ -196,10 +196,6 @@ export interface EntropyApi {
     unwatchAll: () => Promise<void>;
     onDirChanged: (callback: (info: { path: string }) => void) => () => void;
   };
-  canvas: {
-    load: (workspacePath: string) => Promise<CanvasDocument | null>;
-    save: (doc: CanvasDocument) => Promise<void>;
-  };
 }
 
 export type WriteTextResult =
@@ -232,28 +228,6 @@ export interface RecentWorkspace {
   path: string;
   name: string;
   openedAt: number;
-}
-
-export interface CanvasDocument {
-  version: 1;
-  workspacePath: string;
-  camera: { x: number; y: number; scale: number };
-  objects: Array<{
-    id: string;
-    type: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    path: string;
-    title: string;
-    text?: string;
-  }>;
-  connections: Array<{
-    id: string;
-    fromId: string;
-    toId: string;
-  }>;
 }
 
 declare global {

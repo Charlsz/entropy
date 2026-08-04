@@ -44,7 +44,6 @@ The filesystem is the single source of truth. Entropy never owns, duplicates, or
 | **Notebook** | Markdown knowledge workspace. Notes live in the workspace folder. Notes can reference any file on any drive without copying it. Inline media while editing; full Preview available. |
 | **File Inventory** | Computer-wide organizer (starts at Home; user may add drives later). Nav + Content View (grid) + Storage treemap (KDirStat / GrandPerspective spirit). Same scan root across panes. |
 | **Settings** | Sparse preferences; no control-panel sprawl. |
-| **Canvas** | Future section — spatial references to real files. Hidden in v1; code retained. |
 
 ## Workspace vs Inventory
 

@@ -32,7 +32,6 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 - **Typography:** One UI font — **Geist** (or Inter only if Geist is unavailable). No display/decorative font pairing.
 - **Notebook:** Writing is primary. Editor occupies most of the screen. **Do not add a Linked / extra side panel in the notebook window.** Context lives in the optional right panel only, and that panel **hides when empty**. Support inline media while editing.
 - **File Inventory:** Nav | Content View | Treemap. Starts at Home; does not auto-scan every drive. Content View keeps the Refern-like grid language.
-- **Canvas:** Future-only in v1 — keep code, do not expose in primary navigation.
 - **Layout:** Panels are **resizable**, sizes are **remembered**, any panel can **collapse**. Use horizontal space; avoid wasted chrome.
 - **Icons over text** for obvious chrome actions. Keep text for content identity.
 - **Lucide only** for icons — outlined, consistent stroke.
@@ -49,7 +48,6 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 | File Inventory Treemap | GrandPerspective / KDirStat + Google Maps | Size map with folder zoom; hover answers meaning questions |
 | Context panel | — | Metadata / properties / previews; hide if empty |
 | Top bar | — | Minimal: workspace, icon actions, window controls |
-| Canvas | — | Future spatial refs; hidden in v1 |
 
 ## Implementation checklist
 

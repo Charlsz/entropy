@@ -118,7 +118,7 @@ Rules:
 
 - Resizable panels; persist sizes; any panel collapsible.
 - Top bar minimal: workspace name + icon actions (search, settings) + window controls. No ribbon.
-- Icon rail may sit at the far left for section switching (Notebook / Files / Canvas / Settings).
+- Icon rail may sit at the far left for section switching (Notebook / Files / Settings).
 - Use horizontal space; avoid stacked vertical chrome that wastes the writing surface.
 
 ### Notebook
