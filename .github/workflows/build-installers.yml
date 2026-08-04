@@ -1,8 +1,9 @@
 name: Build installers
 
 # Builds Windows / macOS / Linux installers when a version tag is pushed.
-# Uploads GitHub Actions artifacts only — does NOT create a GitHub Release
-# and does NOT publish to any store. Confirm with a human before distributing.
+# Also publishes installer assets to the public Charlsz/entropy-downloads
+# releases channel (requires ENTROPY_DOWNLOADS_TOKEN). Private repo Actions
+# artifacts remain available for 30 days as a backup.
 
 on:
   push:
@@ -11,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: build-installers-${{ github.ref }}
@@ -78,3 +80,75 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+  publish-downloads:
+    name: Publish to entropy-downloads
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DOWNLOADS_REPO: Charlsz/entropy-downloads
+
+    steps:
+      - name: Require publish token
+        env:
+          ENTROPY_DOWNLOADS_TOKEN: ${{ secrets.ENTROPY_DOWNLOADS_TOKEN }}
+        run: |
+          if [ -z "$ENTROPY_DOWNLOADS_TOKEN" ]; then
+            echo "::error::Missing secret ENTROPY_DOWNLOADS_TOKEN. Create a fine-grained PAT with Contents: write on Charlsz/entropy-downloads, then add it as a repository secret on Charlsz/entropy. See docs/downloads-channel.md."
+            exit 1
+          fi
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: installers
+          pattern: entropy-*-${{ github.ref_name }}
+
+      - name: Publish GitHub Release on downloads repo
+        env:
+          GH_TOKEN: ${{ secrets.ENTROPY_DOWNLOADS_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+
+          mapfile -t assets < <(find installers -type f \( \
+            -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' \
+          \) | sort)
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "::error::No installer files found under installers/"
+            find installers -type f -print || true
+            exit 1
+          fi
+
+          echo "Publishing ${#assets[@]} installer(s) to ${DOWNLOADS_REPO}@${TAG}:"
+          printf '  %s\n' "${assets[@]}"
+
+          notes="Official Entropy ${VERSION} installers.
+
+          Built automatically from tag \`${TAG}\` in the private app repository.
+
+          - Windows: NSIS x64
+          - macOS: universal DMG
+          - Linux: AppImage + deb
+
+          Builds may be unsigned until certificates are configured. Prefer downloads from this repository only.
+          Site: https://entropy.charlsz.tech"
+
+          notes="$(printf '%s\n' "$notes" | sed 's/^[[:space:]]*//')"
+
+          if gh release view "$TAG" --repo "$DOWNLOADS_REPO" >/dev/null 2>&1; then
+            echo "Release $TAG already exists on $DOWNLOADS_REPO — uploading assets (clobber)."
+            gh release upload "$TAG" "${assets[@]}" --repo "$DOWNLOADS_REPO" --clobber
+            gh release edit "$TAG" --repo "$DOWNLOADS_REPO" --notes "$notes" --title "Entropy $VERSION"
+          else
+            echo "Creating release $TAG on $DOWNLOADS_REPO"
+            gh release create "$TAG" "${assets[@]}" \
+              --repo "$DOWNLOADS_REPO" \
+              --title "Entropy $VERSION" \
+              --notes "$notes"
+          fi
+
+          echo "Published: https://github.com/${DOWNLOADS_REPO}/releases/tag/${TAG}"

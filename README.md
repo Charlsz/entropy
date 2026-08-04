@@ -30,14 +30,13 @@ npm run dist:linux  # Linux AppImage + deb
 
 CI builds the same targets when you push a version tag (`v0.1.0`, `v1.0.0`, …). Workflow: `.github/workflows/build-installers.yml`.
 
-- Uploads **GitHub Actions artifacts only** (kept 30 days)
-- Does **not** create a GitHub Release
-- Does **not** publish to any store
+- Uploads private **GitHub Actions artifacts** (kept 30 days)
+- Publishes public installers to [`Charlsz/entropy-downloads`](https://github.com/Charlsz/entropy-downloads/releases) (requires `ENTROPY_DOWNLOADS_TOKEN` — see [`docs/downloads-channel.md`](docs/downloads-channel.md))
+- Does **not** open-source this app repository
 - Installers are **unsigned** until certificates are configured (see `build/README.md`)
 
 ```bash
-# After this packaging setup is on the default branch:
 git tag v0.1.0
 git push origin v0.1.0
-# Then download artifacts from the Actions run. Confirm before sharing.
+# CI builds, then updates the public downloads release when the token secret is set.
 ```
