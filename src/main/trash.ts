@@ -5,13 +5,15 @@ import path from "node:path";
 import { assertPathMutable } from "../shared/protectedPaths";
 
 /**
- * Brief in-app undo staging. Files sit here only until Undo or dismiss;
- * dismiss / quit moves them into the real OS Recycle Bin / Trash.
- * This keeps Undo fully inside Entropy (Windows cannot restore from Recycle Bin via API).
+ * Delete flow (macOS / Windows / Linux):
+ * 1. Copy into a private undo cache (Entropy userData) so Undo works in-app —
+ *    Windows cannot restore from Recycle Bin via API.
+ * 2. Immediately `shell.trashItem` the real path → OS Recycle Bin / Trash.
+ * 3. Dismiss / quit only deletes the undo cache (OS trash already has the file).
  */
-const pending = new Map<string, string>(); // originalPath -> stagingPath
+const pending = new Map<string, string>(); // originalPath -> undoCachePath
 
-function stagingRoot(): string {
+function undoCacheRoot(): string {
   return path.join(app.getPath("userData"), "undo-staging");
 }
 
@@ -49,6 +51,23 @@ function friendlyTrashError(targetPath: string, err: unknown): Error {
   return err instanceof Error ? err : new Error(`Failed to delete "${name}"`);
 }
 
+async function copyWithRetry(from: string, to: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await fs.mkdir(path.dirname(to), { recursive: true });
+      await fs.rm(to, { recursive: true, force: true }).catch(() => undefined);
+      await fs.cp(from, to, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      lastError = err;
+      if (!isRetryableTrashError(err) || attempt === 7) break;
+      await sleep(120 * (attempt + 1));
+    }
+  }
+  throw friendlyTrashError(from, lastError);
+}
+
 async function moveWithRetry(from: string, to: string): Promise<void> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -58,7 +77,6 @@ async function moveWithRetry(from: string, to: string): Promise<void> {
       return;
     } catch (err) {
       lastError = err;
-      // Cross-device: fall back to copy + unlink.
       if ((err as NodeJS.ErrnoException | undefined)?.code === "EXDEV") {
         await fs.cp(from, to, { recursive: true });
         await fs.rm(from, { recursive: true, force: true });
@@ -75,30 +93,77 @@ async function trashOnce(targetPath: string): Promise<void> {
   await shell.trashItem(path.normalize(targetPath));
 }
 
+/**
+ * When Windows refuses trash while Chromium still maps the path, rename first.
+ * Rename usually succeeds for read locks and breaks the mapping so Recycle Bin can proceed.
+ */
+async function renameAside(targetPath: string): Promise<string> {
+  const dir = path.dirname(targetPath);
+  const base = path.basename(targetPath);
+  const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const staging = path.join(dir, `.entropy-trash-${stamp}-${base}`);
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    try {
+      await fs.rename(targetPath, staging);
+      return staging;
+    } catch (err) {
+      lastError = err;
+      if (!isRetryableTrashError(err) || attempt === 11) break;
+      await sleep(120 * (attempt + 1));
+    }
+  }
+  throw friendlyTrashError(targetPath, lastError);
+}
+
 async function sendToOsTrash(targetPath: string): Promise<void> {
+  const normalized = path.normalize(targetPath);
+
   try {
-    await trashOnce(targetPath);
+    await trashOnce(normalized);
     return;
   } catch (err) {
-    if (!isRetryableTrashError(err)) throw friendlyTrashError(targetPath, err);
+    if (!isRetryableTrashError(err)) throw friendlyTrashError(normalized, err);
   }
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     await sleep(120 * (attempt + 1));
     try {
-      await trashOnce(targetPath);
+      await trashOnce(normalized);
       return;
     } catch (err) {
-      if (!isRetryableTrashError(err) || attempt === 4) {
-        throw friendlyTrashError(targetPath, err);
+      if (!isRetryableTrashError(err)) throw friendlyTrashError(normalized, err);
+    }
+  }
+
+  let aside: string | null = null;
+  try {
+    aside = await renameAside(normalized);
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        await trashOnce(aside);
+        return;
+      } catch (err) {
+        if (!isRetryableTrashError(err) || attempt === 5) throw err;
+        await sleep(150 * (attempt + 1));
       }
     }
+  } catch (err) {
+    if (aside && (await pathExists(aside)) && !(await pathExists(normalized))) {
+      await fs.rename(aside, normalized).catch(() => undefined);
+    }
+    throw friendlyTrashError(normalized, err);
   }
 }
 
+async function clearUndoCache(cachePath: string | undefined): Promise<void> {
+  if (!cachePath) return;
+  await fs.rm(cachePath, { recursive: true, force: true }).catch(() => undefined);
+}
+
 /**
- * Soft-delete into undo staging (in-app Undo works on every OS).
- * Call `finalizeTrash` on dismiss / quit to put items in the real Recycle Bin.
+ * Copy for in-app Undo, then move the real file into the OS Recycle Bin / Trash.
  */
 export async function removeToTrash(targetPath: string): Promise<void> {
   const normalized = normalizeKey(targetPath);
@@ -106,23 +171,37 @@ export async function removeToTrash(targetPath: string): Promise<void> {
 
   if (!(await pathExists(normalized))) return;
 
-  // Replacing a prior pending delete of the same path — OS-trash the old staging first.
   const existing = pending.get(normalized);
   if (existing) {
     pending.delete(normalized);
-    if (await pathExists(existing)) {
-      await sendToOsTrash(existing).catch(() =>
-        fs.rm(existing, { recursive: true, force: true }),
-      );
-    }
+    await clearUndoCache(existing);
   }
 
   const base = path.basename(normalized);
   const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const staging = path.join(stagingRoot(), `.entropy-undo-${stamp}-${base}`);
+  const cachePath = path.join(undoCacheRoot(), `.entropy-undo-${stamp}-${base}`);
 
-  await moveWithRetry(normalized, staging);
-  pending.set(normalized, staging);
+  // Undo buffer first — if OS trash fails we can put the file back.
+  await copyWithRetry(normalized, cachePath);
+  pending.set(normalized, cachePath);
+
+  try {
+    await sendToOsTrash(normalized);
+  } catch (err) {
+    // Roll back: restore original from cache and surface the trash error.
+    pending.delete(normalized);
+    try {
+      if (!(await pathExists(normalized))) {
+        await moveWithRetry(cachePath, normalized);
+      } else {
+        await clearUndoCache(cachePath);
+      }
+    } catch {
+      // Keep cache if restore failed so Undo might still recover.
+      pending.set(normalized, cachePath);
+    }
+    throw err;
+  }
 }
 
 export async function undoRemoves(
@@ -133,21 +212,19 @@ export async function undoRemoves(
 
   for (const originalPath of originalPaths) {
     const key = normalizeKey(originalPath);
+    const cachePath = pending.get(key);
+
     if (await pathExists(key)) {
-      // Already restored or never left.
-      const staging = pending.get(key);
-      if (staging) {
-        pending.delete(key);
-        await fs.rm(staging, { recursive: true, force: true }).catch(() => undefined);
-      }
+      // Already on disk (user recovered manually, etc.) — drop undo cache.
+      pending.delete(key);
+      await clearUndoCache(cachePath);
       restored += 1;
       continue;
     }
 
-    const staging = pending.get(key);
-    if (staging && (await pathExists(staging))) {
+    if (cachePath && (await pathExists(cachePath))) {
       try {
-        await moveWithRetry(staging, key);
+        await moveWithRetry(cachePath, key);
         pending.delete(key);
         restored += 1;
         continue;
@@ -157,10 +234,11 @@ export async function undoRemoves(
       }
     }
 
-    // Fallback for older sessions / platforms where undo from OS trash works.
+    // Fallback: pull out of OS trash when the platform allows (macOS / Linux).
     const fromOs = await restoreFromSystemTrash(key);
     if (fromOs) {
       pending.delete(key);
+      await clearUndoCache(cachePath);
       restored += 1;
     } else {
       failed.push(originalPath);
@@ -170,7 +248,7 @@ export async function undoRemoves(
   return { restored, failed };
 }
 
-/** Move staged deletes into the real OS Recycle Bin / Trash (no Explorer window). */
+/** Drop undo-cache copies after the bar is dismissed (file is already in OS trash). */
 export async function finalizeTrash(originalPaths?: string[]): Promise<void> {
   const keys =
     originalPaths && originalPaths.length > 0
@@ -178,30 +256,26 @@ export async function finalizeTrash(originalPaths?: string[]): Promise<void> {
       : [...pending.keys()];
 
   for (const key of keys) {
-    const staging = pending.get(key);
+    const cachePath = pending.get(key);
     pending.delete(key);
-    if (!staging) continue;
-    if (!(await pathExists(staging))) continue;
-    try {
-      await sendToOsTrash(staging);
-    } catch {
-      await fs.rm(staging, { recursive: true, force: true }).catch(() => undefined);
-    }
+    await clearUndoCache(cachePath);
   }
 }
 
-/** On launch: anything left in staging goes to the OS trash (session ended mid-undo). */
+/** On launch: leftover undo-cache / old soft-deletes go to the real OS trash. */
 export async function finalizeOrphanedStaging(): Promise<void> {
-  const root = stagingRoot();
+  const root = undoCacheRoot();
   let entries: string[] = [];
   try {
     entries = await fs.readdir(root);
   } catch {
+    pending.clear();
     return;
   }
   for (const name of entries) {
     const full = path.join(root, name);
     try {
+      // Previous builds soft-moved here without OS trash — recover into Recycle Bin.
       await sendToOsTrash(full);
     } catch {
       await fs.rm(full, { recursive: true, force: true }).catch(() => undefined);
@@ -212,7 +286,7 @@ export async function finalizeOrphanedStaging(): Promise<void> {
 
 /**
  * Best-effort restore from the OS trash (macOS / Linux).
- * Windows Recycle Bin has no supported restore API — staging Undo covers that path.
+ * Windows Recycle Bin has no supported restore API — undo-cache covers that path.
  */
 async function restoreFromSystemTrash(originalPath: string): Promise<boolean> {
   const name = path.basename(originalPath);
@@ -264,10 +338,8 @@ async function restoreFromSystemTrash(originalPath: string): Promise<boolean> {
   return false;
 }
 
-/** @deprecated Prefer not opening OS file UI from Entropy. Kept for rare explicit tooling. */
+/** Kept for rare tooling — prefer never opening OS file UI from product chrome. */
 export async function openTrash(): Promise<void> {
-  await finalizeOrphanedStaging();
-
   if (process.platform === "win32") {
     await shell.openExternal("shell:RecycleBinFolder");
     return;
