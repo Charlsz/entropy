@@ -154,7 +154,6 @@ export interface EntropyApi {
     undoRemove: (paths: string[]) => Promise<{ restored: number; failed: string[] }>;
     /** Move staged undo deletes into the real OS Recycle Bin / Trash (no OS UI). */
     finalizeTrash: (paths?: string[]) => Promise<void>;
-    openTrash: () => Promise<void>;
     exists: (targetPath: string) => Promise<boolean>;
     stat: (targetPath: string) => Promise<FileEntry>;
     folderTree: (rootPath: string, maxDepth?: number) => Promise<TreeNode[]>;
@@ -189,7 +188,6 @@ export interface EntropyApi {
     scanTreemapLevel: (dirPath: string) => Promise<TreemapScanResult>;
     findFileReferences: (workspacePath: string, filePath: string) => Promise<NoteSearchResult[]>;
     findDuplicates: (rootPath: string, filePath: string) => Promise<FileEntry[]>;
-    findDuplicateGroups: (rootPath: string) => Promise<DuplicateGroup[]>;
     /** Watch a folder for external create/rename/delete/write; pairs with onDirChanged. */
     watchDir: (dirPath: string, options?: { recursive?: boolean }) => Promise<void>;
     unwatchDir: (dirPath: string) => Promise<void>;

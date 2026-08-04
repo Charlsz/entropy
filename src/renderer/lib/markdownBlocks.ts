@@ -99,11 +99,6 @@ export function formatMarkdownHref(href: string): string {
   return href;
 }
 
-/** Normalize path separators and format for a markdown href. */
-export function markdownHrefFromPath(path: string): string {
-  return formatMarkdownHref(path.replace(/\\/g, "/"));
-}
-
 /** Obsidian-style embed (preferred for Entropy inserts — matches vault notes). */
 export function mediaEmbedMarkdown(src: string, alias?: string): string {
   const target = src.replace(/\\/g, "/");

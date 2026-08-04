@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as filesystem from "./fs";
 import * as inventory from "./inventory";
-import { openTrash, undoRemoves, finalizeTrash, finalizeOrphanedStaging } from "./trash";
+import { undoRemoves, finalizeTrash, finalizeOrphanedStaging } from "./trash";
 import { findExactDuplicates } from "./duplicates";
 import type { DuplicateScanProgress } from "./duplicates";
 import {
@@ -158,7 +158,6 @@ function registerIpc(): void {
   ipcMain.handle("fs:remove", (_event, targetPath: string) => filesystem.remove(targetPath));
   ipcMain.handle("fs:undoRemove", (_event, paths: string[]) => undoRemoves(paths));
   ipcMain.handle("fs:finalizeTrash", (_event, paths?: string[]) => finalizeTrash(paths));
-  ipcMain.handle("fs:openTrash", () => openTrash());
   ipcMain.handle("fs:exists", (_event, targetPath: string) => filesystem.exists(targetPath));
   ipcMain.handle("fs:stat", (_event, targetPath: string) => filesystem.stat(targetPath));
   ipcMain.handle("fs:folderTree", (_event, rootPath: string, maxDepth?: number) =>
@@ -182,10 +181,6 @@ function registerIpc(): void {
   ipcMain.handle("fs:findDuplicates", (_event, rootPath: string, filePath: string) =>
     filesystem.findDuplicates(rootPath, filePath),
   );
-  ipcMain.handle("fs:findDuplicateGroups", async (_event, rootPath: string) => {
-    const result = await findExactDuplicates(rootPath);
-    return result.groups;
-  });
   ipcMain.handle("fs:createNote", (_event, dirPath: string, name?: string) =>
     filesystem.createNote(dirPath, name),
   );

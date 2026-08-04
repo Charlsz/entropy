@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { DuplicateGroup, FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
+import type { FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
 import { assertPathMutable, isProtectedOsDirName, isProtectedOsPath } from "../shared/protectedPaths";
 import { removeToTrash } from "./trash";
 import { mapPool } from "./asyncPool";
@@ -389,7 +389,6 @@ export async function findFileReferences(
 
 const DUP_MAX_DEPTH = 10;
 const DUP_MAX_RESULTS = 24;
-const DUP_GROUP_MAX_FILES = 4000;
 const DUP_HASH_CACHE = new Map<string, { hash: string; mtimeMs: number; size: number }>();
 
 export async function hashFile(filePath: string): Promise<string> {
@@ -506,80 +505,6 @@ export async function findDuplicates(
   });
 
   return matches.filter((entry): entry is FileEntry => entry != null).slice(0, DUP_MAX_RESULTS);
-}
-
-/** Content-hash duplicate groups under root (size-bucketed, then hashed). */
-export async function findDuplicateGroups(rootPath: string): Promise<DuplicateGroup[]> {
-  const root = path.normalize(rootPath);
-  if (isProtectedOsPath(root, platform)) return [];
-  const bySize = new Map<number, FileEntry[]>();
-  let seen = 0;
-
-  async function walk(dir: string, depth: number): Promise<void> {
-    if (depth > DUP_MAX_DEPTH || seen >= DUP_GROUP_MAX_FILES) return;
-    if (isProtectedOsPath(dir, platform)) return;
-    let dirents;
-    try {
-      dirents = await fs.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const dirent of dirents) {
-      if (seen >= DUP_GROUP_MAX_FILES) return;
-      if (dirent.name === "." || dirent.name === "..") continue;
-      if (shouldSkipDirName(dirent.name)) continue;
-      const full = path.join(dir, dirent.name);
-      if (isProtectedOsPath(full, platform)) continue;
-      try {
-        const link = await fs.lstat(full);
-        if (link.isSymbolicLink()) continue;
-        if (link.isDirectory()) {
-          await walk(full, depth + 1);
-          continue;
-        }
-        if (!link.isFile() || link.size <= 0) continue;
-        seen += 1;
-        const entry = toFileEntry(full, dirent.name, link.size, link.mtimeMs);
-        const list = bySize.get(link.size) ?? [];
-        list.push(entry);
-        bySize.set(link.size, list);
-      } catch {
-        // Skip inaccessible.
-      }
-    }
-  }
-
-  await walk(root, 0);
-
-  const groups: DuplicateGroup[] = [];
-  for (const [size, entries] of bySize) {
-    if (entries.length < 2) continue;
-    const byHash = new Map<string, FileEntry[]>();
-    for (const entry of entries) {
-      try {
-        const hash = await hashFile(entry.path);
-        const list = byHash.get(hash) ?? [];
-        list.push(entry);
-        byHash.set(hash, list);
-      } catch {
-        // Skip unreadable.
-      }
-    }
-    for (const [hash, copies] of byHash) {
-      if (copies.length < 2) continue;
-      copies.sort((a, b) => b.modifiedAt - a.modifiedAt);
-      groups.push({
-        hash,
-        size,
-        copies,
-        recoverableBytes: size * (copies.length - 1),
-        keepPath: copies[0].path,
-      });
-    }
-  }
-
-  groups.sort((a, b) => b.recoverableBytes - a.recoverableBytes);
-  return groups.slice(0, 50);
 }
 
 export function joinPath(...parts: string[]): string {

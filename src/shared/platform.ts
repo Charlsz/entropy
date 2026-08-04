@@ -19,11 +19,6 @@ export function trashDisplayName(platform: HostPlatform): string {
   return isWindows(platform) ? "Recycle Bin" : "Trash";
 }
 
-/** Short verb for “open the OS trash”. */
-export function openTrashLabel(platform: HostPlatform): string {
-  return isWindows(platform) ? "Open Recycle Bin" : "Open Trash";
-}
-
 /** Reveal-in-folder action label. */
 export function revealInFolderLabel(platform: HostPlatform): string {
   if (isMac(platform)) return "Show in Finder";

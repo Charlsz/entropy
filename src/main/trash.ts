@@ -337,16 +337,3 @@ async function restoreFromSystemTrash(originalPath: string): Promise<boolean> {
 
   return false;
 }
-
-/** Kept for rare tooling — prefer never opening OS file UI from product chrome. */
-export async function openTrash(): Promise<void> {
-  if (process.platform === "win32") {
-    await shell.openExternal("shell:RecycleBinFolder");
-    return;
-  }
-  if (process.platform === "darwin") {
-    await shell.openPath(path.join(os.homedir(), ".Trash"));
-    return;
-  }
-  await shell.openPath(path.join(os.homedir(), ".local", "share", "Trash", "files"));
-}

@@ -66,7 +66,6 @@ const api: EntropyApi = {
     remove: (targetPath) => ipcRenderer.invoke("fs:remove", targetPath),
     undoRemove: (paths) => ipcRenderer.invoke("fs:undoRemove", paths),
     finalizeTrash: (paths) => ipcRenderer.invoke("fs:finalizeTrash", paths),
-    openTrash: () => ipcRenderer.invoke("fs:openTrash"),
     exists: (targetPath) => ipcRenderer.invoke("fs:exists", targetPath),
     stat: (targetPath) => ipcRenderer.invoke("fs:stat", targetPath),
     folderTree: (rootPath, maxDepth) => ipcRenderer.invoke("fs:folderTree", rootPath, maxDepth),
@@ -81,7 +80,6 @@ const api: EntropyApi = {
       ipcRenderer.invoke("fs:findFileReferences", workspacePath, filePath),
     findDuplicates: (rootPath, filePath) =>
       ipcRenderer.invoke("fs:findDuplicates", rootPath, filePath),
-    findDuplicateGroups: (rootPath) => ipcRenderer.invoke("fs:findDuplicateGroups", rootPath),
     createNote: (dirPath, name) => ipcRenderer.invoke("fs:createNote", dirPath, name),
     join: (...parts) => ipcRenderer.invoke("fs:join", ...parts),
     dirname: (filePath) => ipcRenderer.invoke("fs:dirname", filePath),
