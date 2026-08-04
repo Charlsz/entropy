@@ -152,6 +152,8 @@ export interface EntropyApi {
     rename: (fromPath: string, toPath: string) => Promise<void>;
     remove: (targetPath: string) => Promise<void>;
     undoRemove: (paths: string[]) => Promise<{ restored: number; failed: string[] }>;
+    /** Move staged undo deletes into the real OS Recycle Bin / Trash (no OS UI). */
+    finalizeTrash: (paths?: string[]) => Promise<void>;
     openTrash: () => Promise<void>;
     exists: (targetPath: string) => Promise<boolean>;
     stat: (targetPath: string) => Promise<FileEntry>;

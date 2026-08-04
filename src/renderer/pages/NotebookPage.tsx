@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { FilePlus2 } from "lucide-react";
 import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
@@ -344,8 +345,15 @@ export function NotebookPage({
     setPendingDelete(null);
     try {
       const info = await window.entropy.fs.stat(notePath).catch(() => null);
+      // Close the tab before remove so disk-sync never readText's a gone path.
+      flushSync(() => {
+        closeTab(notePath);
+      });
+      if (undoTrash) {
+        await window.entropy.fs.finalizeTrash(undoTrash.paths);
+        setUndoTrash(null);
+      }
       await window.entropy.fs.remove(notePath);
-      closeTab(notePath);
       setUndoTrash({
         paths: [notePath],
         name: notePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note",
@@ -355,6 +363,7 @@ export function NotebookPage({
       await refreshNotes();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete note");
+      await refreshNotes();
     }
   }
 
@@ -369,16 +378,20 @@ export function NotebookPage({
         await refreshNotes();
         if (restored) openNote(restored);
       } else {
-        setError(
-          `Could not restore automatically — open ${osTrashName()} to recover the note.`,
-        );
-        void window.entropy.fs.openTrash();
+        setError(`Couldn't restore the note. It may already be gone from ${osTrashName()}.`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Undo failed");
     } finally {
       setUndoBusy(false);
     }
+  }
+
+  async function dismissTrashUndo(): Promise<void> {
+    if (!undoTrash) return;
+    const paths = undoTrash.paths;
+    setUndoTrash(null);
+    await window.entropy.fs.finalizeTrash(paths).catch(() => undefined);
   }
 
   function startRename(note: FileEntry): void {
@@ -691,8 +704,7 @@ export function NotebookPage({
           reclaimLabel={undoTrash.size > 0 ? formatBytes(undoTrash.size) : undefined}
           busy={undoBusy}
           onUndo={() => void undoTrashAction()}
-          onOpenTrash={() => void window.entropy.fs.openTrash()}
-          onDismiss={() => setUndoTrash(null)}
+          onDismiss={() => void dismissTrashUndo()}
         />
       ) : null}
       <ConfirmDialog

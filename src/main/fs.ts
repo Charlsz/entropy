@@ -99,7 +99,15 @@ export async function listDir(dirPath: string): Promise<FileEntry[]> {
 }
 
 export async function readText(filePath: string): Promise<string> {
-  return fs.readFile(filePath, "utf8");
+  try {
+    return await fs.readFile(filePath, "utf8");
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    if (code === "ENOENT") {
+      throw new Error(`File not found: ${path.basename(filePath)}`);
+    }
+    throw error;
+  }
 }
 
 /** Atomic write: temp file in same directory, then rename. */

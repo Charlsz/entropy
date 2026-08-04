@@ -167,6 +167,10 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     }
     const batchReclaim = pendingDelete.reclaimBytes;
     try {
+      if (undoBatch) {
+        await window.entropy.fs.finalizeTrash(undoBatch.paths);
+        setUndoBatch(null);
+      }
       for (const filePath of batch) {
         await withMediaReleased(filePath, () => window.entropy.fs.remove(filePath));
       }
@@ -197,8 +201,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     try {
       const outcome = await window.entropy.fs.undoRemove(undoBatch.paths);
       if (outcome.failed.length > 0 && outcome.restored === 0) {
-        setError(`Could not restore automatically — open ${osTrashName()} to recover files.`);
-        void window.entropy.fs.openTrash();
+        setError(`Couldn't restore the files. They may already be gone from ${osTrashName()}.`);
       } else {
         setUndoBatch(null);
         setPhase("choose");
@@ -210,6 +213,13 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     } finally {
       setUndoBusy(false);
     }
+  }
+
+  async function dismissUndoBatch(): Promise<void> {
+    if (!undoBatch) return;
+    const paths = undoBatch.paths;
+    setUndoBatch(null);
+    await window.entropy.fs.finalizeTrash(paths).catch(() => undefined);
   }
 
   return (
@@ -426,8 +436,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
                 reclaimLabel={formatBytes(undoBatch.reclaimBytes)}
                 busy={undoBusy}
                 onUndo={() => void undoCleanup()}
-                onOpenTrash={() => void window.entropy.fs.openTrash()}
-                onDismiss={() => setUndoBatch(null)}
+                onDismiss={() => void dismissUndoBatch()}
               />
             ) : null}
             <div className="px-4 py-2 text-sm text-muted-foreground">

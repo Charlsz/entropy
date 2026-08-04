@@ -419,6 +419,11 @@ export function FilesPage() {
         });
       });
 
+      if (undoTrash) {
+        await window.entropy.fs.finalizeTrash(undoTrash.paths);
+        setUndoTrash(null);
+      }
+
       await withMediaReleased(targetPath, () => window.entropy.fs.remove(targetPath));
       setUndoTrash({ paths: [targetPath], name: entry.name, size: entry.size });
       setError(null);
@@ -447,16 +452,20 @@ export function FilesPage() {
         setUndoTrash(null);
         await refresh();
       } else {
-        setError(
-          `Could not restore automatically — open ${osTrashName()} to recover the file.`,
-        );
-        void window.entropy.fs.openTrash();
+        setError(`Couldn't restore the file. It may already be gone from ${osTrashName()}.`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Undo failed");
     } finally {
       setUndoBusy(false);
     }
+  }
+
+  async function dismissTrashUndo(): Promise<void> {
+    if (!undoTrash) return;
+    const paths = undoTrash.paths;
+    setUndoTrash(null);
+    await window.entropy.fs.finalizeTrash(paths).catch(() => undefined);
   }
 
   async function handleDuplicate(entry: FileEntry): Promise<void> {
@@ -730,8 +739,7 @@ export function FilesPage() {
               reclaimLabel={formatBytes(undoTrash.size)}
               busy={undoBusy}
               onUndo={() => void undoTrashAction()}
-              onOpenTrash={() => void window.entropy.fs.openTrash()}
-              onDismiss={() => setUndoTrash(null)}
+              onDismiss={() => void dismissTrashUndo()}
             />
           ) : null}
           <StatusBar

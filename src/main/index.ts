@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as filesystem from "./fs";
 import * as inventory from "./inventory";
-import { openTrash, undoRemoves } from "./trash";
+import { openTrash, undoRemoves, finalizeTrash, finalizeOrphanedStaging } from "./trash";
 import { findExactDuplicates } from "./duplicates";
 import type { DuplicateScanProgress } from "./duplicates";
 import {
@@ -158,6 +158,7 @@ function registerIpc(): void {
   );
   ipcMain.handle("fs:remove", (_event, targetPath: string) => filesystem.remove(targetPath));
   ipcMain.handle("fs:undoRemove", (_event, paths: string[]) => undoRemoves(paths));
+  ipcMain.handle("fs:finalizeTrash", (_event, paths?: string[]) => finalizeTrash(paths));
   ipcMain.handle("fs:openTrash", () => openTrash());
   ipcMain.handle("fs:exists", (_event, targetPath: string) => filesystem.exists(targetPath));
   ipcMain.handle("fs:stat", (_event, targetPath: string) => filesystem.stat(targetPath));
@@ -306,6 +307,7 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   registerFileProtocol();
   registerIpc();
+  void finalizeOrphanedStaging();
   createWindow();
 
   app.on("activate", () => {
@@ -316,6 +318,7 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", (event) => {
+  void finalizeTrash();
   if (allowQuit) return;
   const win =
     mainWindow && !mainWindow.isDestroyed() ? mainWindow : BrowserWindow.getAllWindows()[0];

@@ -65,6 +65,7 @@ const api: EntropyApi = {
     rename: (fromPath, toPath) => ipcRenderer.invoke("fs:rename", fromPath, toPath),
     remove: (targetPath) => ipcRenderer.invoke("fs:remove", targetPath),
     undoRemove: (paths) => ipcRenderer.invoke("fs:undoRemove", paths),
+    finalizeTrash: (paths) => ipcRenderer.invoke("fs:finalizeTrash", paths),
     openTrash: () => ipcRenderer.invoke("fs:openTrash"),
     exists: (targetPath) => ipcRenderer.invoke("fs:exists", targetPath),
     stat: (targetPath) => ipcRenderer.invoke("fs:stat", targetPath),

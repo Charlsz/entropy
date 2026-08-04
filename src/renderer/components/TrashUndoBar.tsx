@@ -1,6 +1,6 @@
-import { Trash2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "./ui/button";
-import { osOpenTrashLabel, osTrashName } from "../lib/platform";
+import { osTrashName } from "../lib/platform";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface TrashUndoBarProps {
@@ -8,17 +8,15 @@ interface TrashUndoBarProps {
   reclaimLabel?: string;
   busy?: boolean;
   onUndo: () => void;
-  onOpenTrash: () => void;
   onDismiss: () => void;
 }
 
-/** Post-delete recovery affordance — files stay in the OS trash until emptied. */
+/** Post-delete recovery — Undo restores in-app; dismiss sends items to the OS trash. */
 export function TrashUndoBar({
   fileCount,
   reclaimLabel,
   busy,
   onUndo,
-  onOpenTrash,
   onDismiss,
 }: TrashUndoBarProps) {
   const trash = osTrashName();
@@ -47,22 +45,6 @@ export function TrashUndoBar({
         >
           Undo
         </Button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              disabled={busy}
-              aria-label={osOpenTrashLabel()}
-              onClick={onOpenTrash}
-            >
-              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{osOpenTrashLabel()}</TooltipContent>
-        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
