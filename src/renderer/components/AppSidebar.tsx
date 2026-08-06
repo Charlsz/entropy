@@ -13,7 +13,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import searchIcon from "../assets/icons/search.svg";
-import logoMark from "../assets/entropy-logo.png";
+import logoDark from "../assets/entropy_dark.png";
+import logoLight from "../assets/entropy-logo.png";
 import { cn } from "../lib/utils";
 import { formatBytes } from "../lib/format";
 import { osModKey } from "../lib/platform";
@@ -30,7 +31,14 @@ interface AppSidebarProps {
   onOpenSearch: () => void;
 }
 
-/** Exact Figma sidebar (240px) — brand, search, nav, storage footer. */
+function storageFillColor(occupiedRatio: number): string {
+  if (occupiedRatio >= 0.9) return "var(--color-ink)";
+  if (occupiedRatio >= 0.75) return "color-mix(in srgb, var(--color-ink) 72%, var(--color-accent))";
+  if (occupiedRatio >= 0.5) return "var(--color-accent)";
+  return "color-mix(in srgb, var(--color-accent) 70%, var(--color-muted))";
+}
+
+/** Shared app sidebar — brand, search, nav, storage footer. */
 export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   const { workspace, visitSection, updateSettings, goToFolder } = useWorkspace();
   const section = workspace.currentSection;
@@ -38,19 +46,16 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   const intelligence = workspace.settings.intelligenceView;
   const duplicateCount = workspace.settings.lastDuplicatesCount;
   const largeFilesBytes = workspace.settings.largeFilesApproxBytes;
+  const theme = workspace.settings.theme;
   const [storage, setStorage] = useState<{ free: number; total: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        if (!("storage" in navigator) || !navigator.storage?.estimate) return;
-        const estimate = await navigator.storage.estimate();
-        if (cancelled || !estimate.quota) return;
-        setStorage({
-          free: Math.max(0, estimate.quota - (estimate.usage ?? 0)),
-          total: estimate.quota,
-        });
+        const info = await window.entropy.fs.getDiskSpace();
+        if (cancelled || !info.total) return;
+        setStorage({ free: info.free, total: info.total });
       } catch {
         // Optional.
       }
@@ -73,14 +78,13 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
           updateSettings({ largeFilesApproxBytes: approx.totalBytes });
         }
       } catch {
-        // Best-effort badge; never block the shell.
+        // Best-effort badge.
       }
     })();
     return () => {
       cancelled = true;
     };
-    // Re-scan when Library roots change; avoid looping on largeFilesApproxBytes itself.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: roots + path only
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- roots + path only
   }, [workspace.settings.inventoryExtraRoots, workspace.path, updateSettings]);
 
   function goNotebook(): void {
@@ -108,11 +112,12 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
 
   const libraryActive = section === "inventory" && !intelligence;
   const notebookActive = section === "notebook";
-  const usedRatio =
+  const occupiedRatio =
     storage && storage.total > 0
-      ? Math.min(1, Math.max(0.08, 1 - storage.free / storage.total))
-      : 140 / 240;
+      ? Math.min(1, Math.max(0, (storage.total - storage.free) / storage.total))
+      : 0;
   const isMac = window.entropy.platform === "darwin";
+  const logoSrc = theme === "dark" ? logoLight : logoDark;
 
   return (
     <aside
@@ -126,7 +131,7 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
       >
         <div className="no-drag flex h-[18px] items-center justify-between">
           <img
-            src={logoMark}
+            src={logoSrc}
             alt=""
             width={18}
             height={18}
@@ -237,12 +242,17 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
         <div
           className="flex h-1 w-full overflow-hidden rounded-[2px]"
           style={{ backgroundColor: figma.border }}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(occupiedRatio * 100)}
+          aria-label="Disk space used"
         >
           <div
             className="h-full rounded-[2px]"
             style={{
-              backgroundColor: figma.accent,
-              width: `${Math.round(usedRatio * 100)}%`,
+              backgroundColor: storageFillColor(occupiedRatio),
+              width: `${Math.round(occupiedRatio * 100)}%`,
             }}
           />
         </div>
@@ -254,10 +264,7 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-4 pb-1.5 pt-4">
-      <p
-        className="text-[11px] font-semibold uppercase"
-        style={{ color: figma.muted }}
-      >
+      <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
         {children}
       </p>
     </div>
