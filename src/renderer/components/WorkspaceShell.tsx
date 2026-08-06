@@ -8,9 +8,9 @@ import { figma } from "../lib/figmaTokens";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 
 /**
- * Figma Entropy shell: sidebar + content only.
- * Electron drag lives on the sidebar header; OS draws window controls (overlay / traffic lights).
- * Workspace picker appears only when Notebook is active without a real notes folder.
+ * Entropy shell: sidebar + content.
+ * Electron drag lives on the sidebar header; OS draws window controls.
+ * Workspace picker appears only when Notebook is active without a notes folder.
  */
 export function WorkspaceShell({
   needsNotebookWorkspace,
@@ -33,12 +33,15 @@ export function WorkspaceShell({
   } = useWorkspace();
   const [searchOpen, setSearchOpen] = useState(false);
   const needsCustomControls = Boolean(window.entropy.window?.needsCustomControls);
+  const theme = workspace.settings.theme;
+  const density = workspace.settings.uiDensity ?? "default";
 
   useEffect(() => {
-    // Figma frames are light-only — keep product chrome locked to that map.
-    document.documentElement.dataset.theme = "light";
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.density = density;
     document.documentElement.dataset.platform = window.entropy.platform;
-  }, []);
+    void window.entropy.window.setChromeTheme?.(theme);
+  }, [theme, density]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -89,7 +92,8 @@ export function WorkspaceShell({
   return (
     <div
       className="relative flex h-full min-h-0 w-full"
-      data-theme="light"
+      data-theme={theme}
+      data-density={density}
       style={{ backgroundColor: figma.canvas }}
     >
       <AppSidebar onOpenSearch={() => setSearchOpen(true)} />
@@ -105,18 +109,22 @@ export function WorkspaceShell({
           <div className="drag-region absolute inset-x-0 top-0 z-40 h-9" aria-hidden />
         )}
 
-        <ContentArea
-          section={workspace.currentSection}
-          pendingNote={pendingNote}
-          onPendingNoteHandled={clearPendingNote}
-          pendingReference={pendingReference}
-          onPendingReferenceHandled={clearPendingReference}
-        />
+        <div className="entropy-titlebar-pad flex min-h-0 min-w-0 flex-1 flex-col">
+          <ContentArea
+            section={workspace.currentSection}
+            pendingNote={pendingNote}
+            onPendingNoteHandled={clearPendingNote}
+            pendingReference={pendingReference}
+            onPendingReferenceHandled={clearPendingReference}
+          />
+        </div>
 
         {showNotebookGate ? (
           <div
             className="absolute inset-0 z-40 flex items-center justify-center px-6"
-            style={{ backgroundColor: "color-mix(in srgb, #fafaf9 88%, transparent)" }}
+            style={{
+              backgroundColor: "color-mix(in srgb, var(--color-surface) 88%, transparent)",
+            }}
           >
             <div className="w-full max-w-md">
               <WorkspaceSelector onSelect={onPickWorkspace} embedded />

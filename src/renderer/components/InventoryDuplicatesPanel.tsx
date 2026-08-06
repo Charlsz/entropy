@@ -230,7 +230,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       className="entropy-duplicates flex h-full min-h-0 flex-col bg-background"
       aria-label="Duplicate files"
     >
-      <div className="shrink-0 border-b border-border px-4 py-3">
+      <div className="entropy-titlebar-end shrink-0 border-b border-border px-4 py-3">
         <div className="flex w-full min-w-0 items-center gap-2">
           <Button
             type="button"

@@ -70,10 +70,10 @@
     --color-ink: #fafaf9;
     --color-surface: #131413;
     --color-canvas: #1c1d1c;
-    --color-border: color-mix(in srgb, #fafaf9 10%, #131413);
+    --color-border: color-mix(in srgb, #fafaf9 12%, #131413);
     --color-muted: #c8c8c6;
-    --color-select: color-mix(in srgb, #6a7ba2 28%, #1c1d1c);
-    --color-accent: #6a7ba2;
+    --color-select: color-mix(in srgb, #6a7ba2 32%, #131413);
+    --color-accent: #8a9bb8;
 
     --ink: #131413;
     --ink-2: #1c1d1c;
@@ -89,13 +89,13 @@
     --secondary-foreground: #fafaf9;
     --muted: #1c1d1c;
     --muted-foreground: color-mix(in srgb, #fafaf9 62%, #131413);
-    --accent: color-mix(in srgb, #6a7ba2 28%, #1c1d1c);
+    --accent: color-mix(in srgb, #6a7ba2 32%, #131413);
     --accent-foreground: #fafaf9;
-    --select: color-mix(in srgb, #6a7ba2 28%, #1c1d1c);
-    --accent-bar: #6a7ba2;
+    --select: color-mix(in srgb, #6a7ba2 32%, #131413);
+    --accent-bar: #8a9bb8;
     --destructive: #c8c8c6;
     --destructive-foreground: #131413;
-    --border: color-mix(in srgb, #fafaf9 10%, #131413);
+    --border: color-mix(in srgb, #fafaf9 12%, #131413);
     --input: #1c1d1c;
     --ring: color-mix(in srgb, #fafaf9 50%, #131413);
     --rail: #131413;
@@ -105,6 +105,34 @@
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     --scrollbar: color-mix(in srgb, #fafaf9 16%, transparent);
     --scrollbar-hover: color-mix(in srgb, #fafaf9 28%, transparent);
+  }
+
+  :root,
+  [data-density="default"] {
+    --ui-scale: 1;
+    --ui-font: 13px;
+    --ui-icon: 14px;
+  }
+
+  [data-density="comfortable"] {
+    --ui-scale: 1.08;
+    --ui-font: 14px;
+    --ui-icon: 15px;
+  }
+
+  [data-density="compact"] {
+    --ui-scale: 0.92;
+    --ui-font: 12px;
+    --ui-icon: 13px;
+  }
+
+  /* Keep chrome actions clear of Electron titleBarOverlay / traffic lights. */
+  .entropy-titlebar-pad {
+    padding-top: env(titlebar-area-height, 36px);
+  }
+
+  .entropy-titlebar-end {
+    padding-inline-end: max(0.5rem, env(titlebar-area-width, 138px));
   }
 
   * {
@@ -119,6 +147,7 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    font-size: var(--ui-font, 13px);
     user-select: none;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar) transparent;
