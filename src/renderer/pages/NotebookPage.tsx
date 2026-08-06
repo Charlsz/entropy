@@ -477,18 +477,9 @@ export function NotebookPage({
 
   function noteActions(note: { path: string; name: string }) {
     return buildEntryActions({
-      canReference: true,
+      canReference: false,
       onRename: () =>
         startRename({
-          name: note.name,
-          path: note.path,
-          isDirectory: false,
-          size: 0,
-          modifiedAt: 0,
-          extension: ".md",
-        }),
-      onReference: () =>
-        void referenceEntry({
           name: note.name,
           path: note.path,
           isDirectory: false,

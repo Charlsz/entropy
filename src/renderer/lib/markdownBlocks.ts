@@ -4,9 +4,55 @@ export const MEDIA_LINE_RE = /^!\[([^\]]*)\]\((<[^>\n]+>|[^)\s]+)(?:\s+(?:"[^"]*
 /** Obsidian embed on its own line: ![[target]] or ![[target|alias]] */
 export const WIKI_EMBED_LINE_RE = /^!\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]\s*$/;
 
+/** Obsidian file link on its own line: [[target]] or [[target|alias]] (not an embed). */
+export const WIKI_LINK_LINE_RE = /^\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]\s*$/;
+
 export type MarkdownBlock =
   | { type: "text"; value: string }
-  | { type: "media"; alt: string; src: string; raw: string };
+  | { type: "media"; alt: string; src: string; raw: string }
+  | { type: "fileRef"; label: string; src: string; raw: string };
+
+const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv", ".m4v", ".avi", ".wmv"]);
+const IMAGE_EXT = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".bmp",
+  ".svg",
+  ".avif",
+  ".heic",
+  ".tif",
+  ".tiff",
+  ".ico",
+]);
+const PDF_EXT = new Set([".pdf"]);
+
+export function extensionOfHref(href: string): string {
+  const clean = href.split(/[?#]/)[0] ?? href;
+  const base = clean.split(/[/\\]/).pop() ?? clean;
+  const dot = base.lastIndexOf(".");
+  if (dot < 0) return "";
+  return base.slice(dot).toLowerCase();
+}
+
+export type EmbedKind = "image" | "video" | "pdf" | "other";
+
+export function embedKind(href: string): EmbedKind {
+  const ext = extensionOfHref(href);
+  if (VIDEO_EXT.has(ext)) return "video";
+  if (IMAGE_EXT.has(ext)) return "image";
+  if (PDF_EXT.has(ext)) return "pdf";
+  if (/^(https?:|data:)/i.test(href) && !ext) return "image";
+  return "other";
+}
+
+/** True when a dropped/linked path should become a live `![]()` / `![[]]` face. */
+export function isLiveEmbedExt(extension: string): boolean {
+  const ext = extension.toLowerCase();
+  return IMAGE_EXT.has(ext) || VIDEO_EXT.has(ext) || PDF_EXT.has(ext);
+}
 
 function unwrapSrc(raw: string): string {
   if (raw.startsWith("<") && raw.endsWith(">")) return raw.slice(1, -1);
@@ -26,22 +72,38 @@ function wikiAlt(target: string, alias: string | undefined): string {
   return trimmed;
 }
 
-function matchMediaLine(line: string): { alt: string; src: string } | null {
-  const wiki = WIKI_EMBED_LINE_RE.exec(line.trimEnd());
-  if (wiki) {
-    const src = wiki[1]!.trim();
-    return { alt: wikiAlt(src, wiki[2]), src };
+function matchFaceLine(
+  line: string,
+):
+  | { kind: "media"; alt: string; src: string }
+  | { kind: "fileRef"; label: string; src: string }
+  | null {
+  const wikiEmbed = WIKI_EMBED_LINE_RE.exec(line.trimEnd());
+  if (wikiEmbed) {
+    const src = wikiEmbed[1]!.trim();
+    return { kind: "media", alt: wikiAlt(src, wikiEmbed[2]), src };
+  }
+
+  const wikiLink = WIKI_LINK_LINE_RE.exec(line.trimEnd());
+  if (wikiLink) {
+    const src = wikiLink[1]!.trim();
+    const label = wikiAlt(src, wikiLink[2]);
+    // Previewable targets still become live media faces even without `!`.
+    if (embedKind(src) !== "other") {
+      return { kind: "media", alt: label, src };
+    }
+    return { kind: "fileRef", label, src };
   }
 
   const md = MEDIA_LINE_RE.exec(line.trimEnd());
   if (md) {
-    return { alt: md[1]!, src: unwrapSrc(md[2]!) };
+    return { kind: "media", alt: md[1]!, src: unwrapSrc(md[2]!) };
   }
 
   return null;
 }
 
-/** Split markdown into text and standalone media-embed blocks (Obsidian-style live embeds). */
+/** Split markdown into text, media embeds, and file-reference chips. */
 export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
   if (!content) return [{ type: "text", value: "" }];
 
@@ -56,13 +118,21 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
   };
 
   for (const line of lines) {
-    const media = matchMediaLine(line);
-    if (media) {
+    const face = matchFaceLine(line);
+    if (face?.kind === "media") {
       flushText();
       blocks.push({
         type: "media",
-        alt: media.alt,
-        src: media.src,
+        alt: face.alt,
+        src: face.src,
+        raw: line,
+      });
+    } else if (face?.kind === "fileRef") {
+      flushText();
+      blocks.push({
+        type: "fileRef",
+        label: face.label,
+        src: face.src,
         raw: line,
       });
     } else {
@@ -73,8 +143,9 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
   flushText();
 
   if (blocks.length === 0) return [{ type: "text", value: "" }];
-  // Always leave a text caret after a trailing embed (Obsidian-style continue writing).
-  if (blocks[blocks.length - 1]?.type === "media") {
+  // Always leave a text caret after a trailing face (Obsidian-style continue writing).
+  const last = blocks[blocks.length - 1];
+  if (last?.type === "media" || last?.type === "fileRef") {
     blocks.push({ type: "text", value: "" });
   }
   return blocks;
@@ -117,6 +188,31 @@ export function linkMarkdown(label: string, href: string): string {
   return `[${label}](${formatMarkdownHref(href)})`;
 }
 
+/** Wiki file link (non-embed) — rendered as a FileRef chip in the live editor. */
+export function fileWikiLinkMarkdown(src: string, alias?: string): string {
+  const target = src.replace(/\\/g, "/");
+  if (alias && alias.trim() && alias.trim() !== basenameHint(target)) {
+    return `[[${target}|${alias.trim()}]]`;
+  }
+  return `[[${target}]]`;
+}
+
+/**
+ * Markdown to copy when referencing a Library file from Folders/Gallery.
+ * Previewable media → embed; everything else → wiki file link.
+ */
+export function fileReferenceClipboardMarkdown(
+  filePath: string,
+  extension: string,
+  label?: string,
+): string {
+  const target = filePath.replace(/\\/g, "/");
+  if (isLiveEmbedExt(extension)) {
+    return mediaEmbedMarkdown(target, label);
+  }
+  return fileWikiLinkMarkdown(target, label);
+}
+
 /**
  * Turn Obsidian `![[…]]` lines into standard image markdown so marked can render them.
  */
@@ -131,42 +227,4 @@ export function expandWikiEmbedsForPreview(content: string): string {
       return `![${alt}](${formatMarkdownHref(src)})`;
     })
     .join("\n");
-}
-
-const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv", ".m4v"]);
-const IMAGE_EXT = new Set([
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".gif",
-  ".webp",
-  ".bmp",
-  ".svg",
-  ".avif",
-]);
-const PDF_EXT = new Set([".pdf"]);
-
-export function extensionOfHref(href: string): string {
-  const clean = href.split(/[?#]/)[0] ?? href;
-  const base = clean.split(/[/\\]/).pop() ?? clean;
-  const dot = base.lastIndexOf(".");
-  if (dot < 0) return "";
-  return base.slice(dot).toLowerCase();
-}
-
-export type EmbedKind = "image" | "video" | "pdf" | "other";
-
-export function embedKind(href: string): EmbedKind {
-  const ext = extensionOfHref(href);
-  if (VIDEO_EXT.has(ext)) return "video";
-  if (IMAGE_EXT.has(ext)) return "image";
-  if (PDF_EXT.has(ext)) return "pdf";
-  if (/^(https?:|data:)/i.test(href) && !ext) return "image";
-  return "other";
-}
-
-/** True when a dropped/linked path should become a live `![]()` / `![[]]` face. */
-export function isLiveEmbedExt(extension: string): boolean {
-  const ext = extension.toLowerCase();
-  return IMAGE_EXT.has(ext) || VIDEO_EXT.has(ext) || PDF_EXT.has(ext);
 }

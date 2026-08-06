@@ -1,3 +1,4 @@
+import { FileText } from "lucide-react";
 import {
   forwardRef,
   useCallback,
@@ -10,6 +11,7 @@ import {
 } from "react";
 import { Textarea } from "./ui/textarea";
 import { cn } from "../lib/utils";
+import { figma } from "../lib/figmaTokens";
 import {
   embedKind,
   joinMarkdownBlocks,
@@ -49,8 +51,17 @@ function firstTextBlockIndex(blocks: MarkdownBlock[], fromEnd: boolean): number 
   return fromEnd ? indices[indices.length - 1]! : indices[0]!;
 }
 
-function countMedia(blocks: MarkdownBlock[]): number {
-  return blocks.reduce((n, block) => n + (block.type === "media" ? 1 : 0), 0);
+function countFaces(blocks: MarkdownBlock[]): number {
+  return blocks.reduce(
+    (n, block) => n + (block.type === "media" || block.type === "fileRef" ? 1 : 0),
+    0,
+  );
+}
+
+function isFaceBlock(
+  block: MarkdownBlock | undefined,
+): block is Extract<MarkdownBlock, { type: "media" | "fileRef" }> {
+  return block?.type === "media" || block?.type === "fileRef";
 }
 
 /**
@@ -199,16 +210,16 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
       return merged.length ? merged : [{ type: "text", value: "" }];
     }, []);
 
-    const removeMediaAt = useCallback(
-      (mediaIndex: number) => {
+    const removeFaceAt = useCallback(
+      (faceIndex: number) => {
         const current = parseMarkdownBlocks(value);
-        if (current[mediaIndex]?.type !== "media") return;
+        if (!isFaceBlock(current[faceIndex])) return;
 
-        const before = current[mediaIndex - 1];
+        const before = current[faceIndex - 1];
         const beforeText = before?.type === "text" ? before.value : "";
         const caret = beforeText.length;
 
-        const next = mergeAdjacentText(current.filter((_, i) => i !== mediaIndex));
+        const next = mergeAdjacentText(current.filter((_, i) => i !== faceIndex));
         const parsed = parseMarkdownBlocks(joinMarkdownBlocks(next));
         commitBlocks(parsed);
         setOpenSourceIndex(null);
@@ -216,7 +227,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
         window.requestAnimationFrame(() => {
           let textIndex = -1;
           for (let i = 0; i < parsed.length; i++) {
-            if (parsed[i]?.type === "text" && i <= mediaIndex) textIndex = i;
+            if (parsed[i]?.type === "text" && i <= faceIndex) textIndex = i;
           }
           if (textIndex < 0) textIndex = firstTextBlockIndex(parsed, false);
           focusText(textIndex, caret);
@@ -225,15 +236,15 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
       [commitBlocks, focusText, mergeAdjacentText, value],
     );
 
-    /** Reveal ![…](…) as ordinary markdown text (click / keyboard). */
+    /** Reveal face markdown as ordinary text (click / keyboard). */
     const openMediaAsSource = useCallback(
-      (mediaIndex: number) => {
+      (faceIndex: number) => {
         if (disabled) return;
         sourceSelectAll.current = true;
-        setOpenSourceIndex(mediaIndex);
-        activeTextIndex.current = mediaIndex;
+        setOpenSourceIndex(faceIndex);
+        activeTextIndex.current = faceIndex;
         window.requestAnimationFrame(() => {
-          const el = textRefs.current.get(mediaIndex);
+          const el = textRefs.current.get(faceIndex);
           if (!el) return;
           el.focus();
           if (sourceSelectAll.current) {
@@ -247,37 +258,36 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
     );
 
     const updateOpenSource = useCallback(
-      (mediaIndex: number, raw: string) => {
+      (faceIndex: number, raw: string) => {
         const current = parseMarkdownBlocks(value);
-        if (current[mediaIndex]?.type !== "media") return;
+        if (!isFaceBlock(current[faceIndex])) return;
 
         if (!raw.trim()) {
-          removeMediaAt(mediaIndex);
+          removeFaceAt(faceIndex);
           return;
         }
 
         // Swap this face for whatever the new line parses as; keep source open if still a face.
         const next = current.map((block, i) =>
-          i === mediaIndex ? { type: "text" as const, value: raw } : block,
+          i === faceIndex ? { type: "text" as const, value: raw } : block,
         );
         const parsed = parseMarkdownBlocks(joinMarkdownBlocks(next));
         commitBlocks(parsed);
 
-        const stillMedia = parsed.findIndex(
+        const stillFace = parsed.findIndex(
           (block, i) =>
-            Math.abs(i - mediaIndex) <= 1 &&
-            block.type === "media" &&
+            Math.abs(i - faceIndex) <= 1 &&
+            isFaceBlock(block) &&
             block.raw.trimEnd() === raw.trimEnd(),
         );
-        if (stillMedia >= 0) {
-          setOpenSourceIndex(stillMedia);
-          activeTextIndex.current = stillMedia;
+        if (stillFace >= 0) {
+          setOpenSourceIndex(stillFace);
+          activeTextIndex.current = stillFace;
         } else {
-          // Syntax broken / multi-line — it's normal text now.
           const textIdx = parsed.findIndex(
             (block, i) =>
               block.type === "text" &&
-              Math.abs(i - mediaIndex) <= 1 &&
+              Math.abs(i - faceIndex) <= 1 &&
               block.value.includes(raw.trimEnd()),
           );
           setOpenSourceIndex(null);
@@ -294,7 +304,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
           }
         }
       },
-      [commitBlocks, removeMediaAt, value],
+      [commitBlocks, removeFaceAt, value],
     );
 
     const updateTextBlock = useCallback(
@@ -307,17 +317,17 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
         commitBlocks(parsed);
 
         // New live faces: leave caret after them so Backspace removes like a block.
-        if (countMedia(parsed) > countMedia(before)) {
-          let mediaAfter = -1;
+        if (countFaces(parsed) > countFaces(before)) {
+          let faceAfter = -1;
           for (let i = 0; i < parsed.length; i++) {
-            if (i >= blockIndex && parsed[i]?.type === "media") {
-              mediaAfter = i;
+            if (i >= blockIndex && isFaceBlock(parsed[i])) {
+              faceAfter = i;
               break;
             }
-            if (parsed[i]?.type === "media") mediaAfter = i;
+            if (isFaceBlock(parsed[i])) faceAfter = i;
           }
           const follow = parsed.findIndex(
-            (block, i) => i > mediaAfter && block.type === "text",
+            (block, i) => i > faceAfter && block.type === "text",
           );
           if (follow >= 0) {
             window.requestAnimationFrame(() => focusText(follow, "start"));
@@ -399,22 +409,22 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
 
         if (event.key === "Backspace" && atStart) {
           const prev = blocks[blockIndex - 1];
-          if (prev?.type === "media") {
+          if (isFaceBlock(prev)) {
             event.preventDefault();
-            removeMediaAt(blockIndex - 1);
+            removeFaceAt(blockIndex - 1);
             return;
           }
         }
 
         if (event.key === "Delete" && atEnd) {
           const next = blocks[blockIndex + 1];
-          if (next?.type === "media") {
+          if (isFaceBlock(next)) {
             event.preventDefault();
-            removeMediaAt(blockIndex + 1);
+            removeFaceAt(blockIndex + 1);
           }
         }
       },
-      [blocks, disabled, onKeyDown, removeMediaAt],
+      [blocks, disabled, onKeyDown, removeFaceAt],
     );
 
     return (
@@ -431,7 +441,8 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
         onMouseDown={(event) => {
           if (disabled) return;
           const target = event.target as HTMLElement;
-          if (target.closest("textarea, a, input, iframe, video, img, figure")) return;
+          if (target.closest("textarea, a, input, iframe, video, img, figure, button.entropy-file-ref"))
+            return;
           event.preventDefault();
           focusText(firstTextBlockIndex(blocks, true), "end");
         }}
@@ -474,7 +485,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
             );
           }
 
-          if (openSourceIndex === index) {
+          if (openSourceIndex === index && isFaceBlock(block)) {
             return (
               <Textarea
                 key={`source-${index}`}
@@ -486,7 +497,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
                 value={block.raw}
                 disabled={disabled}
                 spellCheck={false}
-                aria-label="Markdown media source"
+                aria-label={block.type === "fileRef" ? "File reference source" : "Markdown media source"}
                 onFocus={() => {
                   activeTextIndex.current = index;
                 }}
@@ -496,16 +507,28 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
                   autoResize(event.target);
                 }}
                 onBlur={() => {
-                  // Leave the line → live face returns if syntax is still a media embed.
                   setOpenSourceIndex((current) => (current === index ? null : current));
                 }}
                 onKeyDown={(event) => {
                   onKeyDown?.(event);
                   if (event.key === "Backspace" && !event.currentTarget.value) {
                     event.preventDefault();
-                    removeMediaAt(index);
+                    removeFaceAt(index);
                   }
                 }}
+              />
+            );
+          }
+
+          if (block.type === "fileRef") {
+            return (
+              <FileRefChip
+                key={`file-${index}-${block.src}`}
+                label={block.label}
+                src={block.src}
+                disabled={disabled}
+                onOpenSource={() => openMediaAsSource(index)}
+                onRemove={() => removeFaceAt(index)}
               />
             );
           }
@@ -520,7 +543,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
               diskEpoch={diskEpoch}
               disabled={disabled}
               onOpenSource={() => openMediaAsSource(index)}
-              onRemove={() => removeMediaAt(index)}
+              onRemove={() => removeFaceAt(index)}
             />
           );
         })}
@@ -693,6 +716,49 @@ function MediaFace({
         <figcaption className="mt-1.5 text-center text-xs text-muted-foreground">{caption}</figcaption>
       ) : null}
     </figure>
+  );
+}
+
+function FileRefChip({
+  label,
+  src,
+  disabled,
+  onOpenSource,
+  onRemove,
+}: {
+  label: string;
+  src: string;
+  disabled?: boolean;
+  onOpenSource: () => void;
+  onRemove: () => void;
+}) {
+  const name = label.trim() || src.split(/[/\\]/).pop() || src;
+  return (
+    <button
+      type="button"
+      className="entropy-file-ref my-1 inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      style={{
+        backgroundColor: figma.surface,
+        borderColor: figma.border,
+        color: figma.ink,
+      }}
+      disabled={disabled}
+      aria-label={`File reference: ${name}`}
+      title={src}
+      onClick={() => {
+        if (!disabled) onOpenSource();
+      }}
+      onKeyDown={(event) => {
+        if (disabled) return;
+        if (event.key === "Backspace" || event.key === "Delete") {
+          event.preventDefault();
+          onRemove();
+        }
+      }}
+    >
+      <FileText className="size-3 shrink-0" style={{ color: figma.accent }} strokeWidth={1.75} />
+      <span className="truncate font-mono text-[11px] leading-none">{name}</span>
+    </button>
   );
 }
 

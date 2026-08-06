@@ -40,6 +40,7 @@ import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../l
 import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
 import { formatBytes, formatModifiedLabel, formatUserPath } from "../lib/format";
+import { fileReferenceClipboardMarkdown } from "../lib/markdownBlocks";
 import {
   getLargeFilesCache,
   invalidateLargeFilesCache,
@@ -126,7 +127,6 @@ export function FilesPage({
     setInventoryRoot,
     bootstrapInventoryFolder,
     visitPreview,
-    referenceInNote,
     updateSettings,
     openInWorkspace,
     openNote,
@@ -840,9 +840,23 @@ export function FilesPage({
     return [
       ...buildEntryActions({
         canReference: !entry.isDirectory,
-        referenceLabel: "Add to Workspace",
+        referenceLabel: "Reference",
         onRename: () => void handleRename(entry),
-        onReference: () => referenceInNote(entry.path),
+        onReference: () => {
+          void (async () => {
+            const markdown = fileReferenceClipboardMarkdown(
+              entry.path,
+              entry.extension,
+              entry.name,
+            );
+            try {
+              await navigator.clipboard.writeText(markdown);
+              setError(null);
+            } catch {
+              setError("Could not copy reference to the clipboard.");
+            }
+          })();
+        },
         onCopyPath: () => void copyPath(entry.path),
         onReveal: () => void revealPath(entry.path),
         onMoveTo: () => setMovingEntry(entry),
