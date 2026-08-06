@@ -5,6 +5,7 @@ import {
   DatabaseBackup,
   File,
   FolderOpen,
+  X,
 } from "lucide-react";
 import type { FileEntry } from "../../shared/types";
 import { findFileConnections } from "../lib/fileConnections";
@@ -13,13 +14,20 @@ import { isPreviewableEntry, mediaKind } from "../lib/media";
 import { figma } from "../lib/figmaTokens";
 import { useWorkspace } from "../state/useWorkspace";
 import { EntryPreview } from "./EntryPreview";
+import { Button } from "./ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface FileIntelligencePanelProps {
   entry: FileEntry;
   scanRoot: string;
+  onClose: () => void;
 }
 
-export function FileIntelligencePanel({ entry, scanRoot }: FileIntelligencePanelProps) {
+export function FileIntelligencePanel({
+  entry,
+  scanRoot,
+  onClose,
+}: FileIntelligencePanelProps) {
   const { workspace } = useWorkspace();
   const [noteCount, setNoteCount] = useState<number | null>(null);
   const [dupBytes, setDupBytes] = useState<number | null>(null);
@@ -89,15 +97,32 @@ export function FileIntelligencePanel({ entry, scanRoot }: FileIntelligencePanel
       aria-label="File Intelligence"
     >
       <div
-        className="flex flex-col gap-2 p-5"
+        className="flex items-start gap-2 p-5"
         style={{ borderBottom: `1px solid ${figma.border}` }}
       >
-        <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
-          File Intelligence
-        </p>
-        <p className="break-all text-[14px] font-semibold" style={{ color: figma.ink }}>
-          {entry.name}
-        </p>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
+            File Intelligence
+          </p>
+          <p className="break-all text-[14px] font-semibold" style={{ color: figma.ink }}>
+            {entry.name}
+          </p>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 text-muted-foreground"
+              aria-label="Close File Intelligence"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" strokeWidth={1.75} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Close</TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="flex flex-col gap-4 p-5">

@@ -324,12 +324,12 @@ export function FilesPage() {
   }, [folderVisible]);
 
   const galleryVisible = useMemo(() => {
-    const media = folderVisible.filter((entry) => isMediaEntry(entry));
-    const source =
-      media.length > 0
-        ? media
-        : folderVisible.filter((entry) => !entry.isDirectory);
-    return [...source].sort((a, b) => {
+    // Home-style content view: folders (with collage faces) + media, not media-only.
+    const folders = folderVisible.filter((entry) => entry.isDirectory);
+    const media = folderVisible.filter((entry) => isMediaEntry(entry) || isPreviewableEntry(entry));
+    const source = [...folders, ...media];
+    return source.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
       let cmp = 0;
       if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
       if (sortKey === "modified") cmp = a.modifiedAt - b.modifiedAt;
@@ -759,34 +759,32 @@ export function FilesPage() {
 
             {!listLoading && galleryVisible.length === 0 ? (
               <Empty className="py-16">
-                <EmptyTitle>No media here</EmptyTitle>
+                <EmptyTitle>Nothing to preview</EmptyTitle>
                 <EmptyDescription>
-                  Open a folder with images or video, or switch to Folders to browse everything.
+                  Folders and media in this location will show here with previews.
                 </EmptyDescription>
               </Empty>
             ) : null}
 
             {!listLoading && galleryVisible.length > 0 ? (
-              <div className="entropy-gallery">
-                <div className="entropy-gallery-grid px-1">
-                  {rendered.map((entry) => (
-                    <FileGridCard
-                      key={entry.path}
-                      entry={entry}
-                      homePath={homePath}
-                      selected={selected?.path === entry.path}
-                      dropTarget={false}
-                      sizePending={false}
-                      onSelect={() => setSelected(entry)}
-                      onOpen={() => void openEntry(entry)}
-                      onDragStart={(event) => onDragStart(event, entry)}
-                      actions={fileActions(entry)}
-                    />
-                  ))}
-                  {rendered.length < galleryVisible.length ? (
-                    <div ref={loadMoreRef} className="h-8 w-full" aria-hidden />
-                  ) : null}
-                </div>
+              <div className="flex flex-wrap content-start gap-5">
+                {rendered.map((entry) => (
+                  <FileGridCard
+                    key={entry.path}
+                    entry={entry}
+                    homePath={homePath}
+                    selected={selected?.path === entry.path}
+                    dropTarget={false}
+                    sizePending={false}
+                    onSelect={() => setSelected(entry)}
+                    onOpen={() => void openEntry(entry)}
+                    onDragStart={(event) => onDragStart(event, entry)}
+                    actions={fileActions(entry)}
+                  />
+                ))}
+                {rendered.length < galleryVisible.length ? (
+                  <div ref={loadMoreRef} className="h-8 w-full" aria-hidden />
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -857,7 +855,11 @@ export function FilesPage() {
             sidebar={null}
             context={
               selected ? (
-                <FileIntelligencePanel entry={selected} scanRoot={scanRoot} />
+                <FileIntelligencePanel
+                  entry={selected}
+                  scanRoot={scanRoot}
+                  onClose={() => setSelected(null)}
+                />
               ) : null
             }
             main={
@@ -960,13 +962,13 @@ const FileGridCard = memo(
       <div
         draggable
         className={cn(
-          "entropy-gallery-card group cursor-pointer rounded-lg border p-2",
+          "group w-[260px] shrink-0 cursor-pointer rounded-lg border p-2.5",
           dropTarget && "opacity-70",
         )}
         style={{
           backgroundColor: figma.canvas,
-          borderColor: figma.border,
-          outline: selected ? `1px solid ${figma.accent}` : undefined,
+          borderColor: selected ? figma.accent : figma.border,
+          outline: "none",
         }}
         onClick={onSelect}
         onDoubleClick={onOpen}
@@ -976,18 +978,17 @@ const FileGridCard = memo(
       >
         <div
           className={cn(
-            "entropy-gallery-face mb-2 w-full overflow-hidden rounded-[4px]",
-            face === "icon" && "entropy-gallery-face--icon",
+            "mb-2.5 flex h-40 w-full items-center justify-center overflow-hidden rounded-[4px]",
           )}
           style={{ backgroundColor: figma.surface }}
         >
           {face === "icon" ? (
             entry.isDirectory ? (
-              <Folder style={{ color: figma.muted }} strokeWidth={1.15} />
+              <Folder className="size-10" style={{ color: figma.muted }} strokeWidth={1.15} />
             ) : mediaKind(entry.extension) === "image" ? (
-              <Image style={{ color: figma.muted }} strokeWidth={1.15} />
+              <Image className="size-10" style={{ color: figma.muted }} strokeWidth={1.15} />
             ) : (
-              <FileText style={{ color: figma.muted }} strokeWidth={1.15} />
+              <FileText className="size-10" style={{ color: figma.muted }} strokeWidth={1.15} />
             )
           ) : face === "preview" ? (
             <EntryPreview
@@ -1001,7 +1002,7 @@ const FileGridCard = memo(
         <div className="flex min-w-0 items-start gap-1">
           <div className="min-w-0 flex-1">
             <p
-              className="entropy-gallery-label truncate font-medium"
+              className="truncate text-[13px] font-medium"
               style={{ color: figma.ink }}
               title={entry.name}
             >
