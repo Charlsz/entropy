@@ -40,6 +40,8 @@ const api: EntropyApi = {
     maximize: () => ipcRenderer.invoke("window:maximize"),
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
+    // Electron titleBarOverlay covers Win/Linux; macOS uses traffic lights.
+    needsCustomControls: false,
   },
   duplicates: {
     scan: (rootPath, options) =>
@@ -102,6 +104,9 @@ const api: EntropyApi = {
     scanTreemapFiles: (dirPath, maxLeaves) =>
       ipcRenderer.invoke("fs:scanTreemapFiles", dirPath, maxLeaves),
     scanTreemapLevel: (dirPath) => ipcRenderer.invoke("fs:scanTreemapLevel", dirPath),
+    scanLargeFilesApprox: (rootPaths, minBytes) =>
+      ipcRenderer.invoke("fs:scanLargeFilesApprox", rootPaths, minBytes),
+    canOsPreview: (targetPath) => ipcRenderer.invoke("fs:canOsPreview", targetPath),
     watchDir: (dirPath, options) => ipcRenderer.invoke("fs:watchDir", dirPath, options),
     unwatchDir: (dirPath) => ipcRenderer.invoke("fs:unwatchDir", dirPath),
     unwatchAll: () => ipcRenderer.invoke("fs:unwatchAll"),

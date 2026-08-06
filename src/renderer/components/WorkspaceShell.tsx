@@ -1,18 +1,15 @@
 import { useEffect, useState } from "react";
-import { Settings } from "lucide-react";
 import { AppSidebar } from "./AppSidebar";
 import { ContentArea } from "./ContentArea";
 import { SearchPalette } from "./SearchPalette";
 import { WindowControls } from "./WindowControls";
-import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { useWorkspace } from "../state/useWorkspace";
 import { figma } from "../lib/figmaTokens";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 
 /**
  * Figma Entropy shell: sidebar + content only.
- * Electron drag lives on the sidebar header; window controls float top-right.
+ * Electron drag lives on the sidebar header; OS draws window controls (overlay / traffic lights).
  * Workspace picker appears only when Notebook is active without a real notes folder.
  */
 export function WorkspaceShell({
@@ -28,7 +25,6 @@ export function WorkspaceShell({
     clearPendingNote,
     pendingReference,
     clearPendingReference,
-    visitSection,
     openNote,
     goBack,
     goForward,
@@ -36,6 +32,7 @@ export function WorkspaceShell({
     canGoForward,
   } = useWorkspace();
   const [searchOpen, setSearchOpen] = useState(false);
+  const needsCustomControls = Boolean(window.entropy.window?.needsCustomControls);
 
   useEffect(() => {
     // Figma frames are light-only — keep product chrome locked to that map.
@@ -98,26 +95,15 @@ export function WorkspaceShell({
       <AppSidebar onOpenSearch={() => setSearchOpen(true)} />
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-9 items-center justify-end pr-0">
-          <div className="pointer-events-auto no-drag flex items-center">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 text-[#6b6d69]"
-                  aria-label="Settings"
-                  onClick={() => visitSection("settings")}
-                >
-                  <Settings strokeWidth={1.75} className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Settings</TooltipContent>
-            </Tooltip>
-            <WindowControls />
+        {needsCustomControls ? (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-9 items-center justify-end">
+            <div className="pointer-events-auto no-drag flex items-center">
+              <WindowControls />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="drag-region absolute inset-x-0 top-0 z-40 h-9" aria-hidden />
+        )}
 
         <ContentArea
           section={workspace.currentSection}

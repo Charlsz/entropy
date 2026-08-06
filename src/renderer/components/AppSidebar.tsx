@@ -8,10 +8,12 @@ import {
   FolderOpen,
   GalleryThumbnails,
   Package,
-  Search,
+  Settings,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import searchIcon from "../assets/icons/search.svg";
+import logoMark from "../assets/entropy-logo.png";
 import { cn } from "../lib/utils";
 import { formatBytes } from "../lib/format";
 import { osModKey } from "../lib/platform";
@@ -22,18 +24,20 @@ import {
   type IntelligenceView,
   type LibraryPerspective,
 } from "../types/library";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface AppSidebarProps {
   onOpenSearch: () => void;
-  duplicateCount?: number | null;
 }
 
 /** Exact Figma sidebar (240px) — brand, search, nav, storage footer. */
-export function AppSidebar({ onOpenSearch, duplicateCount }: AppSidebarProps) {
-  const { workspace, visitSection, updateSettings } = useWorkspace();
+export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
+  const { workspace, visitSection, updateSettings, goToFolder } = useWorkspace();
   const section = workspace.currentSection;
   const perspective = workspace.settings.libraryPerspective;
   const intelligence = workspace.settings.intelligenceView;
+  const duplicateCount = workspace.settings.lastDuplicatesCount;
+  const largeFilesBytes = workspace.settings.largeFilesApproxBytes;
   const [storage, setStorage] = useState<{ free: number; total: number } | null>(null);
 
   useEffect(() => {
@@ -56,6 +60,29 @@ export function AppSidebar({ onOpenSearch, duplicateCount }: AppSidebarProps) {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const roots = await window.entropy.fs.getInventoryRoots(
+          workspace.settings.inventoryExtraRoots,
+        );
+        const approx = await window.entropy.fs.scanLargeFilesApprox(roots.map((r) => r.path));
+        if (cancelled) return;
+        if (approx.totalBytes !== workspace.settings.largeFilesApproxBytes) {
+          updateSettings({ largeFilesApproxBytes: approx.totalBytes });
+        }
+      } catch {
+        // Best-effort badge; never block the shell.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Re-scan when Library roots change; avoid looping on largeFilesApproxBytes itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: roots + path only
+  }, [workspace.settings.inventoryExtraRoots, workspace.path, updateSettings]);
+
   function goNotebook(): void {
     updateSettings({ intelligenceView: null });
     visitSection("notebook");
@@ -67,6 +94,11 @@ export function AppSidebar({ onOpenSearch, duplicateCount }: AppSidebarProps) {
       ...(next ? { libraryPerspective: next } : {}),
     });
     visitSection("inventory");
+    if (next === "gallery") {
+      void window.entropy.fs.getHomePath().then((home) => {
+        goToFolder(home);
+      });
+    }
   }
 
   function goIntelligence(view: IntelligenceView): void {
@@ -80,6 +112,7 @@ export function AppSidebar({ onOpenSearch, duplicateCount }: AppSidebarProps) {
     storage && storage.total > 0
       ? Math.min(1, Math.max(0.08, 1 - storage.free / storage.total))
       : 140 / 240;
+  const isMac = window.entropy.platform === "darwin";
 
   return (
     <aside
@@ -87,16 +120,33 @@ export function AppSidebar({ onOpenSearch, duplicateCount }: AppSidebarProps) {
       style={{ backgroundColor: figma.surface, borderColor: figma.border }}
       aria-label="Entropy"
     >
-      <div className="drag-region flex flex-col gap-3 px-4 pb-3 pt-5">
-        <div className="no-drag flex items-center gap-2">
-          <span
-            className="inline-flex size-[18px] items-center justify-center rounded-full border"
-            style={{ borderColor: figma.ink }}
+      <div
+        className="drag-region flex flex-col gap-3 px-4 pb-3"
+        style={{ paddingTop: isMac ? 40 : 20 }}
+      >
+        <div className="no-drag flex h-[18px] items-center justify-between">
+          <img
+            src={logoMark}
+            alt=""
+            width={18}
+            height={18}
+            className="size-[18px] object-contain"
             aria-hidden
           />
-          <span className="text-[14px] font-semibold" style={{ color: figma.ink }}>
-            Entropy
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex size-[18px] items-center justify-center"
+                style={{ color: figma.muted }}
+                aria-label="Settings"
+                onClick={() => visitSection("settings")}
+              >
+                <Settings className="size-[14px]" strokeWidth={1.75} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Settings</TooltipContent>
+          </Tooltip>
         </div>
         <button
           type="button"
@@ -104,7 +154,9 @@ export function AppSidebar({ onOpenSearch, duplicateCount }: AppSidebarProps) {
           style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
           onClick={onOpenSearch}
         >
-          <Search className="size-3 shrink-0" style={{ color: figma.muted }} strokeWidth={1.75} />
+          <span className="relative size-3 shrink-0 overflow-hidden" aria-hidden>
+            <img src={searchIcon} alt="" className="absolute inset-0 size-full" width={12} height={12} />
+          </span>
           <span className="min-w-0 flex-1 text-[12px]" style={{ color: figma.muted }}>
             Search index...
           </span>
@@ -147,12 +199,12 @@ export function AppSidebar({ onOpenSearch, duplicateCount }: AppSidebarProps) {
             onClick={() => goLibrary(id)}
             meta={
               id === "large-files"
-                ? ">100MB"
+                ? largeFilesBytes != null && largeFilesBytes > 0
+                  ? `~${formatBytes(largeFilesBytes)}`
+                  : undefined
                 : id === "duplicates" && duplicateCount != null
                   ? String(duplicateCount)
-                  : id === "duplicates"
-                    ? undefined
-                    : undefined
+                  : undefined
             }
           />
         ))}

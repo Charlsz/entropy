@@ -19,6 +19,10 @@ export interface AppSettings {
   panelLayout: PanelLayoutState;
   inventoryPanelLayout: PanelLayoutState;
   inventoryExtraRoots: string[];
+  /** Group count from the last completed Duplicates scan; null until first run. */
+  lastDuplicatesCount: number | null;
+  /** Cached approximate bytes of ≥100MB files across Library roots. */
+  largeFilesApproxBytes: number | null;
 }
 
 export interface AppSession {
@@ -71,6 +75,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],
+  lastDuplicatesCount: null,
+  largeFilesApproxBytes: null,
 };
 
 function sessionPath(): string {
@@ -118,6 +124,26 @@ export async function loadSession(): Promise<AppSession> {
               (item): item is string => typeof item === "string",
             )
           : [],
+        lastDuplicatesCount:
+          typeof (parsed.settings as { lastDuplicatesCount?: unknown } | undefined)
+            ?.lastDuplicatesCount === "number"
+            ? Math.max(
+                0,
+                Math.floor(
+                  (parsed.settings as { lastDuplicatesCount: number }).lastDuplicatesCount,
+                ),
+              )
+            : null,
+        largeFilesApproxBytes:
+          typeof (parsed.settings as { largeFilesApproxBytes?: unknown } | undefined)
+            ?.largeFilesApproxBytes === "number"
+            ? Math.max(
+                0,
+                Math.floor(
+                  (parsed.settings as { largeFilesApproxBytes: number }).largeFilesApproxBytes,
+                ),
+              )
+            : null,
       },
     };
   } catch {

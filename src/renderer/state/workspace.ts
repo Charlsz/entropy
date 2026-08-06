@@ -24,6 +24,10 @@ export interface WorkspaceSettings {
   inventoryPanelLayout: PanelLayoutState;
   /** User-added drives/folders for Library indexing. */
   inventoryExtraRoots: string[];
+  /** Group count from the last completed Duplicates scan; null until first run. */
+  lastDuplicatesCount: number | null;
+  /** Cached approximate bytes of ≥100MB files across Library roots. */
+  largeFilesApproxBytes: number | null;
 }
 
 /** One stop in the global Back/Forward timeline. */
@@ -82,6 +86,8 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],
+  lastDuplicatesCount: null,
+  largeFilesApproxBytes: null,
 };
 
 function basenameLabel(filePath: string): string {

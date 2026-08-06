@@ -524,3 +524,81 @@ export async function searchInventoryNames(
   await walk(root, 0);
   return results;
 }
+
+export interface LargeFilesApproxResult {
+  totalBytes: number;
+  count: number;
+  truncated: boolean;
+}
+
+const LARGE_FILES_MIN_BYTES = 100 * 1024 * 1024;
+const LARGE_FILES_MAX_DEPTH = 10;
+const LARGE_FILES_MAX_VISIT = 80_000;
+
+/**
+ * Approximate sum of files ≥100MB under inventory roots (Home + added folders).
+ * Skips protected OS trees; stops early if the visit budget is hit.
+ */
+export async function scanLargeFilesApprox(
+  rootPaths: string[],
+  minBytes = LARGE_FILES_MIN_BYTES,
+): Promise<LargeFilesApproxResult> {
+  let totalBytes = 0;
+  let count = 0;
+  let visited = 0;
+  let truncated = false;
+  const seenRoots = new Set<string>();
+
+  async function walk(dirPath: string, depth: number): Promise<void> {
+    if (truncated || depth > LARGE_FILES_MAX_DEPTH) return;
+    if (isProtectedOsPath(dirPath, process.platform)) return;
+
+    let dirents;
+    try {
+      dirents = await fs.readdir(dirPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const dirent of dirents) {
+      if (truncated) return;
+      if (dirent.name === "." || dirent.name === "..") continue;
+      if (shouldSkipMeasureDir(dirent.name)) continue;
+      if (dirent.name.startsWith(".")) continue;
+
+      const fullPath = path.join(dirPath, dirent.name);
+      visited += 1;
+      if (visited > LARGE_FILES_MAX_VISIT) {
+        truncated = true;
+        return;
+      }
+
+      try {
+        const link = await fs.lstat(fullPath);
+        if (link.isSymbolicLink()) continue;
+        if (link.isDirectory()) {
+          if (isProtectedOsPath(fullPath, process.platform)) continue;
+          await walk(fullPath, depth + 1);
+          continue;
+        }
+        if (!link.isFile() || link.size < minBytes) continue;
+        totalBytes += link.size;
+        count += 1;
+      } catch {
+        // Skip unreadable entries.
+      }
+    }
+  }
+
+  for (const root of rootPaths) {
+    if (truncated) break;
+    const normalized = path.normalize(root);
+    const key = normalized.toLowerCase();
+    if (seenRoots.has(key)) continue;
+    seenRoots.add(key);
+    if (isProtectedOsPath(normalized, process.platform)) continue;
+    await walk(normalized, 0);
+  }
+
+  return { totalBytes, count, truncated };
+}

@@ -1,5 +1,5 @@
 import "./silenceDeprecations";
-import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
+import { app, BrowserWindow, ipcMain, nativeImage, protocol, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import * as filesystem from "./fs";
@@ -81,9 +81,22 @@ function createWindow(): BrowserWindow {
     minWidth: 720,
     minHeight: 520,
     show: true,
-    backgroundColor: "#131413",
+    backgroundColor: "#fafaf9",
     ...(icon ? { icon } : {}),
+    // Frameless content chrome; OS draws minimize/maximize/close where supported.
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
+    ...(process.platform === "darwin"
+      ? { trafficLightPosition: { x: 14, y: 16 } }
+      : {}),
+    ...(process.platform === "win32" || process.platform === "linux"
+      ? {
+          titleBarOverlay: {
+            color: "#fafaf9",
+            symbolColor: "#131413",
+            height: 36,
+          },
+        }
+      : {}),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -229,6 +242,58 @@ function registerIpc(): void {
   ipcMain.handle("fs:scanTreemapLevel", (_event, dirPath: string) =>
     inventory.scanTreemapLevel(dirPath),
   );
+  ipcMain.handle(
+    "fs:scanLargeFilesApprox",
+    (_event, rootPaths: string[], minBytes?: number) =>
+      inventory.scanLargeFilesApprox(rootPaths, minBytes),
+  );
+  ipcMain.handle("fs:canOsPreview", async (_event, targetPath: string) => {
+    const normalized = path.normalize(targetPath);
+    const ext = path.extname(normalized).toLowerCase();
+    const imageExt = new Set([
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".gif",
+      ".webp",
+      ".bmp",
+      ".svg",
+      ".ico",
+      ".tif",
+      ".tiff",
+      ".avif",
+    ]);
+    const osThumbExt = new Set([
+      ".pdf",
+      ".mp4",
+      ".m4v",
+      ".mov",
+      ".webm",
+      ".mkv",
+      ".avi",
+      ".wmv",
+    ]);
+    if (imageExt.has(ext) && ext !== ".svg" && ext !== ".gif") {
+      try {
+        const image = nativeImage.createFromPath(normalized);
+        if (!image.isEmpty()) return true;
+      } catch {
+        // Fall through to OS thumbnail.
+      }
+    }
+    if (imageExt.has(ext) || osThumbExt.has(ext)) {
+      try {
+        const thumb = await nativeImage.createThumbnailFromPath(normalized, {
+          width: 96,
+          height: 96,
+        });
+        return !thumb.isEmpty();
+      } catch {
+        return imageExt.has(ext);
+      }
+    }
+    return false;
+  });
   ipcMain.handle(
     "fs:watchDir",
     (event, dirPath: string, options?: { recursive?: boolean }) => {

@@ -52,6 +52,15 @@ export interface GlobalSearchHit {
   name: string;
   excerpt: string;
   source: "note" | "file" | "folder";
+  /** When source is note and the hit is outside the current workspace. */
+  workspacePath?: string;
+  workspaceName?: string;
+}
+
+export interface LargeFilesApproxResult {
+  totalBytes: number;
+  count: number;
+  truncated: boolean;
 }
 
 export interface DuplicateGroup {
@@ -133,6 +142,8 @@ export interface EntropyApi {
     maximize: () => Promise<void>;
     close: () => Promise<void>;
     isMaximized: () => Promise<boolean>;
+    /** False when the OS draws min/max/close (Win/Linux overlay or macOS traffic lights). */
+    needsCustomControls: boolean;
   };
   duplicates: {
     scan: (rootPath: string, options?: DuplicateScanOptions) => Promise<DuplicateScanResult>;
@@ -186,6 +197,12 @@ export interface EntropyApi {
     measureChildren: (dirPath: string) => Promise<Array<{ path: string; size: number }>>;
     scanTreemapFiles: (dirPath: string, maxLeaves?: number) => Promise<TreemapScanResult>;
     scanTreemapLevel: (dirPath: string) => Promise<TreemapScanResult>;
+    scanLargeFilesApprox: (
+      rootPaths: string[],
+      minBytes?: number,
+    ) => Promise<LargeFilesApproxResult>;
+    /** True when the OS can produce a thumbnail/preview face for this path. */
+    canOsPreview: (targetPath: string) => Promise<boolean>;
     findFileReferences: (workspacePath: string, filePath: string) => Promise<NoteSearchResult[]>;
     findDuplicates: (rootPath: string, filePath: string) => Promise<FileEntry[]>;
     /** Watch a folder for external create/rename/delete/write; pairs with onDirChanged. */
@@ -221,6 +238,8 @@ export interface AppSession {
       context: number;
     };
     inventoryExtraRoots?: string[];
+    lastDuplicatesCount?: number | null;
+    largeFilesApproxBytes?: number | null;
   };
 }
 
