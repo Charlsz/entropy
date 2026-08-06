@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  ChartNetwork,
   Clock,
   Copy,
   Database,
@@ -9,7 +8,6 @@ import {
   GalleryThumbnails,
   Package,
   Settings,
-  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import searchIcon from "../assets/icons/search.svg";
@@ -22,7 +20,6 @@ import { figma } from "../lib/figmaTokens";
 import { useWorkspace } from "../state/useWorkspace";
 import {
   PERSPECTIVE_LABELS,
-  type IntelligenceView,
   type LibraryPerspective,
 } from "../types/library";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -43,7 +40,6 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   const { workspace, visitSection, updateSettings, goToFolder } = useWorkspace();
   const section = workspace.currentSection;
   const perspective = workspace.settings.libraryPerspective;
-  const intelligence = workspace.settings.intelligenceView;
   const duplicateCount = workspace.settings.lastDuplicatesCount;
   const largeFilesBytes = workspace.settings.largeFilesApproxBytes;
   const theme = workspace.settings.theme;
@@ -105,12 +101,7 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
     }
   }
 
-  function goIntelligence(view: IntelligenceView): void {
-    updateSettings({ intelligenceView: view });
-    visitSection("inventory");
-  }
-
-  const libraryActive = section === "inventory" && !intelligence;
+  const libraryActive = section === "inventory";
   const notebookActive = section === "notebook";
   const occupiedRatio =
     storage && storage.total > 0
@@ -213,20 +204,6 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
             }
           />
         ))}
-
-        <SectionLabel>Intelligence</SectionLabel>
-        <SidebarItem
-          icon={ChartNetwork}
-          label="Relationships"
-          active={section === "inventory" && intelligence === "relationships"}
-          onClick={() => goIntelligence("relationships")}
-        />
-        <SidebarItem
-          icon={Sparkles}
-          label="File Copilot"
-          active={section === "inventory" && intelligence === "copilot"}
-          onClick={() => goIntelligence("copilot")}
-        />
       </nav>
 
       <div
