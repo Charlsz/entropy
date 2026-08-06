@@ -157,11 +157,11 @@ export function AppSidebar({
           </Tooltip>
         </div>
         <label
-          className="no-drag flex w-full items-center gap-2 rounded-[6px] border px-[10px] py-[6px]"
+          className="no-drag flex w-full items-center gap-2 rounded-[6px] border px-[10px] py-[7px]"
           style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
         >
-          <span className="relative size-3 shrink-0 overflow-hidden" aria-hidden>
-            <img src={searchIcon} alt="" className="absolute inset-0 size-full" width={12} height={12} />
+          <span className="relative size-3.5 shrink-0 overflow-hidden opacity-70" aria-hidden>
+            <img src={searchIcon} alt="" className="absolute inset-0 size-full" width={14} height={14} />
           </span>
           <input
             type="search"
@@ -169,16 +169,30 @@ export function AppSidebar({
             value={searchQuery}
             onChange={handleSearchChange}
             onFocus={onSearchFocus}
-            placeholder="Search index..."
-            className="min-w-0 flex-1 bg-transparent text-[12px] outline-none"
+            placeholder="Search index…"
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            autoComplete="off"
+            className="entropy-search-input min-w-0 flex-1 bg-transparent text-[13px] leading-snug outline-none placeholder:text-[13px]"
             style={{ color: figma.ink }}
             aria-label="Search index"
           />
-          {!searchQuery ? (
-            <span className="shrink-0 font-mono text-[10px]" style={{ color: figma.muted }}>
+          {searchQuery ? (
+            <button
+              type="button"
+              className="shrink-0 text-[11px] leading-none"
+              style={{ color: figma.muted }}
+              aria-label="Clear search"
+              onClick={() => onSearchQueryChange("")}
+            >
+              Clear
+            </button>
+          ) : (
+            <span className="shrink-0 font-mono text-[10px] tracking-wide" style={{ color: figma.muted }}>
               {searchShortcut}
             </span>
-          ) : null}
+          )}
         </label>
       </div>
 

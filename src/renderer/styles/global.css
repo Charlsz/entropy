@@ -703,6 +703,25 @@
   background: var(--scrollbar);
 }
 
+/* Search index field — hide native clear chrome; match Geist + palette. */
+.entropy-search-input {
+  font-family: Geist, Inter, system-ui, sans-serif;
+}
+
+.entropy-search-input::placeholder {
+  color: var(--color-muted);
+  opacity: 1;
+}
+
+.entropy-search-input::-webkit-search-decoration,
+.entropy-search-input::-webkit-search-cancel-button,
+.entropy-search-input::-webkit-search-results-button,
+.entropy-search-input::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
 .entropy-context-bar {
   container-type: inline-size;
   container-name: context-bar;
