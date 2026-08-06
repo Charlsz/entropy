@@ -98,7 +98,9 @@ async function createWindow(): Promise<BrowserWindow> {
     height: 800,
     minWidth: 720,
     minHeight: 520,
-    show: false,
+    // Keep visible — ready-to-show is unreliable with hidden title bars on Windows.
+    // Theme-matched backgroundColor still prevents the white flash.
+    show: true,
     backgroundColor: chrome.backgroundColor,
     ...(icon ? { icon } : {}),
     // Frameless content chrome; OS draws minimize/maximize/close where supported.
@@ -130,10 +132,6 @@ async function createWindow(): Promise<BrowserWindow> {
   });
 
   attachShellGuards(win);
-
-  win.once("ready-to-show", () => {
-    if (!win.isDestroyed()) win.show();
-  });
 
   win.webContents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
     if (!isMainFrame) return;
