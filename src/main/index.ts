@@ -75,15 +75,31 @@ function appIconPath(): string | undefined {
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
 
-function createWindow(): BrowserWindow {
+function chromeColors(theme: "light" | "dark"): {
+  backgroundColor: string;
+  overlayColor: string;
+  symbolColor: string;
+} {
+  const light = theme === "light";
+  return {
+    backgroundColor: light ? "#fafaf9" : "#131413",
+    overlayColor: light ? "#fafaf9" : "#131413",
+    symbolColor: light ? "#131413" : "#fafaf9",
+  };
+}
+
+async function createWindow(): Promise<BrowserWindow> {
   const icon = appIconPath();
+  // Match session theme before first paint so Win/Linux overlays aren't briefly paper-white.
+  const session = await loadSession().catch(() => null);
+  const chrome = chromeColors(session?.settings.theme === "light" ? "light" : "dark");
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 720,
     minHeight: 520,
-    show: true,
-    backgroundColor: "#fafaf9",
+    show: false,
+    backgroundColor: chrome.backgroundColor,
     ...(icon ? { icon } : {}),
     // Frameless content chrome; OS draws minimize/maximize/close where supported.
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
@@ -93,8 +109,8 @@ function createWindow(): BrowserWindow {
     ...(process.platform === "win32" || process.platform === "linux"
       ? {
           titleBarOverlay: {
-            color: "#fafaf9",
-            symbolColor: "#131413",
+            color: chrome.overlayColor,
+            symbolColor: chrome.symbolColor,
             height: 36,
           },
         }
@@ -114,6 +130,10 @@ function createWindow(): BrowserWindow {
   });
 
   attachShellGuards(win);
+
+  win.once("ready-to-show", () => {
+    if (!win.isDestroyed()) win.show();
+  });
 
   win.webContents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
     if (!isMainFrame) return;
@@ -370,11 +390,11 @@ function registerIpc(): void {
   ipcMain.handle("window:setChromeTheme", (event, theme: "light" | "dark") => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || process.platform === "darwin") return;
-    const light = theme !== "dark";
+    const chrome = chromeColors(theme === "light" ? "light" : "dark");
     try {
       win.setTitleBarOverlay({
-        color: light ? "#fafaf9" : "#131413",
-        symbolColor: light ? "#131413" : "#fafaf9",
+        color: chrome.overlayColor,
+        symbolColor: chrome.symbolColor,
         height: 36,
       });
     } catch {
@@ -392,11 +412,11 @@ app.whenReady().then(() => {
   registerFileProtocol();
   registerIpc();
   void finalizeOrphanedStaging();
-  createWindow();
+  void createWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      void createWindow();
     }
   });
 });
