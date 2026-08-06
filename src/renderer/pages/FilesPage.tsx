@@ -21,7 +21,6 @@ import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
-import { IntelligenceComingSoon } from "../components/IntelligenceComingSoon";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
@@ -31,15 +30,9 @@ import { isUnderPath, osTrashName, samePath, hostPlatform } from "../lib/platfor
 import { isProtectedOsPath, protectedPathMessage } from "../../shared/protectedPaths";
 import { figma } from "../lib/figmaTokens";
 import { cn } from "../lib/utils";
-import {
-  LARGE_FILE_BYTES,
-  PERSPECTIVE_LABELS,
-  type LibraryPerspective,
-} from "../types/library";
+import { LARGE_FILE_BYTES } from "../types/library";
 
 type SortKey = "name" | "modified" | "size" | "type";
-
-const GALLERY_CHIPS: LibraryPerspective[] = ["folders", "gallery", "large-files", "duplicates"];
 
 function pickRoot(folder: string, roots: InventoryRoot[]): InventoryRoot | null {
   const matches = roots.filter((root) => isUnderPath(folder, root.path));
@@ -100,6 +93,8 @@ export function FilesPage() {
   const [sortAsc, setSortAsc] = useState(true);
   const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
+  const [largeFileEntries, setLargeFileEntries] = useState<FileEntry[]>([]);
+  const [largeFilesLoading, setLargeFilesLoading] = useState(false);
   const [renderedCount, setRenderedCount] = useState(60);
   /** Bumps when the open folder changes on disk so sizes stay current. */
   const [diskEpoch, setDiskEpoch] = useState(0);
@@ -108,6 +103,15 @@ export function FilesPage() {
 
   const perspective = workspace.settings.libraryPerspective ?? "folders";
   const intelligenceView = workspace.settings.intelligenceView ?? null;
+
+  useEffect(() => {
+    if (intelligenceView) {
+      updateSettings({ intelligenceView: null });
+    }
+    // Clear retired Intelligence stubs from older sessions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once when remnant is present
+  }, [intelligenceView]);
+
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
 
@@ -288,6 +292,51 @@ export function FilesPage() {
   }, [perspective, intelligenceView, workspace.recentFiles, diskEpoch]);
 
   useEffect(() => {
+    if (perspective !== "large-files") {
+      setLargeFileEntries([]);
+      return;
+    }
+    let cancelled = false;
+    setLargeFilesLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        const inventoryRoots = await window.entropy.fs.getInventoryRoots(
+          workspace.settings.inventoryExtraRoots,
+        );
+        const scan = await window.entropy.fs.scanLargeFiles(
+          inventoryRoots.map((root) => root.path),
+          LARGE_FILE_BYTES,
+        );
+        if (cancelled) return;
+        setLargeFileEntries(
+          scan.files.map((file) => ({
+            name: file.name,
+            path: file.path,
+            isDirectory: false,
+            size: file.size,
+            modifiedAt: file.modifiedAt,
+            extension: file.extension,
+          })),
+        );
+        if (scan.totalBytes !== workspace.settings.largeFilesApproxBytes) {
+          updateSettings({ largeFilesApproxBytes: scan.totalBytes });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLargeFileEntries([]);
+          setError(err instanceof Error ? err.message : "Failed to scan large files");
+        }
+      } finally {
+        if (!cancelled) setLargeFilesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [perspective, workspace.settings.inventoryExtraRoots, updateSettings]);
+
+  useEffect(() => {
     if (!pendingSelectPath || loading) return;
     const match = entries.find((entry) => entry.path === pendingSelectPath);
     if (match) {
@@ -320,8 +369,15 @@ export function FilesPage() {
   }, [sizedEntries, sortAsc, sortKey]);
 
   const largeFileVisible = useMemo(() => {
-    return folderVisible.filter((entry) => !entry.isDirectory && entry.size >= LARGE_FILE_BYTES);
-  }, [folderVisible]);
+    return [...largeFileEntries].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      if (sortKey === "modified") cmp = a.modifiedAt - b.modifiedAt;
+      if (sortKey === "size") cmp = a.size - b.size;
+      if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
+      return sortAsc ? cmp : -cmp;
+    });
+  }, [largeFileEntries, sortAsc, sortKey]);
 
   const galleryVisible = useMemo(() => {
     // Home-style content view: folders (with collage faces) + media, not media-only.
@@ -357,7 +413,12 @@ export function FilesPage() {
         ? recentVisible
         : folderVisible;
 
-  const listLoading = perspective === "recent" ? recentLoading : loading;
+  const listLoading =
+    perspective === "recent"
+      ? recentLoading
+      : perspective === "large-files"
+        ? largeFilesLoading
+        : loading;
 
   const rendered = useMemo(
     () => galleryVisible.slice(0, renderedCount),
@@ -384,6 +445,7 @@ export function FilesPage() {
 
   async function openEntry(entry: FileEntry): Promise<void> {
     if (entry.isDirectory) {
+      setSelected(null);
       goToFolder(entry.path);
       return;
     }
@@ -648,7 +710,10 @@ export function FilesPage() {
                         backgroundColor: selectedRow ? figma.select : "transparent",
                         color: figma.ink,
                       }}
-                      onClick={() => setSelected(entry)}
+                      onClick={() => {
+                        if (entry.isDirectory) setSelected(null);
+                        else setSelected(entry);
+                      }}
                       onDoubleClick={() => void openEntry(entry)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") void openEntry(entry);
@@ -708,52 +773,37 @@ export function FilesPage() {
     );
   }
 
+  const sortControl = (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">Sort by: {sortLabel}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground"
+        aria-label="Change sort"
+        onClick={cycleSort}
+      >
+        <ListFilter className="h-4 w-4" strokeWidth={1.75} />
+      </Button>
+    </div>
+  );
+
   function renderGallery() {
     return (
       <>
-        <InventoryBreadcrumb trailing="Gallery Perspective" />
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-6 py-2.5">
-          {GALLERY_CHIPS.map((chip) => (
-            <button
-              key={chip}
-              type="button"
-              className={cn(
-                "rounded-full px-3 py-1 text-xs transition-colors duration-150",
-                perspective === chip
-                  ? "bg-select font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-panel hover:text-foreground",
-              )}
-              onClick={() => {
-                updateSettings({ libraryPerspective: chip, intelligenceView: null });
-                if (chip === "gallery" && homePath) goToFolder(homePath);
-              }}
-            >
-              {PERSPECTIVE_LABELS[chip]}
-            </button>
-          ))}
-          <div className="ml-auto flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Sort by: {sortLabel}</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground"
-              aria-label="Change sort"
-              onClick={cycleSort}
-            >
-              <ListFilter className="h-4 w-4" strokeWidth={1.75} />
-            </Button>
-          </div>
-        </div>
+        <InventoryBreadcrumb end={sortControl} />
         <ScrollArea className="min-h-0 flex-1" type="hover">
           <div className="px-6 py-4 pb-6">
             {error ? <p className="mb-3 text-sm text-muted-foreground">{error}</p> : null}
 
             {listLoading ? (
-              <div className="flex flex-wrap content-start gap-5">
-                {Array.from({ length: 8 }).map((_, index) => (
-                  <Skeleton key={index} className="h-[220px] w-[260px] rounded-lg" />
-                ))}
+              <div className="entropy-gallery">
+                <div className="entropy-gallery-grid">
+                  {Array.from({ length: 12 }).map((_, index) => (
+                    <Skeleton key={index} className="aspect-[4/5] w-full rounded-lg" />
+                  ))}
+                </div>
               </div>
             ) : null}
 
@@ -767,24 +817,29 @@ export function FilesPage() {
             ) : null}
 
             {!listLoading && galleryVisible.length > 0 ? (
-              <div className="flex flex-wrap content-start gap-5">
-                {rendered.map((entry) => (
-                  <FileGridCard
-                    key={entry.path}
-                    entry={entry}
-                    homePath={homePath}
-                    selected={selected?.path === entry.path}
-                    dropTarget={false}
-                    sizePending={false}
-                    onSelect={() => setSelected(entry)}
-                    onOpen={() => void openEntry(entry)}
-                    onDragStart={(event) => onDragStart(event, entry)}
-                    actions={fileActions(entry)}
-                  />
-                ))}
-                {rendered.length < galleryVisible.length ? (
-                  <div ref={loadMoreRef} className="h-8 w-full" aria-hidden />
-                ) : null}
+              <div className="entropy-gallery">
+                <div className="entropy-gallery-grid">
+                  {rendered.map((entry) => (
+                    <FileGridCard
+                      key={entry.path}
+                      entry={entry}
+                      homePath={homePath}
+                      selected={selected?.path === entry.path}
+                      dropTarget={false}
+                      sizePending={false}
+                      onSelect={() => {
+                        if (!entry.isDirectory) setSelected(entry);
+                        else setSelected(null);
+                      }}
+                      onOpen={() => void openEntry(entry)}
+                      onDragStart={(event) => onDragStart(event, entry)}
+                      actions={fileActions(entry)}
+                    />
+                  ))}
+                  {rendered.length < galleryVisible.length ? (
+                    <div ref={loadMoreRef} className="col-span-full h-8 w-full" aria-hidden />
+                  ) : null}
+                </div>
               </div>
             ) : null}
           </div>
@@ -799,11 +854,11 @@ export function FilesPage() {
     if (perspective === "large-files") {
       return (
         <>
-          <InventoryBreadcrumb />
+          <InventoryBreadcrumb end={sortControl} />
           {renderFileTable(
             tableEntries,
-            "No large files here",
-            "Files over 100 MB in this folder will show up here.",
+            "No large files found",
+            "Files over 100 MB under Home and your added Library roots will show up here.",
           )}
         </>
       );
@@ -812,7 +867,7 @@ export function FilesPage() {
     if (perspective === "recent") {
       return (
         <>
-          <InventoryBreadcrumb trailing="Recent" />
+          <InventoryBreadcrumb end={sortControl} />
           {renderFileTable(
             tableEntries,
             "No recent files",
@@ -824,7 +879,7 @@ export function FilesPage() {
 
     return (
       <>
-        <InventoryBreadcrumb />
+        <InventoryBreadcrumb end={sortControl} />
         {renderFileTable(
           tableEntries,
           "Nothing here yet",
@@ -834,15 +889,12 @@ export function FilesPage() {
     );
   }
 
-  const showChrome =
-    !intelligenceView && perspective !== "duplicates";
+  const showChrome = perspective !== "duplicates";
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col" aria-label="Library">
       <div className="min-h-0 flex-1">
-        {intelligenceView ? (
-          <IntelligenceComingSoon view={intelligenceView} />
-        ) : perspective === "duplicates" ? (
+        {perspective === "duplicates" ? (
           <InventoryDuplicatesPanel
             rootPath={workspace.currentFolder}
             onBack={() => updateSettings({ libraryPerspective: "folders" })}
@@ -854,7 +906,7 @@ export function FilesPage() {
             persistLayout={workspace.currentSection === "inventory"}
             sidebar={null}
             context={
-              selected ? (
+              selected && !selected.isDirectory ? (
                 <FileIntelligencePanel
                   entry={selected}
                   scanRoot={scanRoot}
@@ -962,7 +1014,7 @@ const FileGridCard = memo(
       <div
         draggable
         className={cn(
-          "group w-[260px] shrink-0 cursor-pointer rounded-lg border p-2.5",
+          "group min-w-0 cursor-pointer rounded-lg border p-2",
           dropTarget && "opacity-70",
         )}
         style={{
@@ -977,18 +1029,16 @@ const FileGridCard = memo(
         onDrop={onDrop}
       >
         <div
-          className={cn(
-            "mb-2.5 flex h-40 w-full items-center justify-center overflow-hidden rounded-[4px]",
-          )}
+          className="mb-2 flex aspect-square w-full items-center justify-center overflow-hidden rounded-[4px]"
           style={{ backgroundColor: figma.surface }}
         >
           {face === "icon" ? (
             entry.isDirectory ? (
-              <Folder className="size-10" style={{ color: figma.muted }} strokeWidth={1.15} />
+              <Folder className="size-9" style={{ color: figma.muted }} strokeWidth={1.15} />
             ) : mediaKind(entry.extension) === "image" ? (
-              <Image className="size-10" style={{ color: figma.muted }} strokeWidth={1.15} />
+              <Image className="size-9" style={{ color: figma.muted }} strokeWidth={1.15} />
             ) : (
-              <FileText className="size-10" style={{ color: figma.muted }} strokeWidth={1.15} />
+              <FileText className="size-9" style={{ color: figma.muted }} strokeWidth={1.15} />
             )
           ) : face === "preview" ? (
             <EntryPreview
@@ -1002,7 +1052,7 @@ const FileGridCard = memo(
         <div className="flex min-w-0 items-start gap-1">
           <div className="min-w-0 flex-1">
             <p
-              className="truncate text-[13px] font-medium"
+              className="truncate text-[12px] font-medium"
               style={{ color: figma.ink }}
               title={entry.name}
             >
