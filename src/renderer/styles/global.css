@@ -126,13 +126,18 @@
     --ui-icon: 13px;
   }
 
-  /* Keep chrome actions clear of Electron titleBarOverlay / traffic lights. */
+  /* Keep chrome clear of OS window controls (not titlebar-area-width — that can be ~full window). */
   .entropy-titlebar-pad {
     padding-top: env(titlebar-area-height, 36px);
   }
 
   .entropy-titlebar-end {
-    padding-inline-end: max(0.5rem, env(titlebar-area-width, 138px));
+    padding-inline-end: 0.5rem;
+  }
+
+  [data-platform="win32"] .entropy-titlebar-end,
+  [data-platform="linux"] .entropy-titlebar-end {
+    padding-inline-end: 138px;
   }
 
   * {
@@ -443,27 +448,27 @@
 
 .entropy-gallery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 7.5rem), 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  gap: 0.75rem;
 }
 
 @container gallery (min-width: 36rem) {
   .entropy-gallery-grid {
-    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+    gap: 0.85rem;
   }
 }
 
 @container gallery (min-width: 52rem) {
   .entropy-gallery-grid {
-    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
-    gap: 1.1rem;
+    grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+    gap: 1rem;
   }
 }
 
 @container gallery (min-width: 68rem) {
   .entropy-gallery-grid {
-    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
   }
 }
 
