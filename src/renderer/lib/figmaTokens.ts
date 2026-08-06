@@ -1,6 +1,6 @@
 /**
  * Theme-aware color tokens (CSS variables).
- * Light default: soft shell · Dark: #131413 surfaces with light ink.
+ * Dark is the product default; light remaps ink/paper via CSS variables.
  */
 export const figma = {
   ink: "var(--color-ink)",

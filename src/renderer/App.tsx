@@ -65,7 +65,12 @@ export function App() {
         }
       } catch {
         if (!cancelled) {
-          setInitialSettings({ ...DEFAULT_SETTINGS });
+          const settings = { ...DEFAULT_SETTINGS };
+          setInitialSettings(settings);
+          latestSettings.current = settings;
+          document.documentElement.dataset.theme = settings.theme;
+          document.body.dataset.theme = settings.theme;
+          document.documentElement.dataset.density = settings.uiDensity;
           try {
             const home = await window.entropy.fs.getHomePath();
             setLibraryOnly(true);
@@ -149,7 +154,7 @@ export function App() {
     content = (
       <div
         className="relative flex h-full flex-col items-center justify-center"
-        data-theme={initialSettings?.theme ?? "light"}
+        data-theme={initialSettings?.theme ?? "dark"}
         style={{ backgroundColor: figma.surface }}
       >
         <div className="absolute right-0 top-0">

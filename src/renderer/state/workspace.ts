@@ -264,7 +264,6 @@ export function createWorkspaceState(workspacePath: string): WorkspaceState {
     recentFiles: [],
     settings: {
       ...DEFAULT_SETTINGS,
-      theme: "light",
       panelLayout: { ...DEFAULT_PANEL_LAYOUT },
       inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
     },

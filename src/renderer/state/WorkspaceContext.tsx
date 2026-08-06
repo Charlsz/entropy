@@ -153,10 +153,6 @@ export function WorkspaceProvider({
   const consumedInitialNote = useRef(false);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = "light";
-  }, []);
-
-  useEffect(() => {
     if (!initialNotePath || consumedInitialNote.current) return;
     consumedInitialNote.current = true;
     setPendingNote(initialNotePath);
