@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, memo } from "react";
 import { flushSync } from "react-dom";
-import {
-  ArrowDownWideNarrow,
-  ArrowUpNarrowWide,
-  Copy,
-  FileText,
-  Folder,
-  PanelRightClose,
-  PanelRightOpen,
-} from "lucide-react";
-import type { FileEntry, InventoryRoot, TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
+import { FileText, Folder, Image, ListFilter } from "lucide-react";
+import type { FileEntry, InventoryRoot } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -26,34 +18,55 @@ import { MoveToDialog } from "../components/MoveToDialog";
 import { TrashUndoBar } from "../components/TrashUndoBar";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
-import { StorageTreemap } from "../components/StorageTreemap";
-import { InventoryContextBar } from "../components/InventoryContextBar";
 import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
+import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
+import { IntelligenceComingSoon } from "../components/IntelligenceComingSoon";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
-import { isPreviewableEntry } from "../lib/media";
+import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
-import { formatBytes } from "../lib/format";
+import { formatBytes, formatModifiedLabel, formatUserPath } from "../lib/format";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isUnderPath, osTrashName, samePath, hostPlatform } from "../lib/platform";
 import { isProtectedOsPath, protectedPathMessage } from "../../shared/protectedPaths";
 import { cn } from "../lib/utils";
+import {
+  LARGE_FILE_BYTES,
+  PERSPECTIVE_LABELS,
+  type LibraryPerspective,
+} from "../types/library";
 
 type SortKey = "name" | "modified" | "size" | "type";
+
+const GALLERY_CHIPS: LibraryPerspective[] = ["folders", "gallery", "large-files", "duplicates"];
 
 function pickRoot(folder: string, roots: InventoryRoot[]): InventoryRoot | null {
   const matches = roots.filter((root) => isUnderPath(folder, root.path));
   matches.sort((a, b) => b.path.length - a.path.length);
   return matches[0] ?? null;
+}
+
+function parentFolderPath(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, "/");
+  const idx = normalized.lastIndexOf("/");
+  if (idx <= 0) return normalized.startsWith("/") ? "/" : filePath;
+  const parent = normalized.slice(0, idx);
+  // Preserve original separators for display/formatUserPath.
+  if (filePath.includes("\\") && !filePath.includes("/")) {
+    return parent.replace(/\//g, "\\");
+  }
+  return parent;
+}
+
+function EntryTypeIcon({ entry }: { entry: FileEntry }) {
+  if (entry.isDirectory) {
+    return <Folder className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />;
+  }
+  if (mediaKind(entry.extension) === "image") {
+    return <Image className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />;
+  }
+  return <FileText className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />;
 }
 
 export function FilesPage() {
@@ -64,16 +77,14 @@ export function FilesPage() {
     setInventoryRoot,
     bootstrapInventoryFolder,
     visitPreview,
-    openNote,
     referenceInNote,
     updateSettings,
   } = useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
   const [scanRoot, setScanRoot] = useState<string>("");
+  const [homePath, setHomePath] = useState<string | null>(null);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [sizeByPath, setSizeByPath] = useState<Record<string, number>>({});
-  const [treemapScan, setTreemapScan] = useState<TreemapScanResult | null>(null);
-  const [scanningTreemap, setScanningTreemap] = useState(false);
   const [pendingSelectPath, setPendingSelectPath] = useState<string | null>(null);
   const [selected, setSelected] = useState<FileEntry | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,20 +98,18 @@ export function FilesPage() {
   const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
-  const [duplicatesMode, setDuplicatesMode] = useState(false);
+  const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
   const [renderedCount, setRenderedCount] = useState(60);
-  /** Bumps when the open folder changes on disk so sizes/treemap stay current. */
+  /** Bumps when the open folder changes on disk so sizes stay current. */
   const [diskEpoch, setDiskEpoch] = useState(0);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const homeBootstrapped = useRef(false);
 
-  useEffect(() => {
-    setDuplicatesMode(false);
-  }, [workspace.currentFolder]);
-
+  const perspective = workspace.settings.libraryPerspective ?? "folders";
+  const intelligenceView = workspace.settings.intelligenceView ?? null;
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
-  const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed;
 
   const refreshListing = useCallback(async (options?: { quiet?: boolean }) => {
     if (!workspace.currentFolder) return;
@@ -137,9 +146,8 @@ export function FilesPage() {
       setDiskEpoch((value) => value + 1);
     },
     {
-      // Nested creates/deletes under the open folder must refresh gallery + treemap.
       recursive: true,
-      enabled: Boolean(workspace.currentFolder),
+      enabled: Boolean(workspace.currentFolder) && !intelligenceView && perspective !== "duplicates",
     },
   );
 
@@ -154,6 +162,7 @@ export function FilesPage() {
         const home =
           nextRoots.find((root) => root.id === "home")?.path ??
           (await window.entropy.fs.getHomePath());
+        setHomePath(home);
         if (!homeBootstrapped.current) {
           homeBootstrapped.current = true;
           const homeRoot = nextRoots.find((root) => root.id === "home");
@@ -218,7 +227,7 @@ export function FilesPage() {
 
   useEffect(() => {
     setSelected(null);
-  }, [workspace.currentFolder]);
+  }, [workspace.currentFolder, perspective]);
 
   useEffect(() => {
     if (!workspace.inventoryFocusPath) return;
@@ -227,6 +236,7 @@ export function FilesPage() {
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
+    if (intelligenceView || perspective === "duplicates" || perspective === "recent") return;
     let cancelled = false;
     void (async () => {
       try {
@@ -242,32 +252,40 @@ export function FilesPage() {
     return () => {
       cancelled = true;
     };
-  }, [workspace.currentFolder, workspace.currentSection, diskEpoch]);
+  }, [
+    workspace.currentFolder,
+    workspace.currentSection,
+    diskEpoch,
+    intelligenceView,
+    perspective,
+  ]);
 
   useEffect(() => {
-    if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
-    if (treemapCollapsed) {
-      setScanningTreemap(false);
+    if (perspective !== "recent" || intelligenceView) {
+      setRecentEntries([]);
       return;
     }
     let cancelled = false;
-    // Keep the previous map visible while refreshing so the panel doesn't flash empty.
-    if (!treemapScan) setScanningTreemap(true);
+    setRecentLoading(true);
     void (async () => {
-      try {
-        const next = await window.entropy.fs.scanTreemapLevel(workspace.currentFolder);
-        if (!cancelled) setTreemapScan(next);
-      } catch {
-        if (!cancelled) setTreemapScan(null);
-      } finally {
-        if (!cancelled) setScanningTreemap(false);
+      const results: FileEntry[] = [];
+      for (const path of workspace.recentFiles) {
+        try {
+          const info = await window.entropy.fs.stat(path);
+          results.push(info);
+        } catch {
+          // File may have been removed.
+        }
+      }
+      if (!cancelled) {
+        setRecentEntries(results);
+        setRecentLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- preserve prior map during epoch refresh
-  }, [workspace.currentFolder, workspace.currentSection, diskEpoch, treemapCollapsed]);
+  }, [perspective, intelligenceView, workspace.recentFiles, diskEpoch]);
 
   useEffect(() => {
     if (!pendingSelectPath || loading) return;
@@ -280,35 +298,6 @@ export function FilesPage() {
     if (!loading) setPendingSelectPath(null);
   }, [pendingSelectPath, entries, loading]);
 
-  async function selectTreemapLeaf(leaf: TreemapFileLeaf, openAfter = false): Promise<void> {
-    try {
-      if (leaf.isDirectory) {
-        const match = entries.find((entry) => samePath(entry.path, leaf.path));
-        setSelected(match ?? null);
-        return;
-      }
-      const info = await window.entropy.fs.stat(leaf.path);
-      const parent = await window.entropy.fs.dirname(leaf.path);
-      if (!samePath(parent, workspace.currentFolder)) {
-        setPendingSelectPath(leaf.path);
-        goToFolder(parent);
-      } else {
-        setSelected(info);
-      }
-      if (openAfter) {
-        addRecentFile(leaf.path);
-        void window.entropy.fs.openExternal(leaf.path);
-      }
-    } catch {
-      setError("Could not open that item from the size map.");
-    }
-  }
-
-  async function zoomTreemapFolder(leaf: TreemapFileLeaf): Promise<void> {
-    if (!leaf.isDirectory) return;
-    goToFolder(leaf.path);
-  }
-
   const sizedEntries = useMemo(
     () =>
       entries.map((entry) => ({
@@ -318,7 +307,7 @@ export function FilesPage() {
     [entries, sizeByPath],
   );
 
-  const visible = useMemo(() => {
+  const folderVisible = useMemo(() => {
     return [...sizedEntries].sort((a, b) => {
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
       let cmp = 0;
@@ -330,28 +319,76 @@ export function FilesPage() {
     });
   }, [sizedEntries, sortAsc, sortKey]);
 
+  const largeFileVisible = useMemo(() => {
+    return folderVisible.filter((entry) => !entry.isDirectory && entry.size >= LARGE_FILE_BYTES);
+  }, [folderVisible]);
+
+  const galleryVisible = useMemo(() => {
+    const media = folderVisible.filter((entry) => isMediaEntry(entry));
+    const source =
+      media.length > 0
+        ? media
+        : folderVisible.filter((entry) => !entry.isDirectory);
+    return [...source].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      if (sortKey === "modified") cmp = a.modifiedAt - b.modifiedAt;
+      if (sortKey === "size") cmp = a.size - b.size;
+      if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
+      return sortAsc ? cmp : -cmp;
+    });
+  }, [folderVisible, sortAsc, sortKey]);
+
+  const recentVisible = useMemo(() => {
+    return [...recentEntries].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      if (sortKey === "modified") cmp = a.modifiedAt - b.modifiedAt;
+      if (sortKey === "size") cmp = a.size - b.size;
+      if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
+      return sortAsc ? cmp : -cmp;
+    });
+  }, [recentEntries, sortAsc, sortKey]);
+
+  const tableEntries =
+    perspective === "large-files"
+      ? largeFileVisible
+      : perspective === "recent"
+        ? recentVisible
+        : folderVisible;
+
+  const listLoading = perspective === "recent" ? recentLoading : loading;
+  const statusCount =
+    perspective === "gallery"
+      ? galleryVisible.length
+      : perspective === "large-files"
+        ? largeFileVisible.length
+        : perspective === "recent"
+          ? recentVisible.length
+          : folderVisible.length;
+
   const rendered = useMemo(
-    () => visible.slice(0, renderedCount),
-    [visible, renderedCount],
+    () => galleryVisible.slice(0, renderedCount),
+    [galleryVisible, renderedCount],
   );
 
   useEffect(() => {
     setRenderedCount(60);
-  }, [workspace.currentFolder]);
+  }, [workspace.currentFolder, perspective]);
 
   useEffect(() => {
     const node = loadMoreRef.current;
-    if (!node || loading || rendered.length >= visible.length) return;
+    if (!node || listLoading || rendered.length >= galleryVisible.length) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry?.isIntersecting) return;
-        setRenderedCount((count) => Math.min(count + 60, visible.length));
+        setRenderedCount((count) => Math.min(count + 60, galleryVisible.length));
       },
       { root: null, rootMargin: "320px" },
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [visible.length, rendered.length, loading]);
+  }, [galleryVisible.length, rendered.length, listLoading]);
 
   async function openEntry(entry: FileEntry): Promise<void> {
     if (entry.isDirectory) {
@@ -410,6 +447,7 @@ export function FilesPage() {
       flushSync(() => {
         if (selected && samePath(selected.path, targetPath)) setSelected(null);
         setEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
+        setRecentEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
         setSizeByPath((prev) => {
           const key = Object.keys(prev).find((item) => samePath(item, targetPath));
           if (!key) return prev;
@@ -545,193 +583,276 @@ export function FilesPage() {
     }
   }
 
-  return (
-    <div className="flex h-full min-h-0 w-full flex-col" aria-label="File Inventory">
-      <div className="min-h-0 flex-1">
-        {duplicatesMode ? (
-          <InventoryDuplicatesPanel
-            rootPath={workspace.currentFolder}
-            onBack={() => setDuplicatesMode(false)}
-          />
-        ) : (
-        <ThreeColumnLayout
-          id="inventory-layout-v3"
-          variant="inventory"
-          persistLayout={workspace.currentSection === "inventory"}
-          sidebar={null}
-          context={
-            treemapCollapsed ? null : (
-              <StorageTreemap
-                scan={treemapScan}
-                selectedPath={selected?.path ?? pendingSelectPath}
-                scanning={scanningTreemap}
-                workspacePath={workspace.path}
-                scanRoot={scanRoot}
-                recentFiles={workspace.recentFiles}
-                onSelect={(leaf) => void selectTreemapLeaf(leaf)}
-                onOpen={(leaf) => void selectTreemapLeaf(leaf, true)}
-                onZoom={(leaf) => void zoomTreemapFolder(leaf)}
-              />
-            )
-          }
-          main={
-            <section
-              className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
-              onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
-              onDrop={(event) => void onDrop(event, workspace.currentFolder)}
-            >
-              <div className="entropy-chrome-bar entropy-toolbar entropy-inventory-chrome">
-                <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
-                  <SelectTrigger
-                    className="entropy-sort-trigger h-8 w-[7.5rem] shrink-0"
-                    aria-label="Sort by"
-                  >
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name">Name</SelectItem>
-                    <SelectItem value="modified">Modified</SelectItem>
-                    <SelectItem value="size">Size</SelectItem>
-                    <SelectItem value="type">Type</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
+  function cycleSort(): void {
+    const keys: SortKey[] = ["name", "modified", "size", "type"];
+    const index = keys.indexOf(sortKey);
+    setSortKey(keys[(index + 1) % keys.length] ?? "name");
+    setSortAsc(true);
+  }
+
+  const sortLabel =
+    sortKey === "name"
+      ? "Name"
+      : sortKey === "modified"
+        ? "Modified"
+        : sortKey === "size"
+          ? "Size"
+          : "Type";
+
+  function renderFileTable(rows: FileEntry[], emptyTitle: string, emptyBody: string) {
+    return (
+      <>
+        <div className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-6 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="w-[260px] shrink-0">Name</span>
+          <span className="min-w-0 flex-1">Path</span>
+          <span className="w-20 shrink-0 text-right">Size</span>
+          <span className="w-[140px] shrink-0 text-right">Last Modified</span>
+          <span className="w-8 shrink-0" aria-hidden />
+        </div>
+        <ScrollArea className="min-h-0 flex-1" type="hover">
+          <div className="pb-6">
+            {error ? <p className="px-6 py-3 text-sm text-muted-foreground">{error}</p> : null}
+
+            {listLoading ? (
+              <div className="flex flex-col gap-1 px-6 py-4">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <Skeleton key={index} className="h-10 w-full rounded-md" />
+                ))}
+              </div>
+            ) : null}
+
+            {!listLoading && rows.length === 0 ? (
+              <Empty className="py-16">
+                <EmptyTitle>{emptyTitle}</EmptyTitle>
+                <EmptyDescription>{emptyBody}</EmptyDescription>
+              </Empty>
+            ) : null}
+
+            {!listLoading && rows.length > 0
+              ? rows.map((entry) => {
+                  const parentPath = parentFolderPath(entry.path);
+                  const pathLabel = formatUserPath(parentPath, homePath);
+                  const sizePending =
+                    entry.isDirectory && sizeByPath[entry.path] === undefined;
+                  const selectedRow = selected?.path === entry.path;
+                  return (
+                    <div
+                      key={entry.path}
+                      draggable
+                      role="button"
+                      tabIndex={0}
                       className={cn(
-                        "h-8 w-8 text-muted-foreground",
-                        !sortAsc && "bg-ink-2 text-paper",
+                        "group flex cursor-pointer items-center gap-3 border-b border-border px-6 py-2.5 text-sm transition-colors duration-150",
+                        selectedRow ? "bg-select" : "hover:bg-panel",
+                        entry.isDirectory && dragOverPath === entry.path && "opacity-70",
                       )}
-                      aria-label={sortAsc ? "Sort ascending" : "Sort descending"}
-                      aria-pressed={!sortAsc}
-                      onClick={() => setSortAsc((value) => !value)}
-                    >
-                      {sortAsc ? (
-                        <ArrowUpNarrowWide className="h-4 w-4" strokeWidth={1.75} />
-                      ) : (
-                        <ArrowDownWideNarrow className="h-4 w-4" strokeWidth={1.75} />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{sortAsc ? "Ascending" : "Descending"}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="entropy-duplicates-btn h-8 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground"
-                      onClick={() => setDuplicatesMode(true)}
-                    >
-                      <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      <span className="entropy-duplicates-label">Duplicates</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Find exact duplicate files in this location</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "ml-auto h-8 w-8 text-muted-foreground",
-                        !treemapCollapsed && "bg-ink-2 text-paper",
-                      )}
-                      aria-label={treemapCollapsed ? "Show size map" : "Hide size map"}
-                      aria-pressed={!treemapCollapsed}
-                      onClick={() =>
-                        updateSettings({
-                          inventoryTreemapCollapsed: !treemapCollapsed,
-                        })
+                      onClick={() => setSelected(entry)}
+                      onDoubleClick={() => void openEntry(entry)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void openEntry(entry);
+                      }}
+                      onDragStart={(event) => onDragStart(event, entry)}
+                      onDragOver={
+                        entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
+                      }
+                      onDrop={
+                        entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
                       }
                     >
-                      {treemapCollapsed ? (
-                        <PanelRightOpen className="h-4 w-4" strokeWidth={1.75} />
-                      ) : (
-                        <PanelRightClose className="h-4 w-4" strokeWidth={1.75} />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {treemapCollapsed ? "Show size map" : "Hide size map"}
-                  </TooltipContent>
-                </Tooltip>
+                      <div className="flex w-[260px] min-w-0 shrink-0 items-center gap-2">
+                        <EntryTypeIcon entry={entry} />
+                        <span className="truncate font-medium text-foreground" title={entry.name}>
+                          {entry.name}
+                        </span>
+                      </div>
+                      <span
+                        className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
+                        title={pathLabel}
+                      >
+                        {pathLabel}
+                      </span>
+                      <span className="w-20 shrink-0 text-right font-mono text-xs text-muted-foreground">
+                        {sizePending ? "…" : formatBytes(entry.size)}
+                      </span>
+                      <span className="w-[140px] shrink-0 text-right font-mono text-xs text-muted-foreground">
+                        {formatModifiedLabel(entry.modifiedAt)}
+                      </span>
+                      <div
+                        className="flex w-8 shrink-0 justify-end opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <ItemActionsMenu label={entry.name} actions={fileActions(entry)} />
+                      </div>
+                    </div>
+                  );
+                })
+              : null}
+          </div>
+        </ScrollArea>
+      </>
+    );
+  }
+
+  function renderGallery() {
+    return (
+      <>
+        <InventoryBreadcrumb trailing="Gallery Perspective" />
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-6 py-2.5">
+          {GALLERY_CHIPS.map((chip) => (
+            <button
+              key={chip}
+              type="button"
+              className={cn(
+                "rounded-full px-3 py-1 text-xs transition-colors duration-150",
+                perspective === chip
+                  ? "bg-select font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-panel hover:text-foreground",
+              )}
+              onClick={() => updateSettings({ libraryPerspective: chip, intelligenceView: null })}
+            >
+              {PERSPECTIVE_LABELS[chip]}
+            </button>
+          ))}
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Sort by: {sortLabel}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground"
+              aria-label="Change sort"
+              onClick={cycleSort}
+            >
+              <ListFilter className="h-4 w-4" strokeWidth={1.75} />
+            </Button>
+          </div>
+        </div>
+        <ScrollArea className="min-h-0 flex-1" type="hover">
+          <div className="px-6 py-4 pb-6">
+            {error ? <p className="mb-3 text-sm text-muted-foreground">{error}</p> : null}
+
+            {listLoading ? (
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <Skeleton key={index} className="h-[220px] w-full rounded-lg" />
+                ))}
               </div>
+            ) : null}
 
-              <InventoryBreadcrumb />
+            {!listLoading && galleryVisible.length === 0 ? (
+              <Empty className="py-16">
+                <EmptyTitle>No media here</EmptyTitle>
+                <EmptyDescription>
+                  Open a folder with images or video, or switch to Folders to browse everything.
+                </EmptyDescription>
+              </Empty>
+            ) : null}
 
-              <ScrollArea className="min-h-0 flex-1" type="hover">
-                <div className="entropy-gallery px-4 py-4 pb-6">
-                  {error ? <p className="mb-3 text-sm text-muted-foreground">{error}</p> : null}
+            {!listLoading && galleryVisible.length > 0 ? (
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
+                {rendered.map((entry) => (
+                  <FileGridCard
+                    key={entry.path}
+                    entry={entry}
+                    homePath={homePath}
+                    selected={selected?.path === entry.path}
+                    dropTarget={false}
+                    sizePending={false}
+                    onSelect={() => setSelected(entry)}
+                    onOpen={() => void openEntry(entry)}
+                    onDragStart={(event) => onDragStart(event, entry)}
+                    actions={fileActions(entry)}
+                  />
+                ))}
+                {rendered.length < galleryVisible.length ? (
+                  <div ref={loadMoreRef} className="col-span-full h-8" aria-hidden />
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </ScrollArea>
+      </>
+    );
+  }
 
-                  {loading ? (
-                    <div className="entropy-gallery-grid">
-                      {Array.from({ length: 8 }).map((_, index) => (
-                        <Skeleton key={index} className="aspect-square w-full rounded-xl" />
-                      ))}
-                    </div>
-                  ) : null}
+  function renderMain() {
+    if (perspective === "gallery") return renderGallery();
 
-                  {!loading && visible.length === 0 ? (
-                    <Empty className="py-16">
-                      <EmptyTitle>Nothing here yet</EmptyTitle>
-                      <EmptyDescription>
-                        Drop files into this folder, or pick another path above.
-                      </EmptyDescription>
-                    </Empty>
-                  ) : null}
+    if (perspective === "large-files") {
+      return (
+        <>
+          <InventoryBreadcrumb />
+          {renderFileTable(
+            tableEntries,
+            "No large files here",
+            "Files over 100 MB in this folder will show up here.",
+          )}
+        </>
+      );
+    }
 
-                  {!loading && visible.length > 0 ? (
-                    <div className="entropy-gallery-grid">
-                      {rendered.map((entry) => (
-                        <FileGridCard
-                          key={entry.path}
-                          entry={entry}
-                          selected={selected?.path === entry.path}
-                          dropTarget={entry.isDirectory && dragOverPath === entry.path}
-                          sizePending={
-                            entry.isDirectory && sizeByPath[entry.path] === undefined
-                          }
-                          onOpen={() => void openEntry(entry)}
-                          onDragStart={(event) => onDragStart(event, entry)}
-                          onDragOver={
-                            entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
-                          }
-                          onDrop={
-                            entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
-                          }
-                          actions={fileActions(entry)}
-                        />
-                      ))}
-                      {rendered.length < visible.length ? (
-                        <div ref={loadMoreRef} className="col-span-full h-8" aria-hidden />
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </ScrollArea>
-              {selected ? (
-                <InventoryContextBar
-                  selected={selected}
-                  scanRoot={scanRoot}
-                  onOpenExternal={() => void window.entropy.fs.openExternal(selected.path)}
-                  onReveal={() => void revealPath(selected.path)}
-                  onAddToWorkspace={() => referenceInNote(selected.path)}
-                  onOpenNote={openNote}
-                />
-              ) : null}
-            </section>
-          }
-        />
+    if (perspective === "recent") {
+      return (
+        <>
+          <InventoryBreadcrumb trailing="Recent" />
+          {renderFileTable(
+            tableEntries,
+            "No recent files",
+            "Files you open in Library will appear here.",
+          )}
+        </>
+      );
+    }
+
+    return (
+      <>
+        <InventoryBreadcrumb />
+        {renderFileTable(
+          tableEntries,
+          "Nothing here yet",
+          "Drop files into this folder, or pick another path above.",
+        )}
+      </>
+    );
+  }
+
+  const showChrome =
+    !intelligenceView && perspective !== "duplicates";
+
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col" aria-label="Library">
+      <div className="min-h-0 flex-1">
+        {intelligenceView ? (
+          <IntelligenceComingSoon view={intelligenceView} />
+        ) : perspective === "duplicates" ? (
+          <InventoryDuplicatesPanel
+            rootPath={workspace.currentFolder}
+            onBack={() => updateSettings({ libraryPerspective: "folders" })}
+          />
+        ) : (
+          <ThreeColumnLayout
+            id="inventory-layout-v3"
+            variant="inventory"
+            persistLayout={workspace.currentSection === "inventory"}
+            sidebar={null}
+            context={
+              selected ? (
+                <FileIntelligencePanel entry={selected} scanRoot={scanRoot} />
+              ) : null
+            }
+            main={
+              <section
+                className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
+                onDragOver={(event) => onDragOver(event, workspace.currentFolder)}
+                onDrop={(event) => void onDrop(event, workspace.currentFolder)}
+              >
+                {renderMain()}
+              </section>
+            }
+          />
         )}
       </div>
-      {!duplicatesMode ? (
+      {showChrome ? (
         <>
           {undoTrash ? (
             <TrashUndoBar
@@ -744,7 +865,7 @@ export function FilesPage() {
           ) : null}
           <StatusBar
             left={workspace.currentFolder}
-            right={`${visible.length} items`}
+            right={`${statusCount} items`}
           />
         </>
       ) : null}
@@ -773,9 +894,11 @@ export function FilesPage() {
 const FileGridCard = memo(
   function FileGridCard({
     entry,
+    homePath,
     selected,
     dropTarget,
     sizePending,
+    onSelect,
     onOpen,
     onDragStart,
     onDragOver,
@@ -783,98 +906,111 @@ const FileGridCard = memo(
     actions,
   }: {
     entry: FileEntry;
+    homePath: string | null;
     selected: boolean;
     dropTarget: boolean;
     sizePending: boolean;
+    onSelect: () => void;
     onOpen: () => void;
     onDragStart: (event: DragEvent) => void;
     onDragOver?: (event: DragEvent) => void;
     onDrop?: (event: DragEvent) => void;
     actions: ItemAction[];
   }) {
-  const count = useFolderCount(entry.path, entry.isDirectory);
-  const isPreviewable = isPreviewableEntry(entry);
-  const [face, setFace] = useState<"loading" | "preview" | "icon">(
-    entry.isDirectory || isPreviewable ? "loading" : "icon",
-  );
+    const count = useFolderCount(entry.path, entry.isDirectory);
+    const isPreviewable = isPreviewableEntry(entry);
+    const [face, setFace] = useState<"loading" | "preview" | "icon">(
+      entry.isDirectory || isPreviewable ? "loading" : "icon",
+    );
+    const pathLabel = formatUserPath(entry.path, homePath);
 
-  useEffect(() => {
-    if (isPreviewable) {
-      setFace("preview");
-      return;
-    }
-    if (!entry.isDirectory) {
-      setFace("icon");
-      return;
-    }
-    let cancelled = false;
-    setFace("loading");
-    void getFolderPreview(entry.path).then((data) => {
-      if (!cancelled) setFace(data.media.length > 0 ? "preview" : "icon");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [entry.isDirectory, entry.path, isPreviewable]);
+    useEffect(() => {
+      if (isPreviewable) {
+        setFace("preview");
+        return;
+      }
+      if (!entry.isDirectory) {
+        setFace("icon");
+        return;
+      }
+      let cancelled = false;
+      setFace("loading");
+      void getFolderPreview(entry.path).then((data) => {
+        if (!cancelled) setFace(data.media.length > 0 ? "preview" : "icon");
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [entry.isDirectory, entry.path, isPreviewable]);
 
-  return (
-    <div
-      draggable
-      className={cn("entropy-gallery-card group cursor-pointer", dropTarget && "opacity-70")}
-      onClick={onOpen}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-    >
+    return (
       <div
+        draggable
         className={cn(
-          "entropy-gallery-face",
-          face === "preview" && "entropy-media-card rounded-xl",
-          face === "icon" && "entropy-gallery-face--icon",
-          face === "loading" && "rounded-xl bg-ink-2/50",
-          selected && face === "preview" && "outline outline-1 outline-offset-2 outline-ring",
-          selected && face === "icon" && "rounded-xl ring-1 ring-ring",
+          "group cursor-pointer rounded-lg border border-border bg-background p-2.5 transition-colors duration-150",
+          selected && "bg-select",
+          dropTarget && "opacity-70",
         )}
+        onClick={onSelect}
+        onDoubleClick={onOpen}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
       >
-        {face === "icon" ? (
-          entry.isDirectory ? (
-            <Folder className="text-muted-foreground/75" strokeWidth={1.15} />
-          ) : (
-            <FileText className="text-muted-foreground/75" strokeWidth={1.15} />
-          )
-        ) : face === "preview" ? (
-          <EntryPreview entry={entry} size="lg" />
-        ) : null}
-      </div>
-
-      <div className="flex min-w-0 items-start gap-1">
-        <div className="min-w-0 flex-1">
-          <p className="entropy-gallery-label" title={entry.name}>
-            {entry.name}
-          </p>
-          {entry.isDirectory ? (
-            <p className="mt-0.5 truncate text-sm text-muted-foreground">
-              <span className="text-foreground/80">
-                {sizePending ? "…" : formatBytes(entry.size)}
-              </span>
-              <span className="mx-1 text-border">·</span>
-              <span>{count == null ? "…" : `${count.toLocaleString()} items`}</span>
-            </p>
-          ) : entry.size > 0 ? (
-            <p className="mt-0.5 truncate text-sm text-muted-foreground">
-              {formatBytes(entry.size)}
-            </p>
+        <div
+          className={cn(
+            "mb-2.5 h-40 w-full overflow-hidden rounded-md bg-panel",
+            face === "icon" && "flex items-center justify-center",
+            face === "loading" && "bg-panel",
+          )}
+        >
+          {face === "icon" ? (
+            entry.isDirectory ? (
+              <Folder className="size-10 text-muted-foreground/75" strokeWidth={1.15} />
+            ) : mediaKind(entry.extension) === "image" ? (
+              <Image className="size-10 text-muted-foreground/75" strokeWidth={1.15} />
+            ) : (
+              <FileText className="size-10 text-muted-foreground/75" strokeWidth={1.15} />
+            )
+          ) : face === "preview" ? (
+            <EntryPreview
+              entry={entry}
+              size="lg"
+              className="aspect-auto h-full w-full rounded-md"
+            />
           ) : null}
         </div>
-        <div
-          className="shrink-0"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <ItemActionsMenu label={entry.name} actions={actions} />
+
+        <div className="flex min-w-0 items-start gap-1">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-medium text-foreground" title={entry.name}>
+              {entry.name}
+            </p>
+            <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={pathLabel}>
+              {entry.isDirectory ? (
+                <>
+                  {sizePending ? "…" : formatBytes(entry.size)}
+                  <span className="mx-1 text-border">—</span>
+                  {count == null ? "…" : `${count.toLocaleString()} items`}
+                </>
+              ) : (
+                <>
+                  {formatBytes(entry.size)}
+                  <span className="mx-1 text-border">—</span>
+                  {pathLabel}
+                </>
+              )}
+            </p>
+          </div>
+          <div
+            className="shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ItemActionsMenu label={entry.name} actions={actions} />
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
   },
   (prev, next) =>
     prev.entry.path === next.entry.path &&
@@ -882,6 +1018,7 @@ const FileGridCard = memo(
     prev.entry.size === next.entry.size &&
     prev.entry.modifiedAt === next.entry.modifiedAt &&
     prev.entry.isDirectory === next.entry.isDirectory &&
+    prev.homePath === next.homePath &&
     prev.selected === next.selected &&
     prev.dropTarget === next.dropTarget &&
     prev.sizePending === next.sizePending,

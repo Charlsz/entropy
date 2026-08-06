@@ -126,7 +126,7 @@ export async function pickInventoryFolder(
   browserWindow: BrowserWindow | null,
 ): Promise<string | null> {
   const options = {
-    title: "Add folder to File Inventory",
+    title: "Add folder to Library",
     properties: ["openDirectory" as const],
   };
   const result = browserWindow
