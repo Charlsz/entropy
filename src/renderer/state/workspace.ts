@@ -251,16 +251,20 @@ export function layoutFromGroup(
   };
 }
 
-export function createWorkspaceState(workspacePath: string): WorkspaceState {
+export function createWorkspaceState(
+  workspacePath: string,
+  options?: { startSection?: SectionId },
+): WorkspaceState {
   const normalized = workspacePath.replace(/[/\\]+$/, "");
   const name = normalized.split(/[/\\]/).pop() || "Workspace";
-  const start = navSection("inventory");
+  const startSection = options?.startSection ?? "notebook";
+  const start = navSection(startSection);
 
   return {
     path: normalized,
     name,
     currentFolder: normalized,
-    currentSection: "inventory",
+    currentSection: startSection,
     recentFiles: [],
     settings: {
       ...DEFAULT_SETTINGS,

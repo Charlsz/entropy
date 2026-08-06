@@ -70,6 +70,8 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 interface WorkspaceProviderProps {
   path: string;
   initialSettings?: WorkspaceSettings;
+  /** Land here on mount — notes workspaces use Notebook; Library-only Home stays inventory. */
+  initialSection?: SectionId;
   /** Open this note once after the workspace mounts (e.g. after switching). */
   initialNotePath?: string | null;
   onInitialNoteConsumed?: () => void;
@@ -132,6 +134,7 @@ function pushEntry(prev: WorkspaceState, entry: NavEntry, mode: FolderNavMode): 
 export function WorkspaceProvider({
   path,
   initialSettings,
+  initialSection = "notebook",
   initialNotePath = null,
   onInitialNoteConsumed,
   onSettingsChange,
@@ -140,7 +143,7 @@ export function WorkspaceProvider({
   children,
 }: WorkspaceProviderProps) {
   const [workspace, setWorkspace] = useState(() => {
-    const base = createWorkspaceState(path);
+    const base = createWorkspaceState(path, { startSection: initialSection });
     return {
       ...base,
       settings: { ...DEFAULT_SETTINGS, ...initialSettings },

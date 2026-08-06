@@ -187,6 +187,7 @@ export function App() {
         key={`${workspacePath}:${libraryOnly ? "lib" : "ws"}`}
         path={workspacePath}
         initialSettings={initialSettings}
+        initialSection={libraryOnly ? "inventory" : "notebook"}
         initialNotePath={libraryOnly ? null : pendingNotePath}
         onInitialNoteConsumed={() => setPendingNotePath(null)}
         onSettingsChange={(settings) => {
