@@ -5,8 +5,6 @@ import {
   Folder,
   Image,
   ListFilter,
-  PanelRightClose,
-  PanelRightOpen,
 } from "lucide-react";
 import type {
   FileEntry,
@@ -35,7 +33,7 @@ import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
-import { StorageTreemap } from "../components/StorageTreemap";
+import { StorageTreemap, TreemapIcon } from "../components/StorageTreemap";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
@@ -48,7 +46,6 @@ import {
   subscribeLargeFilesCache,
   toLargeFileEntries,
 } from "../lib/largeFilesCache";
-import { volumeRootFor } from "../lib/volumeRoot";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isUnderPath, osTrashName, samePath, hostPlatform } from "../lib/platform";
 import { isProtectedOsPath, protectedPathMessage } from "../../shared/protectedPaths";
@@ -421,18 +418,19 @@ export function FilesPage({
     };
   }, [roots, workspace.currentFolder]);
 
+  // Map the folder currently open in Folders — only when the user opts in.
   useEffect(() => {
-    if (treemapCollapsed || !workspace.currentFolder) {
+    if (perspective !== "folders" || treemapCollapsed || !workspace.currentFolder) {
       setTreemapScan(null);
       setTreemapScanning(false);
       return;
     }
     let cancelled = false;
     setTreemapScanning(true);
-    const volumeRoot = volumeRootFor(workspace.currentFolder);
+    const folder = workspace.currentFolder;
     void (async () => {
       try {
-        const scan = await window.entropy.fs.scanTreemapLevel(volumeRoot);
+        const scan = await window.entropy.fs.scanTreemapLevel(folder);
         if (!cancelled) setTreemapScan(scan);
       } catch {
         if (!cancelled) setTreemapScan(null);
@@ -443,7 +441,7 @@ export function FilesPage({
     return () => {
       cancelled = true;
     };
-  }, [treemapCollapsed, workspace.currentFolder, diskEpoch]);
+  }, [perspective, treemapCollapsed, workspace.currentFolder, diskEpoch]);
 
   useEffect(() => {
     if (!isSearching) {
@@ -921,8 +919,8 @@ export function FilesPage({
           ? "Size"
           : "Type";
 
-  const showTreemapToggle =
-    perspective === "folders" || perspective === "gallery" || isSearching;
+  const showTreemapToggle = perspective === "folders";
+  const showTreemap = showTreemapToggle && !treemapCollapsed;
 
   const sortControl = (
     <div className="flex items-center gap-1.5">
@@ -944,16 +942,15 @@ export function FilesPage({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground"
+              className={cn(
+                "h-8 w-8 text-muted-foreground",
+                showTreemap && "text-foreground",
+              )}
               aria-label={treemapCollapsed ? "Show storage map" : "Hide storage map"}
-              aria-pressed={!treemapCollapsed}
+              aria-pressed={showTreemap}
               onClick={toggleTreemap}
             >
-              {treemapCollapsed ? (
-                <PanelRightOpen className="h-4 w-4" strokeWidth={1.75} />
-              ) : (
-                <PanelRightClose className="h-4 w-4" strokeWidth={1.75} />
-              )}
+              <TreemapIcon className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>{treemapCollapsed ? "Show storage map" : "Hide storage map"}</TooltipContent>
@@ -1198,14 +1195,11 @@ export function FilesPage({
                   scanRoot={scanRoot}
                   onClose={() => setSelected(null)}
                 />
-              ) : !treemapCollapsed ? (
+              ) : showTreemap ? (
                 <StorageTreemap
                   scan={treemapScan}
                   scanning={treemapScanning}
                   selectedPath={selected?.path ?? null}
-                  workspacePath={workspace.path}
-                  scanRoot={scanRoot}
-                  recentFiles={workspace.recentFiles}
                   onSelect={(leaf) => void selectTreemapLeaf(leaf)}
                   onOpen={(leaf) => {
                     if (leaf.isDirectory) goToFolder(leaf.path);

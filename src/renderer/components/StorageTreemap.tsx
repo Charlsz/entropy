@@ -1,61 +1,45 @@
-import { useMemo, useState, useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
+import { useMemo, useState, useEffect, type KeyboardEvent, type PointerEvent } from "react";
 import { HardDrive } from "lucide-react";
-import type { FileEntry, NoteSearchResult, TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
+import type { TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
 import {
   FILE_KIND_FILL,
   FILE_KIND_FILL_LIGHT,
   FILE_KIND_LABEL,
-  FILE_KIND_ORDER,
   FOLDER_FILL_DARK,
   FOLDER_FILL_LIGHT,
-  type FileKindId,
 } from "../../shared/fileKinds";
 import { cn } from "../lib/utils";
 import { samePath } from "../lib/platform";
 import { squarify } from "../lib/squarify";
 import { useWorkspace } from "../state/useWorkspace";
+import { formatBytes } from "../lib/format";
 
-/** Minimum tile edge so every leaf stays visible and nameable. */
-const MIN_TILE_EDGE = 28;
+/** Smallest rendered tile — keep every leaf legible as a color block. */
+const MIN_TILE_EDGE = 8;
 
 interface StorageTreemapProps {
   scan?: TreemapScanResult | null;
   selectedPath?: string | null;
   scanning?: boolean;
-  workspacePath?: string | null;
-  scanRoot?: string | null;
-  recentFiles?: string[];
   onSelect?: (leaf: TreemapFileLeaf) => void;
   onOpen?: (leaf: TreemapFileLeaf) => void;
   onZoom?: (leaf: TreemapFileLeaf) => void;
   className?: string;
 }
 
-interface HoverIntel {
-  noteRefs: NoteSearchResult[];
-  duplicates: FileEntry[];
-  loading: boolean;
-}
-
 interface HoverState {
   leaf: TreemapFileLeaf;
   x: number;
   y: number;
-  intel: HoverIntel;
 }
 
 function isAggregateLeaf(leaf: TreemapFileLeaf): boolean {
   return leaf.path.endsWith(".__entropy_other__") || leaf.name.startsWith("Other (");
 }
 
-function samePathKey(a: string, b: string): boolean {
-  return samePath(a, b);
-}
-
 function kindLabelFor(leaf: TreemapFileLeaf): string {
   if (leaf.isDirectory) return "Folder";
   const label = FILE_KIND_LABEL[leaf.kind];
-  // Singular for hover card (Archives → Archive)
   if (label.endsWith("s") && label !== "Other") return label.slice(0, -1);
   return label;
 }
@@ -65,21 +49,10 @@ function fillFor(leaf: TreemapFileLeaf, light: boolean): string {
   return (light ? FILE_KIND_FILL_LIGHT : FILE_KIND_FILL)[leaf.kind];
 }
 
-function deleteHint(intel: HoverIntel, isDirectory: boolean): string | null {
-  if (isDirectory) return null;
-  if (intel.loading) return null;
-  if (intel.noteRefs.length > 0) return "Referenced in notes — review before deleting";
-  if (intel.duplicates.length > 0) return "Has duplicates — one copy may be removable";
-  return "No note references found";
-}
-
 export function StorageTreemap({
   scan = null,
   selectedPath = null,
   scanning = false,
-  workspacePath = null,
-  scanRoot = null,
-  recentFiles = [],
   onSelect,
   onOpen,
   onZoom,
@@ -90,8 +63,6 @@ export function StorageTreemap({
   const [frameEl, setFrameEl] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [hover, setHover] = useState<HoverState | null>(null);
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hoverToken = useRef(0);
 
   useEffect(() => {
     if (!frameEl) return;
@@ -112,35 +83,10 @@ export function StorageTreemap({
   const total = scan?.totalSize ?? 0;
   const showMap = files.length > 0 && total > 0;
 
-  useEffect(() => {
-    return () => {
-      if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    };
-  }, []);
-
-  const kindTotals = useMemo(() => {
-    const map = new Map<FileKindId, { size: number; count: number }>();
-    for (const file of files) {
-      if (isAggregateLeaf(file) || file.isDirectory) continue;
-      const prev = map.get(file.kind) ?? { size: 0, count: 0 };
-      prev.size += file.size;
-      prev.count += 1;
-      map.set(file.kind, prev);
-    }
-    return FILE_KIND_ORDER.filter((kind) => map.has(kind)).map((kind) => ({
-      kind,
-      size: map.get(kind)!.size,
-      count: map.get(kind)!.count,
-      fill: (light ? FILE_KIND_FILL_LIGHT : FILE_KIND_FILL)[kind],
-      label: FILE_KIND_LABEL[kind],
-    }));
-  }, [files, light]);
-
   const layout = useMemo(() => {
-    if (!showMap || size.width < 8 || size.height < 8) return [];
+    if (!showMap || size.width < MIN_TILE_EDGE || size.height < MIN_TILE_EDGE) return [];
     const gap = 1;
     const frameArea = Math.max(size.width * size.height, 1);
-    // Byte-equivalent of a minimum pixel tile so tiny leaves still get a rectangle.
     const floor = Math.max(1, Math.floor((total * (MIN_TILE_EDGE * MIN_TILE_EDGE)) / frameArea));
     const rects = squarify(
       files.map((file) => ({
@@ -157,9 +103,8 @@ export function StorageTreemap({
       .map((rect) => {
         const file = byPath.get(rect.id);
         if (!file) return null;
-        const width = Math.max(rect.width - gap, 0);
-        const height = Math.max(rect.height - gap, 0);
-        if (width < 2 || height < 2) return null;
+        const width = Math.max(rect.width - gap, MIN_TILE_EDGE);
+        const height = Math.max(rect.height - gap, MIN_TILE_EDGE);
         return {
           ...file,
           x: rect.x + gap / 2,
@@ -173,58 +118,20 @@ export function StorageTreemap({
   }, [files, light, showMap, size.height, size.width, total]);
 
   function clearHover(): void {
-    if (hoverTimer.current) {
-      clearTimeout(hoverTimer.current);
-      hoverTimer.current = null;
-    }
-    hoverToken.current += 1;
     setHover(null);
   }
 
-  function scheduleHover(leaf: TreemapFileLeaf, clientX: number, clientY: number): void {
+  function setHoverAt(leaf: TreemapFileLeaf, clientX: number, clientY: number): void {
     if (isAggregateLeaf(leaf)) {
       clearHover();
       return;
     }
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-
     const frame = frameEl?.getBoundingClientRect();
-    const x = frame ? clientX - frame.left : clientX;
-    const y = frame ? clientY - frame.top : clientY;
-
     setHover({
       leaf,
-      x,
-      y,
-      intel: { noteRefs: [], duplicates: [], loading: !leaf.isDirectory },
+      x: frame ? clientX - frame.left : clientX,
+      y: frame ? clientY - frame.top : clientY,
     });
-
-    if (leaf.isDirectory) return;
-
-    hoverTimer.current = setTimeout(() => {
-      const token = ++hoverToken.current;
-      void (async () => {
-        const [noteRefs, duplicates] = await Promise.all([
-          workspacePath
-            ? window.entropy.fs.findFileReferences(workspacePath, leaf.path).catch(() => [])
-            : Promise.resolve([]),
-          scanRoot
-            ? window.entropy.fs.findDuplicates(scanRoot, leaf.path).catch(() => [])
-            : Promise.resolve([]),
-        ]);
-        if (token !== hoverToken.current) return;
-        setHover((prev) =>
-          prev && samePathKey(prev.leaf.path, leaf.path)
-            ? { ...prev, intel: { noteRefs, duplicates, loading: false } }
-            : prev,
-        );
-      })();
-    }, 160);
-  }
-
-  function lastOpenedLabel(leaf: TreemapFileLeaf): string {
-    const hit = recentFiles.some((item) => samePathKey(item, leaf.path));
-    return hit ? "Recently" : "Never";
   }
 
   return (
@@ -265,13 +172,9 @@ export function StorageTreemap({
               </div>
             ) : (
               layout.map((cell) => {
-                const selected = selectedPath === cell.path;
-                // Keep names visible — hover card adds detail, it does not replace the label.
+                const selected = selectedPath != null && samePath(selectedPath, cell.path);
                 const showName =
-                  cell.width >= MIN_TILE_EDGE - 4 &&
-                  cell.height >= 16 &&
-                  !isAggregateLeaf(cell);
-                const showMeta = showName && cell.width >= 52 && cell.height >= 34;
+                  cell.width >= 28 && cell.height >= 16 && !isAggregateLeaf(cell);
                 return (
                   <button
                     key={cell.path}
@@ -281,7 +184,7 @@ export function StorageTreemap({
                       cell.isDirectory ? ", double-click to zoom" : ""
                     }`}
                     className={cn(
-                      "absolute overflow-hidden border border-border p-1 text-left focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      "absolute overflow-hidden border border-border/40 text-left focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                       selected && "z-10 ring-1 ring-ring",
                       isAggregateLeaf(cell) ? "cursor-default opacity-80" : "cursor-pointer",
                     )}
@@ -291,23 +194,21 @@ export function StorageTreemap({
                       width: cell.width,
                       height: cell.height,
                       backgroundColor: cell.fill,
+                      minWidth: MIN_TILE_EDGE,
+                      minHeight: MIN_TILE_EDGE,
                     }}
                     onPointerEnter={(event: PointerEvent<HTMLButtonElement>) => {
-                      scheduleHover(cell, event.clientX, event.clientY);
+                      setHoverAt(cell, event.clientX, event.clientY);
                     }}
                     onPointerMove={(event: PointerEvent<HTMLButtonElement>) => {
-                      if (!hover || !samePathKey(hover.leaf.path, cell.path)) return;
+                      if (!hover || !samePath(hover.leaf.path, cell.path)) return;
                       const frame = frameEl?.getBoundingClientRect();
                       if (!frame) return;
-                      setHover((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              x: event.clientX - frame.left,
-                              y: event.clientY - frame.top,
-                            }
-                          : prev,
-                      );
+                      setHover({
+                        leaf: cell,
+                        x: event.clientX - frame.left,
+                        y: event.clientY - frame.top,
+                      });
                     }}
                     onClick={() => {
                       if (isAggregateLeaf(cell)) return;
@@ -315,33 +216,19 @@ export function StorageTreemap({
                     }}
                     onDoubleClick={() => {
                       if (isAggregateLeaf(cell)) return;
-                      if (cell.isDirectory) {
-                        onZoom?.(cell);
-                        return;
-                      }
-                      onOpen?.(cell);
-                    }}
-                    onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
-                      if (event.key !== "Enter" || isAggregateLeaf(cell)) return;
                       if (cell.isDirectory) onZoom?.(cell);
                       else onOpen?.(cell);
                     }}
+                    onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        if (isAggregateLeaf(cell)) return;
+                        onSelect?.(cell);
+                      }
+                    }}
                   >
                     {showName ? (
-                      <span className="flex h-full min-h-0 flex-col justify-between gap-0.5">
-                        <span className="truncate text-[10px] font-medium leading-tight text-foreground">
-                          {cell.name}
-                        </span>
-                        {showMeta ? (
-                          <span className="truncate text-[9px] leading-tight text-muted-foreground">
-                            {cell.isDirectory
-                              ? `Folder · ${formatBytes(cell.size)}`
-                              : formatBytes(cell.size)}
-                          </span>
-                        ) : null}
-                      </span>
-                    ) : isAggregateLeaf(cell) && cell.width >= 40 && cell.height >= 16 ? (
-                      <span className="truncate text-[10px] font-medium text-foreground">
+                      <span className="block truncate px-0.5 pt-0.5 text-[10px] font-medium text-foreground">
                         {cell.name}
                       </span>
                     ) : null}
@@ -357,9 +244,6 @@ export function StorageTreemap({
                 y={hover.y}
                 frameWidth={size.width}
                 frameHeight={size.height}
-                intel={hover.intel}
-                lastOpened={lastOpenedLabel(hover.leaf)}
-                hint={deleteHint(hover.intel, !!hover.leaf.isDirectory)}
               />
             ) : null}
 
@@ -371,41 +255,6 @@ export function StorageTreemap({
           </div>
         )}
       </div>
-
-      {kindTotals.length > 0 ? (
-        <div className="shrink-0 border-t border-border px-3 py-2">
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            By type
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {kindTotals.map((item) => (
-              <div
-                key={item.kind}
-                className="flex items-center gap-1.5 rounded-md bg-background/40 px-1.5 py-1 text-[10px] text-muted-foreground"
-                title={`${item.count.toLocaleString()} files · ${formatBytes(item.size)}`}
-              >
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-sm border border-black/30"
-                  style={{ backgroundColor: item.fill }}
-                />
-                <span className="text-foreground/90">{item.label}</span>
-                <span>{formatBytes(item.size)}</span>
-              </div>
-            ))}
-          </div>
-          {scan?.truncated ? (
-            <p className="mt-1.5 text-[10px] text-muted-foreground">
-              Extra items beyond the map limit are grouped as Other.
-            </p>
-          ) : null}
-        </div>
-      ) : scan?.truncated ? (
-        <div className="shrink-0 border-t border-border px-3 py-2">
-          <p className="text-[10px] text-muted-foreground">
-            Extra items beyond the map limit are grouped as Other.
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -416,95 +265,49 @@ function HoverCard({
   y,
   frameWidth,
   frameHeight,
-  intel,
-  lastOpened,
-  hint,
 }: {
   leaf: TreemapFileLeaf;
   x: number;
   y: number;
   frameWidth: number;
   frameHeight: number;
-  intel: HoverIntel;
-  lastOpened: string;
-  hint: string | null;
 }) {
-  const cardW = Math.min(220, Math.max(140, frameWidth - 16));
-  const cardH = leaf.isDirectory ? 120 : 210;
-  const left = Math.min(Math.max(8, x + 14), Math.max(8, frameWidth - cardW - 8));
-  const top = Math.min(Math.max(8, y + 14), Math.max(8, frameHeight - cardH - 8));
-  const location = leaf.location || "—";
-  const dupCount = intel.duplicates.length;
-  const noteCount = intel.noteRefs.length;
+  const cardW = Math.min(200, Math.max(132, frameWidth - 16));
+  const cardH = 72;
+  const left = Math.min(Math.max(8, x + 12), Math.max(8, frameWidth - cardW - 8));
+  const top = Math.min(Math.max(8, y + 12), Math.max(8, frameHeight - cardH - 8));
 
   return (
     <div
-      className="pointer-events-none absolute z-20 rounded-lg border border-border bg-card p-3"
+      className="pointer-events-none absolute z-20 rounded-md border border-border bg-card px-2.5 py-2 shadow-sm"
       style={{ left, top, width: cardW }}
       role="tooltip"
     >
-      <p className="truncate text-[12px] font-semibold text-foreground" title={leaf.name}>
+      <p className="truncate text-[12px] font-medium text-foreground" title={leaf.name}>
         {leaf.name}
       </p>
-      <p className="mt-0.5 text-[11px] text-muted-foreground">
+      <p className="mt-1 text-[11px] text-muted-foreground">
         {kindLabelFor(leaf)}
-        <span className="mx-1.5 text-border">·</span>
+        <span className="mx-1.5 opacity-50">·</span>
         {formatBytes(leaf.size)}
       </p>
-
-      <dl className="mt-2.5 space-y-1.5 text-[11px]">
-        <Row label="Location" value={location} />
-        {!leaf.isDirectory ? (
-          <>
-            <Row label="Last opened" value={lastOpened} />
-            <Row
-              label="Referenced in notes"
-              value={intel.loading ? "…" : String(noteCount)}
-            />
-            <Row
-              label="Duplicate copies"
-              value={intel.loading ? "…" : String(dupCount)}
-            />
-          </>
-        ) : (
-          <Row label="Action" value="Double-click to zoom" />
-        )}
-      </dl>
-
-      {!leaf.isDirectory && !intel.loading && dupCount > 0 ? (
-        <ul className="mt-2 max-h-14 space-y-1 overflow-hidden border-t border-border/60 pt-2">
-          {intel.duplicates.slice(0, 2).map((dup) => (
-            <li key={dup.path} className="truncate text-[10px] text-muted-foreground" title={dup.path}>
-              {dup.path.split(/[/\\]/).slice(-2).join(" › ")}
-            </li>
-          ))}
-          {dupCount > 2 ? (
-            <li className="text-[10px] text-muted-foreground">+{dupCount - 2} more</li>
-          ) : null}
-        </ul>
-      ) : null}
-
-      {hint ? (
-        <p className="mt-2 border-t border-border/60 pt-2 text-[10px] leading-snug text-muted-foreground">
-          {hint}
-        </p>
-      ) : null}
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+/** Compact treemap glyph for the Folders chrome toggle. */
+export function TreemapIcon({ className }: { className?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      <dd className="truncate text-right font-medium text-foreground/90">{value}</dd>
-    </div>
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden
+    >
+      <rect x="1.5" y="1.5" width="8" height="13" rx="1" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="11" y="1.5" width="3.5" height="7" rx="0.75" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="11" y="10" width="3.5" height="4.5" rx="0.75" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
   );
-}
-
-function formatBytes(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }

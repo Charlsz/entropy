@@ -41,8 +41,8 @@ export function fromSessionSettings(
     filesView: settings.filesView,
     sidebarCollapsed: Boolean(settings.sidebarCollapsed),
     contextCollapsed: Boolean(settings.contextCollapsed),
-    inventoryTreemapCollapsed:
-      raw.inventoryTreemapCollapsed === undefined ? true : Boolean(raw.inventoryTreemapCollapsed),
+    // Storage map is opt-in; never restore an open panel from a previous session.
+    inventoryTreemapCollapsed: true,
     libraryPerspective:
       perspective === "gallery" ||
       perspective === "large-files" ||

@@ -110,10 +110,8 @@ export async function loadSession(): Promise<AppSession> {
         filesView: parsed.settings?.filesView === "grid" ? "grid" : "list",
         sidebarCollapsed: Boolean(parsed.settings?.sidebarCollapsed),
         contextCollapsed: Boolean(parsed.settings?.contextCollapsed),
-        inventoryTreemapCollapsed:
-          parsed.settings?.inventoryTreemapCollapsed === undefined
-            ? true
-            : Boolean(parsed.settings.inventoryTreemapCollapsed),
+        // Storage map is opt-in; never restore an open panel from a previous session.
+        inventoryTreemapCollapsed: true,
         libraryPerspective: normalizePerspective(
           (parsed.settings as { libraryPerspective?: string } | undefined)?.libraryPerspective,
         ),
