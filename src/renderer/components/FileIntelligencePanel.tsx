@@ -188,15 +188,20 @@ export function FileIntelligencePanel({
       </div>
 
       {osPreview ? (
-        <div className="flex flex-col gap-2.5 p-5 pt-0">
+        <div className="flex min-h-0 flex-col gap-2.5 p-5 pt-0">
           <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
             {previewLabel}
           </p>
           <div
-            className="relative h-[140px] overflow-hidden rounded-[6px]"
-            style={{ border: `1px solid ${figma.border}` }}
+            className="relative h-[220px] w-full overflow-hidden rounded-[6px]"
+            style={{ border: `1px solid ${figma.border}`, backgroundColor: figma.canvas }}
           >
-            <EntryPreview entry={entry} size="lg" className="!h-full !w-full object-cover" />
+            <EntryPreview
+              entry={entry}
+              size="lg"
+              fit="contain"
+              className="!aspect-auto !h-full !w-full !rounded-[6px]"
+            />
           </div>
         </div>
       ) : null}

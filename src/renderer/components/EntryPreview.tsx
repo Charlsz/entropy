@@ -116,12 +116,15 @@ export function invalidateFolderPreview(folderPath?: string): void {
 interface EntryPreviewProps {
   entry: FileEntry;
   size?: "sm" | "md" | "lg";
+  /** cover crops for grid faces; contain keeps full media in inspector. */
+  fit?: "cover" | "contain";
   className?: string;
 }
 
 export const EntryPreview = memo(function EntryPreview({
   entry,
   size = "sm",
+  fit = "cover",
   className,
 }: EntryPreviewProps) {
   const { ref, inView } = useInView<HTMLDivElement>("160px");
@@ -132,6 +135,7 @@ export const EntryPreview = memo(function EntryPreview({
     size === "lg" && "aspect-square w-full rounded-xl",
     className,
   );
+  const objectFit = fit === "contain" ? "object-contain" : "object-cover";
 
   if (entry.isDirectory) {
     return (
@@ -147,11 +151,16 @@ export const EntryPreview = memo(function EntryPreview({
       <div ref={ref} className={shell}>
         {inView ? (
           kind === "image" ? (
-            <ImageThumb path={entry.path} alt={entry.name} />
+            <ImageThumb path={entry.path} alt={entry.name} objectFit={objectFit} />
           ) : kind === "video" ? (
-            <VideoThumb path={entry.path} size={size} />
+            <VideoThumb
+              path={entry.path}
+              size={size}
+              objectFit={objectFit}
+              autoplay={fit === "contain" && size === "lg"}
+            />
           ) : (
-            <PdfThumb path={entry.path} size={size} />
+            <PdfThumb path={entry.path} size={size} objectFit={objectFit} />
           )
         ) : (
           <QuietFace />
@@ -261,7 +270,15 @@ function FolderMediaCell({ entry }: { entry: FileEntry }) {
   return <ImageThumb path={entry.path} alt={entry.name} />;
 }
 
-function ImageThumb({ path, alt }: { path: string; alt: string }) {
+function ImageThumb({
+  path,
+  alt,
+  objectFit = "object-cover",
+}: {
+  path: string;
+  alt: string;
+  objectFit?: string;
+}) {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -284,12 +301,20 @@ function ImageThumb({ path, alt }: { path: string; alt: string }) {
       loading="lazy"
       decoding="async"
       draggable={false}
-      className="h-full w-full object-cover"
+      className={cn("h-full w-full", objectFit)}
     />
   );
 }
 
-function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
+function PdfThumb({
+  path,
+  size,
+  objectFit = "object-cover",
+}: {
+  path: string;
+  size: "sm" | "md" | "lg";
+  objectFit?: string;
+}) {
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -344,7 +369,7 @@ function PdfThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
           loading="lazy"
           decoding="async"
           draggable={false}
-          className="h-full w-full object-cover"
+          className={cn("h-full w-full", objectFit)}
           onError={() => {
             setThumbUrl(null);
             void getFileUrl(path)
@@ -393,7 +418,17 @@ function unloadVideoEl(video: HTMLVideoElement | null): void {
   video.load();
 }
 
-function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) {
+function VideoThumb({
+  path,
+  size,
+  objectFit = "object-cover",
+  autoplay = false,
+}: {
+  path: string;
+  size: "sm" | "md" | "lg";
+  objectFit?: string;
+  autoplay?: boolean;
+}) {
   const { ref, inView } = useInView<HTMLDivElement>("80px", { sticky: false });
   const [url, setUrl] = useState<string | null>(null);
   const [poster, setPoster] = useState<string | null>(null);
@@ -402,9 +437,8 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
   const [releasing, setReleasing] = useState(() => isMediaReleasing(path));
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Live decode only while hovered on large faces — keeps Windows file locks off
-  // until the user actually inspects the clip (⋯ menu sits below the face).
-  const wantsLive = size === "lg" && hovered && inView && !releasing;
+  // Inspector contain mode plays the clip; gallery still waits for hover.
+  const wantsLive = size === "lg" && inView && !releasing && (autoplay || hovered);
 
   useEffect(() => {
     return subscribeMediaRelease(() => {
@@ -472,7 +506,7 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
       try {
         el.currentTime = 0;
         await el.play();
-        if (cancelled) return;
+        if (cancelled || autoplay) return;
         clearTimer();
         timer = window.setTimeout(() => {
           if (!cancelled) void playClip();
@@ -495,7 +529,7 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
       video.removeEventListener("loadeddata", onLoaded);
       unloadVideoEl(video);
     };
-  }, [url, wantsLive]);
+  }, [url, wantsLive, autoplay]);
 
   const shellProps = {
     ref,
@@ -528,7 +562,7 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
             loading="lazy"
             decoding="async"
             draggable={false}
-            className="h-full w-full object-cover"
+            className={cn("h-full w-full", objectFit)}
           />
         ) : (
           <QuietFace />
@@ -545,9 +579,10 @@ function VideoThumb({ path, size }: { path: string; size: "sm" | "md" | "lg" }) 
         poster={poster ?? undefined}
         muted
         playsInline
+        loop={autoplay}
         preload="metadata"
         draggable={false}
-        className="h-full w-full object-cover"
+        className={cn("h-full w-full", objectFit)}
       />
     </div>
   );
