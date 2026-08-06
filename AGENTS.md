@@ -19,7 +19,7 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 5. Design for large file collections (100,000+ files).
 6. Performance is more important than visual effects.
 7. Keep the interface minimal and distraction-free.
-8. Notebook and File Inventory must feel like one application.
+8. Notebook and Library must feel like one application.
 9. Avoid overengineering. Choose the simplest architecture that can scale.
 
 ## Hard constraints (never violate)
@@ -28,12 +28,12 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 - **No automatic file moves/copies:** User-initiated rename/move/trash/reveal only.
 - **Protected OS paths:** Never trash, rename, move into, or write under Windows/macOS/Linux system trees (e.g. `Windows`, `Program Files`, `/System`, `/usr`). Duplicate scans and storage measure skip those trees so reclaim cannot target them.
 - **No accounts / no required cloud:** Offline must work fully. AI is optional and never a dependency.
-- **Color palette only:** `#131413`, `#1C1D1C`, `#FAFAF9`, `#C8C8C6`. No other brand/accent/status colors (including no red for delete). Light theme remaps ink/paper roles via CSS variables.
-- **Typography:** One UI font — **Geist** (or Inter only if Geist is unavailable). No display/decorative font pairing.
-- **Notebook:** Writing is primary. Editor occupies most of the screen. **Do not add a Linked / extra side panel in the notebook window.** Context lives in the optional right panel only, and that panel **hides when empty**. Support inline media while editing.
-- **File Inventory:** Nav | Content View | Treemap. Starts at Home; does not auto-scan every drive. Content View keeps the Refern-like grid language.
-- **Layout:** Panels are **resizable**, sizes are **remembered**, any panel can **collapse**. Use horizontal space; avoid wasted chrome.
-- **Icons over text** for obvious chrome actions. Keep text for content identity.
+- **Color palette (Figma Entropy):** `#131413` ink · `#FAFAF9` surface · `#FFFFFF` canvas · `#E7E6E3` border · `#6B6D69` muted · `#EEF2F8` select · `#6A7BA2` accent. No status reds/purples. Dark theme remaps via CSS variables.
+- **Typography:** One UI font — **Geist** (or Inter only if Geist is unavailable). Geist Mono for paths/sizes/hints. No display/decorative font pairing.
+- **Notebook:** Writing is primary. Shared app sidebar → Local Notes list → editor. **Do not add a Linked / extra side panel.** Optional right context **hides when empty**. Support inline media while editing.
+- **Library** (code: `inventory`): Shared app sidebar with perspectives — Folders (table), Gallery, Large Files, Duplicates, Recent. Starts at Home; does not auto-scan every drive. File Intelligence inspector shows when a file is selected.
+- **Layout:** Shared **App sidebar** (240px) across surfaces. Content panels are **resizable**, sizes **remembered**, inspector **collapses when empty**. Use horizontal space; avoid wasted chrome.
+- **Sidebar uses icons + text**; icon-only chrome elsewhere when the action is obvious.
 - **Lucide only** for icons — outlined, consistent stroke.
 - **Motion:** 150–200ms, ease-out, no bounce/elastic. Respect `prefers-reduced-motion`. Prefer no animation over decorative motion.
 - **shadcn/ui + Tailwind** for primitives when possible; restyle to Entropy tokens.
@@ -43,27 +43,28 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 
 | Surface | Inspiration | Job |
 |---|---|---|
-| Notebook | Obsidian | Markdown meaning; references to real paths; inline media |
-| File Inventory Content View | Refern | Grid/list of the current folder with rich previews |
-| File Inventory Treemap | GrandPerspective / KDirStat + Google Maps | Size map with folder zoom; hover answers meaning questions |
-| Context panel | — | Metadata / properties / previews; hide if empty |
-| Top bar | — | Minimal: workspace, icon actions, window controls |
+| App sidebar | Figma Entropy | Workspace switch, Library perspectives, Intelligence stubs, storage |
+| Notebook | Obsidian + Figma | Markdown meaning; notes list; references to real paths; inline media |
+| Library Folders | Figma table | Path breadcrumb + file rows (name/path/size/modified) |
+| Library Gallery | Refern / Figma | Media card grid for the current perspective |
+| File Intelligence | Figma inspector | Connections, preview; hide when nothing selected |
+| Caption bar | Electron | Drag region + settings + window controls only |
 
 ## Implementation checklist
 
 Before shipping a UI change, confirm:
 
-- [ ] Still only the four palette colors
+- [ ] Palette tokens match DESIGN.md (ink/surface/canvas/border/muted/select/accent)
+- [ ] Shared App sidebar — no parallel icon-rail navigation
 - [ ] No new notebook side panels (Linked, graph chrome, etc.)
-- [ ] Context panel content is contextual; empty ⇒ hidden
+- [ ] Inspector / context content is contextual; empty ⇒ hidden
 - [ ] Files remain at original paths; no import flow invented
-- [ ] Inventory does not auto-index every drive on first launch
-- [ ] Chrome uses icons + tooltips where obvious
-- [ ] Spacing uses 4/8/12/16/24/32/48
-- [ ] Radius 8–12px for interactive/surfaces
+- [ ] Library does not auto-index every drive on first launch
+- [ ] Spacing aligns to 4/8/12/16/20/24/48
+- [ ] Radius ~4–8px for chrome; gallery cards ~8px
 - [ ] Transitions ≤ 200ms, no bounce
 - [ ] Designed with large libraries in mind (virtualize / aggregate)
-- [ ] Matches calm, native, tool-first feel — not dashboard/social
+- [ ] Matches calm, light-first, tool-first feel — not dashboard/social
 
 ## Anti-patterns (reject on sight)
 
@@ -87,13 +88,13 @@ When shipping a multi-item request (roadmap, “add A, B, and C”):
 
 This is how Entropy stays reviewable and undoable in history. See `.cursor/rules/commit-per-feature.mdc`.
 
-## Inventory filter (v1)
+## Library filter (v1)
 
-Before adding anything to File Inventory, ask:
+Before adding anything to Library, ask:
 
 > Does this help me understand and clean my files faster?
 
-- **Yes** → belongs in Inventory (exact duplicates, browsing, treemap, reclaim, safe delete).
-- **Maybe useful someday / meaning / writing** → Notebook, a future extension, or not at all.
+- **Yes** → belongs in Library (exact duplicates, browsing, gallery, large files, reclaim, safe delete, file intelligence).
+- **Maybe useful someday / meaning / writing** → Notebook, Intelligence stubs, a future extension, or not at all.
 
-Keep Inventory as Inventory. Do not merge Notebook concepts early (e.g. “Reference in note” from Inventory chrome). Prefer performance and clarity over hover/animation overload. Defer near-duplicates, AI similarity, auto-organize rules, and dashboards.
+Keep Library as Library. Prefer performance and clarity over hover/animation overload. Defer near-duplicates, auto-organize rules, and dashboards. Intelligence nav may ship as “Coming soon”.

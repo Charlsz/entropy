@@ -6,7 +6,7 @@ Entropy is a **local-first workspace** built on top of the user’s existing fil
 
 The filesystem is the single source of truth. Entropy never owns, duplicates, or moves user files unless the user explicitly asks. It builds **relationships** between notes, files, folders, and projects.
 
-**Notebook** gives files meaning. **File Inventory** gives files structure. Entropy connects them.
+**Notebook** gives files meaning. **Library** gives files structure. Entropy connects them.
 
 ## Non-negotiable principles
 
@@ -17,7 +17,7 @@ The filesystem is the single source of truth. Entropy never owns, duplicates, or
 5. Design for large file collections (100,000+ files).
 6. Performance is more important than visual effects.
 7. Keep the interface minimal and distraction-free.
-8. Notebook and File Inventory must feel like one application.
+8. Notebook and Library must feel like one application.
 9. Avoid overengineering. Choose the simplest architecture that can scale.
 
 ## Users & Purpose
@@ -33,7 +33,7 @@ The filesystem is the single source of truth. Entropy never owns, duplicates, or
 
 1. **Filesystem-native** — Workspace = folder for notes/settings. Media stays where it is. Indexes/caches are rebuildable only.
 2. **Local-first & private** — Fully offline. No account. No required cloud.
-3. **Meaning + structure** — Notebook (meaning) and File Inventory (structure) share one app identity.
+3. **Meaning + structure** — Notebook (meaning) and Library (structure) share one app identity.
 4. **Tool-first** — Calm, minimal, native desktop, fast, spacious, professional.
 5. **Optional AI** — Assistant only. Never required.
 
@@ -42,19 +42,20 @@ The filesystem is the single source of truth. Entropy never owns, duplicates, or
 | Surface | Role |
 |---|---|
 | **Notebook** | Markdown knowledge workspace. Notes live in the workspace folder. Notes can reference any file on any drive without copying it. Inline media while editing; full Preview available. |
-| **File Inventory** | Computer-wide organizer (starts at Home; user may add drives later). Nav + Content View (grid) + Storage treemap (KDirStat / GrandPerspective spirit). Same scan root across panes. |
+| **Library** | Computer-wide organizer (starts at Home; user may add drives later). Perspectives: Folders (table), Gallery, Large Files, Duplicates, Recent. File Intelligence inspector when a file is selected. |
 | **Settings** | Sparse preferences; no control-panel sprawl. |
 
-## Workspace vs Inventory
+## Workspace vs Library
 
 - **Workspace** — Notebook home: notes, workspace settings, rebuildable metadata/index. Not the owner of user media.
-- **File Inventory** — Sees the machine (Home first). Independent of which folder is the Notebook workspace.
+- **Library** — Sees the machine (Home first). Independent of which folder is the Notebook workspace. Code section id remains `inventory` for compatibility.
 - Notes may reference absolute paths anywhere; Entropy never copies those files into the workspace.
 
 ## Layout contract
 
-- **Notebook:** three-column desktop — sidebar | editor | context. Context hides when empty. No Linked / extra notebook-only side panels.
-- **File Inventory:** Global titlebar path (`← →` + `Home › …`) beside panel toggles, before search. Content (~50%) | Treemap (~50%). Gallery keeps location/filter/sort/view. Treemap is map-style folder zoom (double-click); hover shows kind, size, location, note refs, duplicates, and delete-safety hints.
+- **Shared app sidebar** — Entropy brand, search (⌘/Ctrl+K), Workspace (Notebook / Library), Library Perspectives, Intelligence, local storage footer.
+- **Notebook:** app sidebar | Local Notes list | editor. Optional right context hides when empty. No Linked / extra notebook-only side panels.
+- **Library:** app sidebar | perspective content (Folders table / Gallery grid / …) | File Intelligence when selected. Caption bar is Electron chrome only.
 - Use horizontal space deliberately; maximize the working surface.
 - Performance over decoration.
 

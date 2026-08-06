@@ -16,10 +16,11 @@ Follow those documents over habit or generic SaaS patterns.
 ## Non-negotiables (summary)
 
 - Local-first: never own/import user files; workspace = folder; notes = Markdown on disk
-- Palette only: `#131413` `#1C1D1C` `#FAFAF9` `#C8C8C6`
-- Font: Geist only (Inter solely if Geist unavailable)
-- Notebook: no Linked/extra side panels; context panel hides when empty
-- Layout: three columns, resizable, remembered, collapsible
-- Icons (Lucide) for obvious chrome; calm 150–200ms motion; whitespace over borders
-- Obsidian writing × Refern organization — do not clone either
+- Palette: `#131413` `#FAFAF9` `#FFFFFF` `#E7E6E3` `#6B6D69` `#EEF2F8` `#6A7BA2`
+- Font: Geist only (Inter solely if Geist unavailable); Geist Mono for paths/sizes
+- Shared App sidebar across Notebook + Library; light-first Figma shell
+- Notebook: no Linked/extra side panels; context/inspector hides when empty
+- Library perspectives: Folders, Gallery, Large Files, Duplicates, Recent
+- Layout: resizable panels, remembered, collapsible
+- Lucide icons; calm 150–200ms motion
 - Protected OS paths: never trash/rename/move/write under system trees; skip them in duplicates/storage scans

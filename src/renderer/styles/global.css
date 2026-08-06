@@ -19,9 +19,62 @@
 }
 
 @layer base {
+  /*
+   * Light-first Figma Entropy tokens.
+   * ink/paper names: for light, bg-ink = surface and text-paper = ink text
+   * so existing utilities keep working.
+   */
   :root,
+  [data-theme="light"] {
+    --color-ink: #131413;
+    --color-surface: #fafaf9;
+    --color-canvas: #ffffff;
+    --color-border: #e7e6e3;
+    --color-muted: #6b6d69;
+    --color-select: #eef2f8;
+    --color-accent: #6a7ba2;
+
+    --ink: #fafaf9;
+    --ink-2: #ffffff;
+    --paper: #131413;
+    --paper-2: #6b6d69;
+    --background: #ffffff;
+    --foreground: #131413;
+    --card: #ffffff;
+    --card-foreground: #131413;
+    --primary: #131413;
+    --primary-foreground: #fafaf9;
+    --secondary: #fafaf9;
+    --secondary-foreground: #131413;
+    --muted: #fafaf9;
+    --muted-foreground: #6b6d69;
+    --accent: #eef2f8;
+    --accent-foreground: #131413;
+    --select: #eef2f8;
+    --accent-bar: #6a7ba2;
+    --destructive: #6b6d69;
+    --destructive-foreground: #fafaf9;
+    --border: #e7e6e3;
+    --input: #ffffff;
+    --ring: #6b6d69;
+    --rail: #fafaf9;
+    --panel: #fafaf9;
+    --radius: 6px;
+    --motion: 180ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --scrollbar: color-mix(in srgb, #131413 14%, transparent);
+    --scrollbar-hover: color-mix(in srgb, #131413 26%, transparent);
+  }
+
   [data-theme="dark"] {
-    /* Absolute palette (dark: ink = surface, paper = text) */
+    --color-ink: #fafaf9;
+    --color-surface: #131413;
+    --color-canvas: #1c1d1c;
+    --color-border: color-mix(in srgb, #fafaf9 10%, #131413);
+    --color-muted: #c8c8c6;
+    --color-select: color-mix(in srgb, #6a7ba2 28%, #1c1d1c);
+    --color-accent: #6a7ba2;
+
     --ink: #131413;
     --ink-2: #1c1d1c;
     --paper: #fafaf9;
@@ -36,52 +89,22 @@
     --secondary-foreground: #fafaf9;
     --muted: #1c1d1c;
     --muted-foreground: color-mix(in srgb, #fafaf9 62%, #131413);
-    --accent: #1c1d1c;
+    --accent: color-mix(in srgb, #6a7ba2 28%, #1c1d1c);
     --accent-foreground: #fafaf9;
+    --select: color-mix(in srgb, #6a7ba2 28%, #1c1d1c);
+    --accent-bar: #6a7ba2;
     --destructive: #c8c8c6;
     --destructive-foreground: #131413;
-    --border: color-mix(in srgb, #fafaf9 9%, #131413);
+    --border: color-mix(in srgb, #fafaf9 10%, #131413);
     --input: #1c1d1c;
     --ring: color-mix(in srgb, #fafaf9 50%, #131413);
     --rail: #131413;
     --panel: #1c1d1c;
-    --radius: 10px;
+    --radius: 6px;
     --motion: 180ms;
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     --scrollbar: color-mix(in srgb, #fafaf9 16%, transparent);
     --scrollbar-hover: color-mix(in srgb, #fafaf9 28%, transparent);
-  }
-
-  /* Light: remaps ink/paper roles so existing bg-ink / text-paper classes invert cleanly */
-  [data-theme="light"] {
-    --ink: #fafaf9;
-    --ink-2: #f0f0ee;
-    --paper: #131413;
-    --paper-2: #5c5d5c;
-    --background: #fafaf9;
-    --foreground: #131413;
-    --card: #ffffff;
-    --card-foreground: #131413;
-    --primary: #131413;
-    --primary-foreground: #fafaf9;
-    --secondary: #f0f0ee;
-    --secondary-foreground: #131413;
-    --muted: #f0f0ee;
-    --muted-foreground: color-mix(in srgb, #131413 52%, #fafaf9);
-    --accent: #f0f0ee;
-    --accent-foreground: #131413;
-    --destructive: #5c5d5c;
-    --destructive-foreground: #fafaf9;
-    --border: color-mix(in srgb, #131413 10%, #fafaf9);
-    --input: #ffffff;
-    --ring: color-mix(in srgb, #131413 40%, #fafaf9);
-    --rail: #fafaf9;
-    --panel: #ffffff;
-    --radius: 10px;
-    --motion: 180ms;
-    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-    --scrollbar: color-mix(in srgb, #131413 16%, transparent);
-    --scrollbar-hover: color-mix(in srgb, #131413 28%, transparent);
   }
 
   * {
