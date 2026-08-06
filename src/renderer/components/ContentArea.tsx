@@ -12,6 +12,7 @@ interface ContentAreaProps {
   onPendingReferenceHandled?: () => void;
   librarySearchQuery?: string;
   onLibrarySearchQueryChange?: (query: string) => void;
+  onPickWorkspace?: (path: string) => void;
 }
 
 export function ContentArea({
@@ -22,6 +23,7 @@ export function ContentArea({
   onPendingReferenceHandled,
   librarySearchQuery = "",
   onLibrarySearchQueryChange,
+  onPickWorkspace,
 }: ContentAreaProps) {
   return (
     <div className="relative h-full min-h-0 w-full">
@@ -31,6 +33,7 @@ export function ContentArea({
           onPendingNoteHandled={onPendingNoteHandled}
           pendingReference={pendingReference}
           onPendingReferenceHandled={onPendingReferenceHandled}
+          onPickWorkspace={onPickWorkspace}
         />
       </SectionPane>
       <SectionPane active={section === "inventory"}>

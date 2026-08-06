@@ -150,6 +150,7 @@ export function WorkspaceShell({
             onPendingReferenceHandled={clearPendingReference}
             librarySearchQuery={searchQuery}
             onLibrarySearchQueryChange={setSearchQuery}
+            onPickWorkspace={onPickWorkspace}
           />
         </div>
 

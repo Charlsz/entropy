@@ -607,7 +607,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               <div
                 key={tab.path}
                 className={cn(
-                  "group flex max-w-[12rem] shrink-0 items-center gap-0.5 border-b-2 px-1 text-xs",
+                  "group flex max-w-[14rem] shrink-0 items-center gap-1 border-b-2 px-1.5 text-[13px] transition-colors duration-150",
                   active
                     ? "border-foreground text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground",
@@ -617,16 +617,28 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               >
                 <button
                   type="button"
-                  className="min-w-0 flex-1 truncate px-1 py-1.5 text-left"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 truncate py-2 text-left font-medium"
                   onClick={() => onActiveChange(tab.path)}
+                  title={tab.title}
                 >
-                  {tab.title}
-                  {dirty ? " ·" : ""}
-                  {tab.missing ? " !" : ""}
+                  <span className="truncate">{tab.title}</span>
+                  <span
+                    className={cn(
+                      "size-1.5 shrink-0 rounded-full bg-foreground/70 transition-opacity duration-150",
+                      dirty ? "opacity-100" : "opacity-0",
+                    )}
+                    aria-hidden={!dirty}
+                    title={dirty ? "Unsaved changes" : undefined}
+                  />
+                  {tab.missing ? (
+                    <span className="text-muted-foreground" title="Missing on disk">
+                      !
+                    </span>
+                  ) : null}
                 </button>
                 <button
                   type="button"
-                  className="rounded p-0.5 opacity-0 hover:bg-ink-2 group-hover:opacity-100 focus-visible:opacity-100"
+                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-select hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
                   aria-label={`Close ${tab.title}`}
                   onClick={() => handleClose(tab.path)}
                 >

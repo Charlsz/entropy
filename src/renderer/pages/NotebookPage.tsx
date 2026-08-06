@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { FilePlus2 } from "lucide-react";
-import type { FileEntry } from "../../shared/types";
+import { ChevronDown, FilePlus2 } from "lucide-react";
+import type { FileEntry, RecentWorkspace } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { MarkdownEditor, type MarkdownEditorHandle } from "../pages/MarkdownEditor";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { ItemActionsMenu } from "../components/ItemActionsMenu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
@@ -21,7 +28,7 @@ import { useDirWatch } from "../hooks/useDirWatch";
 import { isLiveEmbedExt, linkMarkdown, mediaEmbedMarkdown } from "../lib/markdownBlocks";
 import { formatBytes, formatModifiedLabel } from "../lib/format";
 import { figma } from "../lib/figmaTokens";
-import { osTrashName } from "../lib/platform";
+import { osTrashName, samePath } from "../lib/platform";
 import { TrashUndoBar } from "../components/TrashUndoBar";
 import { cn } from "../lib/utils";
 
@@ -30,11 +37,13 @@ export function NotebookPage({
   onPendingNoteHandled,
   pendingReference,
   onPendingReferenceHandled,
+  onPickWorkspace,
 }: {
   pendingNote?: string | null;
   onPendingNoteHandled?: () => void;
   pendingReference?: string | null;
   onPendingReferenceHandled?: () => void;
+  onPickWorkspace?: (path: string) => void;
 } = {}) {
   const { workspace, addRecentFile, visitNote } = useWorkspace();
   const [notes, setNotes] = useState<FileEntry[]>([]);
@@ -62,7 +71,18 @@ export function NotebookPage({
   const insertedReferenceKeysRef = useRef(new Set<string>());
   const [queuedReference, setQueuedReference] = useState<string | null>(null);
   const [liveContent, setLiveContent] = useState<string | null>(null);
+  const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
   activePathRef.current = activePath;
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.entropy.workspace.getRecent().then((items) => {
+      if (!cancelled) setRecentWorkspaces(items);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace.path]);
 
   const refreshNotes = useCallback(async (options?: { quiet?: boolean }) => {
     const quiet = Boolean(options?.quiet);
@@ -532,13 +552,55 @@ export function NotebookPage({
             className="flex h-full min-h-0 w-full flex-col"
             style={{ backgroundColor: figma.surface, borderRight: `1px solid ${figma.border}` }}
           >
-            <div className="flex items-center gap-2 p-4">
-              <p
-                className="min-w-0 flex-1 text-[11px] font-semibold uppercase"
-                style={{ color: figma.muted }}
-              >
-                Local Notes ({notes.length})
-              </p>
+            <div className="flex items-center gap-1.5 p-4">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] px-1.5 py-1 text-left outline-none hover:bg-select focus-visible:bg-select"
+                    aria-label="Switch workspace"
+                  >
+                    <span
+                      className="min-w-0 flex-1 truncate text-[13px] font-semibold"
+                      style={{ color: figma.ink }}
+                      title={workspace.name}
+                    >
+                      {workspace.name}
+                    </span>
+                    <ChevronDown
+                      className="size-3.5 shrink-0"
+                      style={{ color: figma.muted }}
+                      strokeWidth={1.75}
+                    />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[12rem]">
+                  {recentWorkspaces.map((item) => {
+                    const active = samePath(item.path, workspace.path);
+                    return (
+                      <DropdownMenuItem
+                        key={item.path}
+                        disabled={active || !onPickWorkspace}
+                        onSelect={() => onPickWorkspace?.(item.path)}
+                      >
+                        <span className="truncate">{item.name}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                  {recentWorkspaces.length > 0 ? <DropdownMenuSeparator /> : null}
+                  <DropdownMenuItem
+                    disabled={!onPickWorkspace}
+                    onSelect={() => {
+                      void (async () => {
+                        const selected = await window.entropy.workspace.open();
+                        if (selected) onPickWorkspace?.(selected);
+                      })();
+                    }}
+                  >
+                    Open workspace…
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
