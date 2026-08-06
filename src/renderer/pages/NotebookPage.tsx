@@ -518,18 +518,20 @@ export function NotebookPage({
 
   const context =
     contextUseful || previewEntry ? (
-      <NoteContextPanel
-        notePath={activePath}
-        previewEntry={previewEntry}
-        liveContent={liveContent}
-        onOpenNote={openNote}
-        onReference={(entry) => void referenceEntry(entry)}
-        onClearPreview={() => setPreviewEntry(null)}
-        onRewriteHref={(from, to) => {
-          editorRef.current?.rewriteHref(from, to);
-          setContextEpoch((value) => value + 1);
-        }}
-      />
+      <div className="entropy-titlebar-pad flex h-full min-h-0 flex-col">
+        <NoteContextPanel
+          notePath={activePath}
+          previewEntry={previewEntry}
+          liveContent={liveContent}
+          onOpenNote={openNote}
+          onReference={(entry) => void referenceEntry(entry)}
+          onClearPreview={() => setPreviewEntry(null)}
+          onRewriteHref={(from, to) => {
+            editorRef.current?.rewriteHref(from, to);
+            setContextEpoch((value) => value + 1);
+          }}
+        />
+      </div>
     ) : null;
 
   return (
@@ -543,7 +545,10 @@ export function NotebookPage({
             className="flex h-full min-h-0 w-full flex-col"
             style={{ backgroundColor: figma.surface, borderRight: `1px solid ${figma.border}` }}
           >
-            <div className="flex items-center gap-1.5 p-4">
+            <div
+              className="flex items-center gap-1.5 px-4 pb-3"
+              style={{ paddingTop: window.entropy.platform === "darwin" ? 40 : 20 }}
+            >
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -697,33 +702,35 @@ export function NotebookPage({
           </div>
         }
         main={
-          <MarkdownEditor
-            ref={editorRef}
-            openPaths={openPaths}
-            activePath={activePath}
-            diskEpoch={diskEpoch}
-            onActiveChange={(notePath) => {
-              openNoteLocal(notePath);
-              visitNote(notePath);
-            }}
-            onCloseTab={closeTab}
-            onStatsChange={setStatusRight}
-            onLiveContentChange={setLiveContent}
-            onOpenLocalPath={(absolutePath) => {
-              void (async () => {
-                try {
-                  const info = await window.entropy.fs.stat(absolutePath);
-                  if (info.extension.toLowerCase() === ".md") {
-                    openNote(info.path);
-                    return;
+          <div className="entropy-titlebar-pad flex h-full min-h-0 min-w-0 flex-col">
+            <MarkdownEditor
+              ref={editorRef}
+              openPaths={openPaths}
+              activePath={activePath}
+              diskEpoch={diskEpoch}
+              onActiveChange={(notePath) => {
+                openNoteLocal(notePath);
+                visitNote(notePath);
+              }}
+              onCloseTab={closeTab}
+              onStatsChange={setStatusRight}
+              onLiveContentChange={setLiveContent}
+              onOpenLocalPath={(absolutePath) => {
+                void (async () => {
+                  try {
+                    const info = await window.entropy.fs.stat(absolutePath);
+                    if (info.extension.toLowerCase() === ".md") {
+                      openNote(info.path);
+                      return;
+                    }
+                    setPreviewEntry(info);
+                  } catch {
+                    // Ignore missing targets.
                   }
-                  setPreviewEntry(info);
-                } catch {
-                  // Ignore missing targets.
-                }
-              })();
-            }}
-          />
+                })();
+              }}
+            />
+          </div>
         }
       />
       {undoTrash ? (

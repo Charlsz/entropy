@@ -142,7 +142,13 @@ export function WorkspaceShell({
           <div className="drag-region absolute inset-x-0 top-0 z-40 h-9" aria-hidden />
         )}
 
-        <div className="entropy-titlebar-pad flex min-h-0 min-w-0 flex-1 flex-col">
+        <div
+          className={
+            workspace.currentSection === "notebook"
+              ? "flex min-h-0 min-w-0 flex-1 flex-col"
+              : "entropy-titlebar-pad flex min-h-0 min-w-0 flex-1 flex-col"
+          }
+        >
           <ContentArea
             section={workspace.currentSection}
             pendingNote={pendingNote}
