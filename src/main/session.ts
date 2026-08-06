@@ -16,6 +16,7 @@ export interface AppSettings {
   inventoryTreemapCollapsed: boolean;
   libraryPerspective: "folders" | "gallery" | "large-files" | "duplicates" | "recent";
   intelligenceView: "relationships" | "copilot" | null;
+  uiDensity: "comfortable" | "default" | "compact";
   panelLayout: PanelLayoutState;
   inventoryPanelLayout: PanelLayoutState;
   inventoryExtraRoots: string[];
@@ -64,6 +65,11 @@ function normalizeIntelligence(
   return null;
 }
 
+function normalizeDensity(value: string | undefined): AppSettings["uiDensity"] {
+  if (value === "comfortable" || value === "compact" || value === "default") return value;
+  return "default";
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "light",
   filesView: "list",
@@ -72,6 +78,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   inventoryTreemapCollapsed: true,
   libraryPerspective: "folders",
   intelligenceView: null,
+  uiDensity: "default",
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],
@@ -113,6 +120,9 @@ export async function loadSession(): Promise<AppSession> {
         ),
         intelligenceView: normalizeIntelligence(
           (parsed.settings as { intelligenceView?: string | null } | undefined)?.intelligenceView,
+        ),
+        uiDensity: normalizeDensity(
+          (parsed.settings as { uiDensity?: string } | undefined)?.uiDensity,
         ),
         panelLayout: normalizePanelLayout(parsed.settings?.panelLayout),
         inventoryPanelLayout: normalizePanelLayout(

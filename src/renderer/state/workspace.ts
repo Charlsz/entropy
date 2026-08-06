@@ -19,6 +19,8 @@ export interface WorkspaceSettings {
   libraryPerspective: LibraryPerspective;
   /** Intelligence stub view; null when browsing Library normally. */
   intelligenceView: IntelligenceView | null;
+  /** User interface density for font/icon chrome. */
+  uiDensity: "comfortable" | "default" | "compact";
   panelLayout: PanelLayoutState;
   /** Library: content | File Intelligence inspector */
   inventoryPanelLayout: PanelLayoutState;
@@ -83,6 +85,7 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   filesView: "list",
   libraryPerspective: "folders",
   intelligenceView: null,
+  uiDensity: "default",
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],

@@ -57,6 +57,11 @@ export interface GlobalSearchHit {
   workspaceName?: string;
 }
 
+export interface DiskSpaceInfo {
+  free: number;
+  total: number;
+}
+
 export interface LargeFilesApproxResult {
   totalBytes: number;
   count: number;
@@ -143,6 +148,8 @@ export interface EntropyApi {
     close: () => Promise<void>;
     isMaximized: () => Promise<boolean>;
     /** False when the OS draws min/max/close (Win/Linux overlay or macOS traffic lights). */
+    /** Update native title-bar overlay colors when the theme changes (Win/Linux). */
+    setChromeTheme: (theme: "light" | "dark") => Promise<void>;
     needsCustomControls: boolean;
   };
   duplicates: {
@@ -189,6 +196,7 @@ export interface EntropyApi {
     reveal: (targetPath: string) => Promise<void>;
     openExternal: (targetPath: string) => Promise<void>;
     getHomePath: () => Promise<string>;
+    getDiskSpace: (targetPath?: string) => Promise<DiskSpaceInfo>;
     getInventoryRoots: (extraPaths?: string[]) => Promise<InventoryRoot[]>;
     listMountRoots: () => Promise<InventoryRoot[]>;
     pickInventoryFolder: () => Promise<string | null>;
@@ -227,6 +235,7 @@ export interface AppSession {
     inventoryTreemapCollapsed?: boolean;
     libraryPerspective?: "folders" | "gallery" | "large-files" | "duplicates" | "recent";
     intelligenceView?: "relationships" | "copilot" | null;
+    uiDensity?: "comfortable" | "default" | "compact";
     panelLayout: {
       sidebar: number;
       main: number;

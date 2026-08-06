@@ -7,13 +7,14 @@ import {
 
 export function toSessionSettings(settings: WorkspaceSettings) {
   return {
-    theme: "light" as const,
+    theme: settings.theme,
     filesView: settings.filesView,
     sidebarCollapsed: settings.sidebarCollapsed,
     contextCollapsed: settings.contextCollapsed,
     inventoryTreemapCollapsed: settings.inventoryTreemapCollapsed,
     libraryPerspective: settings.libraryPerspective,
     intelligenceView: settings.intelligenceView,
+    uiDensity: settings.uiDensity,
     panelLayout: { ...settings.panelLayout },
     inventoryPanelLayout: { ...settings.inventoryPanelLayout },
     inventoryExtraRoots: [...settings.inventoryExtraRoots],
@@ -31,11 +32,14 @@ export function fromSessionSettings(
     inventoryTreemapCollapsed?: boolean;
     lastDuplicatesCount?: number | null;
     largeFilesApproxBytes?: number | null;
+    uiDensity?: string;
+    theme?: string;
   };
   const perspective = raw.libraryPerspective;
   const intelligence = raw.intelligenceView;
+  const density = raw.uiDensity;
   return {
-    theme: "light",
+    theme: raw.theme === "dark" ? "dark" : "light",
     filesView: settings.filesView,
     sidebarCollapsed: Boolean(settings.sidebarCollapsed),
     contextCollapsed: Boolean(settings.contextCollapsed),
@@ -50,6 +54,10 @@ export function fromSessionSettings(
         : "folders",
     intelligenceView:
       intelligence === "relationships" || intelligence === "copilot" ? intelligence : null,
+    uiDensity:
+      density === "comfortable" || density === "compact" || density === "default"
+        ? density
+        : "default",
     panelLayout: normalizePanelLayout(settings.panelLayout ?? DEFAULT_PANEL_LAYOUT),
     inventoryPanelLayout: normalizePanelLayout(
       settings.inventoryPanelLayout ?? DEFAULT_INVENTORY_PANEL_LAYOUT,
