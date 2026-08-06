@@ -153,8 +153,8 @@ export function WorkspaceProvider({
   const consumedInitialNote = useRef(false);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = workspace.settings.theme;
-  }, [workspace.settings.theme]);
+    document.documentElement.dataset.theme = "light";
+  }, []);
 
   useEffect(() => {
     if (!initialNotePath || consumedInitialNote.current) return;

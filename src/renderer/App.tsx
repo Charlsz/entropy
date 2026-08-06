@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Titlebar } from "./components/Titlebar";
 import { WorkspaceSelector } from "./components/WorkspaceSelector";
 import { WorkspaceShell } from "./components/WorkspaceShell";
 import { WorkspaceProvider } from "./state/WorkspaceContext";
+import { WindowControls } from "./components/WindowControls";
 import { flushAll } from "./state/flushRegistry";
 import { fromSessionSettings, toSessionSettings } from "./state/sessionSettings";
 import type { WorkspaceSettings } from "./state/workspace";
 import { DEFAULT_SETTINGS } from "./state/workspace";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { samePath } from "./lib/platform";
+import { figma } from "./lib/figmaTokens";
 
 export function App() {
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
+  /** True when path is only a Library bootstrap (Home) — Notebook must pick a notes folder. */
+  const [libraryOnly, setLibraryOnly] = useState(false);
   const [initialSettings, setInitialSettings] = useState<WorkspaceSettings | null>(null);
   const [booting, setBooting] = useState(true);
   const [pendingNotePath, setPendingNotePath] = useState<string | null>(null);
@@ -40,17 +43,37 @@ export function App() {
         const session = await window.entropy.session.load();
         if (cancelled) return;
 
-        const settings = fromSessionSettings(session.settings);
+        // Figma redesign is light-first — migrate old dark sessions.
+        const settings = {
+          ...fromSessionSettings(session.settings),
+          theme: "light" as const,
+        };
         setInitialSettings(settings);
         latestSettings.current = settings;
-        latestWorkspace.current = session.lastWorkspace;
-        document.documentElement.dataset.theme = settings.theme;
+        document.documentElement.dataset.theme = "light";
 
         if (session.lastWorkspace && (await window.entropy.fs.exists(session.lastWorkspace))) {
+          latestWorkspace.current = session.lastWorkspace;
+          setLibraryOnly(false);
           setWorkspacePath(session.lastWorkspace);
+        } else {
+          // Library does not need a notes workspace — bootstrap from Home so Figma shell opens.
+          const home = await window.entropy.fs.getHomePath();
+          latestWorkspace.current = null;
+          setLibraryOnly(true);
+          setWorkspacePath(home);
         }
       } catch {
-        if (!cancelled) setInitialSettings(DEFAULT_SETTINGS);
+        if (!cancelled) {
+          setInitialSettings({ ...DEFAULT_SETTINGS, theme: "light" });
+          try {
+            const home = await window.entropy.fs.getHomePath();
+            setLibraryOnly(true);
+            setWorkspacePath(home);
+          } catch {
+            setWorkspacePath(null);
+          }
+        }
       } finally {
         if (!cancelled) setBooting(false);
       }
@@ -64,7 +87,7 @@ export function App() {
       const settings = latestSettings.current ?? DEFAULT_SETTINGS;
       await window.entropy.session.save({
         lastWorkspace: latestWorkspace.current,
-        settings: toSessionSettings(settings),
+        settings: toSessionSettings({ ...settings, theme: "light" }),
       });
       await flushAll();
     });
@@ -78,75 +101,101 @@ export function App() {
 
   const openWorkspace = useCallback(
     async (nextPath: string, notePath?: string | null) => {
-      const settings = initialSettings ?? DEFAULT_SETTINGS;
+      const settings = { ...(initialSettings ?? DEFAULT_SETTINGS), theme: "light" as const };
       await window.entropy.workspace.remember(nextPath).catch(() => undefined);
       await window.entropy.session.save({
         lastWorkspace: nextPath,
         settings: toSessionSettings(settings),
       });
       latestWorkspace.current = nextPath;
+      setLibraryOnly(false);
       setPendingNotePath(notePath ?? null);
       setWorkspacePath(nextPath);
+      setInitialSettings(settings);
     },
     [initialSettings],
   );
 
   const switchWorkspace = useCallback(
     async (nextPath: string, notePath: string) => {
-      if (workspacePath && samePath(nextPath, workspacePath)) return;
+      if (workspacePath && samePath(nextPath, workspacePath) && !libraryOnly) return;
       await flushAll();
       await openWorkspace(nextPath, notePath);
     },
-    [openWorkspace, workspacePath],
+    [openWorkspace, workspacePath, libraryOnly],
   );
 
   const closeWorkspace = useCallback(async () => {
     await flushAll();
-    const settings = initialSettings ?? DEFAULT_SETTINGS;
+    const settings = { ...(initialSettings ?? DEFAULT_SETTINGS), theme: "light" as const };
     await window.entropy.session.save({
       lastWorkspace: null,
       settings: toSessionSettings(settings),
     });
     latestWorkspace.current = null;
     setPendingNotePath(null);
-    setWorkspacePath(null);
+    setLibraryOnly(true);
+    try {
+      const home = await window.entropy.fs.getHomePath();
+      setWorkspacePath(home);
+    } catch {
+      setWorkspacePath(null);
+    }
   }, [initialSettings]);
 
   let content: ReactNode;
 
   if (booting || !initialSettings) {
     content = (
-      <div className="flex h-full flex-col bg-background">
-        <Titlebar />
-        <div className="flex flex-1 flex-col items-center justify-center gap-2">
-          <h1 className="text-lg font-medium">Entropy</h1>
-          <p className="text-sm text-muted-foreground">Starting…</p>
+      <div
+        className="relative flex h-full flex-col items-center justify-center"
+        data-theme="light"
+        style={{ backgroundColor: figma.surface }}
+      >
+        <div className="absolute right-0 top-0">
+          <WindowControls />
         </div>
+        <p className="text-[14px] font-semibold" style={{ color: figma.ink }}>
+          Entropy
+        </p>
+        <p className="mt-1 text-[13px]" style={{ color: figma.muted }}>
+          Starting…
+        </p>
       </div>
     );
   } else if (!workspacePath) {
     content = (
-      <div className="flex h-full flex-col bg-background" data-theme={initialSettings.theme}>
-        <Titlebar />
+      <div
+        className="relative flex h-full flex-col"
+        data-theme="light"
+        style={{ backgroundColor: figma.surface }}
+      >
+        <div className="absolute right-0 top-0 z-10">
+          <WindowControls />
+        </div>
         <WorkspaceSelector onSelect={(path) => void openWorkspace(path)} />
       </div>
     );
   } else {
     content = (
       <WorkspaceProvider
-        key={workspacePath}
+        key={`${workspacePath}:${libraryOnly ? "lib" : "ws"}`}
         path={workspacePath}
-        initialSettings={initialSettings}
-        initialNotePath={pendingNotePath}
+        initialSettings={{ ...initialSettings, theme: "light" }}
+        initialNotePath={libraryOnly ? null : pendingNotePath}
         onInitialNoteConsumed={() => setPendingNotePath(null)}
         onSettingsChange={(settings) => {
-          setInitialSettings(settings);
-          persistSession(workspacePath, settings);
+          const next = { ...settings, theme: "light" as const };
+          setInitialSettings(next);
+          persistSession(libraryOnly ? null : workspacePath, next);
         }}
         onClose={() => void closeWorkspace()}
         onOpenInWorkspace={(nextPath, notePath) => void switchWorkspace(nextPath, notePath)}
       >
-        <WorkspaceShell />
+        <WorkspaceShell
+          needsNotebookWorkspace={libraryOnly}
+          onPickWorkspace={(path) => void openWorkspace(path)}
+        />
       </WorkspaceProvider>
     );
   }

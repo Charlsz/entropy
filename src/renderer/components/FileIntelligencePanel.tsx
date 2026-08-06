@@ -10,6 +10,7 @@ import type { FileEntry } from "../../shared/types";
 import { findFileConnections } from "../lib/fileConnections";
 import { formatBytes, formatModifiedLabel } from "../lib/format";
 import { isPreviewableEntry, mediaKind } from "../lib/media";
+import { figma } from "../lib/figmaTokens";
 import { useWorkspace } from "../state/useWorkspace";
 import { EntryPreview } from "./EntryPreview";
 
@@ -64,21 +65,28 @@ export function FileIntelligencePanel({ entry, scanRoot }: FileIntelligencePanel
     workspace.inventoryRootLabel ||
     "Home";
   const showPreview = isPreviewableEntry(entry) && mediaKind(entry.extension) === "image";
+  const modified = formatModifiedLabel(entry.modifiedAt);
 
   return (
     <aside
-      className="flex h-full min-h-0 w-full flex-col bg-panel"
+      className="flex h-full min-h-0 w-full flex-col"
+      style={{ backgroundColor: figma.surface, borderLeft: `1px solid ${figma.border}` }}
       aria-label="File Intelligence"
     >
-      <div className="flex flex-col gap-2 border-b border-border p-5">
-        <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+      <div
+        className="flex flex-col gap-2 p-5"
+        style={{ borderBottom: `1px solid ${figma.border}` }}
+      >
+        <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
           File Intelligence
         </p>
-        <p className="break-all text-sm font-semibold text-foreground">{entry.name}</p>
+        <p className="break-all text-[14px] font-semibold" style={{ color: figma.ink }}>
+          {entry.name}
+        </p>
       </div>
 
       <div className="flex flex-col gap-4 p-5">
-        <p className="text-xs font-semibold uppercase text-muted-foreground">
+        <p className="text-[12px] font-semibold uppercase" style={{ color: figma.muted }}>
           Connections & context
         </p>
         <div className="flex flex-col gap-3">
@@ -103,7 +111,14 @@ export function FileIntelligencePanel({ entry, scanRoot }: FileIntelligencePanel
               </>
             }
           />
-          <IntelRow icon={Clock} text={`Modified ${formatModifiedLabel(entry.modifiedAt).toLowerCase()}`} />
+          <IntelRow
+            icon={Clock}
+            text={
+              modified.startsWith("Yesterday") || modified.startsWith("Today")
+                ? `Modified ${modified.toLowerCase()}`
+                : `Modified ${modified}`
+            }
+          />
           <IntelRow
             icon={File}
             text={
@@ -134,10 +149,13 @@ export function FileIntelligencePanel({ entry, scanRoot }: FileIntelligencePanel
 
       {showPreview ? (
         <div className="flex flex-col gap-2.5 p-5 pt-0">
-          <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+          <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
             Image Analysis - Preview
           </p>
-          <div className="relative h-[140px] overflow-hidden rounded-md border border-border">
+          <div
+            className="relative h-[140px] overflow-hidden rounded-[6px]"
+            style={{ border: `1px solid ${figma.border}` }}
+          >
             <EntryPreview entry={entry} size="lg" className="!h-full !w-full object-cover" />
           </div>
         </div>
@@ -155,8 +173,10 @@ function IntelRow({
 }) {
   return (
     <div className="flex items-center gap-2.5">
-      <Icon className="size-3.5 shrink-0 text-foreground" strokeWidth={1.75} />
-      <p className="text-[13px] text-foreground">{text}</p>
+      <Icon className="size-[14px] shrink-0" style={{ color: figma.ink }} strokeWidth={1.75} />
+      <p className="text-[13px]" style={{ color: figma.ink }}>
+        {text}
+      </p>
     </div>
   );
 }

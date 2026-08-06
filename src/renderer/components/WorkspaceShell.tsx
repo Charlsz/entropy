@@ -1,11 +1,27 @@
 import { useEffect, useState } from "react";
-import { Titlebar } from "./Titlebar";
+import { Settings } from "lucide-react";
 import { AppSidebar } from "./AppSidebar";
 import { ContentArea } from "./ContentArea";
 import { SearchPalette } from "./SearchPalette";
+import { WindowControls } from "./WindowControls";
+import { Button } from "./ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { useWorkspace } from "../state/useWorkspace";
+import { figma } from "../lib/figmaTokens";
+import { WorkspaceSelector } from "./WorkspaceSelector";
 
-export function WorkspaceShell() {
+/**
+ * Figma Entropy shell: sidebar + content only.
+ * Electron drag lives on the sidebar header; window controls float top-right.
+ * Workspace picker appears only when Notebook is active without a real notes folder.
+ */
+export function WorkspaceShell({
+  needsNotebookWorkspace,
+  onPickWorkspace,
+}: {
+  needsNotebookWorkspace: boolean;
+  onPickWorkspace: (path: string) => void;
+}) {
   const {
     workspace,
     pendingNote,
@@ -13,7 +29,6 @@ export function WorkspaceShell() {
     pendingReference,
     clearPendingReference,
     visitSection,
-    closeWorkspace,
     openNote,
     goBack,
     goForward,
@@ -23,9 +38,10 @@ export function WorkspaceShell() {
   const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = workspace.settings.theme;
+    // Figma frames are light-only — keep product chrome locked to that map.
+    document.documentElement.dataset.theme = "light";
     document.documentElement.dataset.platform = window.entropy.platform;
-  }, [workspace.settings.theme]);
+  }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -70,25 +86,59 @@ export function WorkspaceShell() {
     };
   }, [canGoBack, canGoForward, goBack, goForward]);
 
+  const showNotebookGate =
+    needsNotebookWorkspace && workspace.currentSection === "notebook";
+
   return (
-    <div className="flex h-full flex-col bg-background" data-theme={workspace.settings.theme}>
-      <Titlebar
-        workspaceName={workspace.name}
-        onCloseWorkspace={closeWorkspace}
-        onOpenSettings={() => visitSection("settings")}
-      />
-      <div className="flex min-h-0 flex-1">
-        <AppSidebar onOpenSearch={() => setSearchOpen(true)} />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <ContentArea
-            section={workspace.currentSection}
-            pendingNote={pendingNote}
-            onPendingNoteHandled={clearPendingNote}
-            pendingReference={pendingReference}
-            onPendingReferenceHandled={clearPendingReference}
-          />
+    <div
+      className="relative flex h-full min-h-0 w-full"
+      data-theme="light"
+      style={{ backgroundColor: figma.canvas }}
+    >
+      <AppSidebar onOpenSearch={() => setSearchOpen(true)} />
+
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-9 items-center justify-end pr-0">
+          <div className="pointer-events-auto no-drag flex items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-[#6b6d69]"
+                  aria-label="Settings"
+                  onClick={() => visitSection("settings")}
+                >
+                  <Settings strokeWidth={1.75} className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Settings</TooltipContent>
+            </Tooltip>
+            <WindowControls />
+          </div>
         </div>
+
+        <ContentArea
+          section={workspace.currentSection}
+          pendingNote={pendingNote}
+          onPendingNoteHandled={clearPendingNote}
+          pendingReference={pendingReference}
+          onPendingReferenceHandled={clearPendingReference}
+        />
+
+        {showNotebookGate ? (
+          <div
+            className="absolute inset-0 z-40 flex items-center justify-center px-6"
+            style={{ backgroundColor: "color-mix(in srgb, #fafaf9 88%, transparent)" }}
+          >
+            <div className="w-full max-w-md">
+              <WorkspaceSelector onSelect={onPickWorkspace} embedded />
+            </div>
+          </div>
+        ) : null}
       </div>
+
       <SearchPalette
         open={searchOpen}
         onClose={() => setSearchOpen(false)}

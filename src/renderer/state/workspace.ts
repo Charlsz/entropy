@@ -248,16 +248,17 @@ export function layoutFromGroup(
 export function createWorkspaceState(workspacePath: string): WorkspaceState {
   const normalized = workspacePath.replace(/[/\\]+$/, "");
   const name = normalized.split(/[/\\]/).pop() || "Workspace";
-  const start = navSection("notebook");
+  const start = navSection("inventory");
 
   return {
     path: normalized,
     name,
     currentFolder: normalized,
-    currentSection: "notebook",
+    currentSection: "inventory",
     recentFiles: [],
     settings: {
       ...DEFAULT_SETTINGS,
+      theme: "light",
       panelLayout: { ...DEFAULT_PANEL_LAYOUT },
       inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
     },

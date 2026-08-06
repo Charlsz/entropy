@@ -4,13 +4,16 @@ import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { Empty, EmptyDescription, EmptyTitle } from "./ui/empty";
 import { Skeleton } from "./ui/skeleton";
-import logoUrl from "../assets/entropy-logo.png";
+import { figma } from "../lib/figmaTokens";
+import { cn } from "../lib/utils";
 
 interface WorkspaceSelectorProps {
   onSelect: (workspacePath: string) => void;
+  /** Compact card for Notebook workspace gate (Figma shell overlay). */
+  embedded?: boolean;
 }
 
-export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
+export function WorkspaceSelector({ onSelect, embedded = false }: WorkspaceSelectorProps) {
   const [recent, setRecent] = useState<RecentWorkspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -67,32 +70,44 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center bg-panel px-4 py-6 sm:p-8">
-      <div className="w-full max-w-md space-y-6 rounded-lg border border-border bg-background p-8 shadow-none">
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 items-center justify-center px-4 py-6",
+        !embedded && "h-full",
+      )}
+      style={{ backgroundColor: embedded ? "transparent" : figma.surface }}
+    >
+      <div
+        className="w-full max-w-md space-y-6 rounded-[8px] border p-8"
+        style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
+      >
         <div className="space-y-3 text-center">
           <div className="mx-auto flex items-center justify-center gap-2">
-            <img
-              src={logoUrl}
-              alt=""
-              className="h-[18px] w-[18px] object-contain"
-              draggable={false}
+            <span
+              className="inline-flex size-[18px] items-center justify-center rounded-full border"
+              style={{ borderColor: figma.ink }}
+              aria-hidden
             />
-            <span className="text-sm font-semibold text-foreground">Entropy</span>
+            <span className="text-[14px] font-semibold" style={{ color: figma.ink }}>
+              Entropy
+            </span>
           </div>
-          <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground">
-            Choose a workspace
+          <h1 className="text-[22px] font-semibold tracking-tight" style={{ color: figma.ink }}>
+            {embedded ? "Choose a notes workspace" : "Choose a workspace"}
           </h1>
-          <p className="mx-auto max-w-sm text-[13px] leading-relaxed text-muted-foreground">
-            A folder on your computer for notes and settings. Library still browses your real files
-            in place — Entropy never imports them.
+          <p className="mx-auto max-w-sm text-[13px] leading-relaxed" style={{ color: figma.muted }}>
+            {embedded
+              ? "Notebook stores Markdown in a folder you pick. Library still browses your computer without importing files."
+              : "A folder on your computer for notes. Library browses your real files in place — Entropy never imports them."}
           </p>
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Button
             type="button"
-            className="bg-foreground text-background hover:bg-foreground/90"
             disabled={busy}
+            className="rounded-[6px]"
+            style={{ backgroundColor: figma.ink, color: figma.canvas }}
             onClick={() => void handleOpen()}
           >
             Open Workspace
@@ -100,8 +115,13 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
           <Button
             type="button"
             variant="outline"
-            className="border-border bg-panel text-foreground"
             disabled={busy}
+            className="rounded-[6px]"
+            style={{
+              borderColor: figma.border,
+              backgroundColor: figma.surface,
+              color: figma.ink,
+            }}
             onClick={() => void handleCreate()}
           >
             Create Workspace
@@ -109,11 +129,17 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
         </div>
 
         <section
-          className="overflow-hidden rounded-md border border-border bg-panel"
+          className="overflow-hidden rounded-[6px] border"
+          style={{ backgroundColor: figma.surface, borderColor: figma.border }}
           aria-label="Recent workspaces"
         >
-          <div className="border-b border-border px-4 py-3">
-            <h2 className="text-[11px] font-semibold uppercase text-muted-foreground">Recent</h2>
+          <div className="border-b px-4 py-3" style={{ borderColor: figma.border }}>
+            <h2
+              className="text-[11px] font-semibold uppercase"
+              style={{ color: figma.muted }}
+            >
+              Recent
+            </h2>
           </div>
 
           <ScrollArea className="max-h-64">
@@ -132,24 +158,34 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
                 {recent.map((item) => (
                   <li
                     key={item.path}
-                    className="group flex items-center border-b border-border last:border-b-0"
+                    className="group flex items-center border-b last:border-b-0"
+                    style={{ borderColor: figma.border }}
                   >
                     <button
                       type="button"
-                      className="flex min-w-0 flex-1 flex-col px-4 py-2.5 text-left hover:bg-select"
+                      className="flex min-w-0 flex-1 flex-col px-4 py-2.5 text-left"
+                      style={{ color: figma.ink }}
                       disabled={busy}
+                      onMouseEnter={(event) => {
+                        event.currentTarget.style.backgroundColor = figma.select;
+                      }}
+                      onMouseLeave={(event) => {
+                        event.currentTarget.style.backgroundColor = "transparent";
+                      }}
                       onClick={() => void handleRecent(item)}
                     >
-                      <span className="truncate text-[13px] font-medium text-foreground">
-                        {item.name}
-                      </span>
-                      <span className="truncate font-mono text-[11px] text-muted-foreground">
+                      <span className="truncate text-[13px] font-medium">{item.name}</span>
+                      <span
+                        className="truncate font-mono text-[11px]"
+                        style={{ color: figma.muted }}
+                      >
                         {item.path}
                       </span>
                     </button>
                     <button
                       type="button"
-                      className="mr-2 rounded-md px-2 py-1 text-xs text-muted-foreground opacity-0 hover:bg-select hover:text-foreground group-hover:opacity-100"
+                      className="mr-2 rounded-[6px] px-2 py-1 text-xs opacity-0 group-hover:opacity-100"
+                      style={{ color: figma.muted }}
                       aria-label={`Remove ${item.name} from recent`}
                       onClick={(event) => void handleRemove(event, item)}
                     >

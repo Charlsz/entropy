@@ -7,7 +7,6 @@ import { MarkdownEditor, type MarkdownEditorHandle } from "../pages/MarkdownEdit
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
-import { StatusBar } from "../components/StatusBar";
 import { ItemActionsMenu } from "../components/ItemActionsMenu";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
@@ -21,6 +20,7 @@ import { noteContextIsUseful } from "../lib/noteContext";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isLiveEmbedExt, linkMarkdown, mediaEmbedMarkdown } from "../lib/markdownBlocks";
 import { formatBytes, formatModifiedLabel } from "../lib/format";
+import { figma } from "../lib/figmaTokens";
 import { osTrashName } from "../lib/platform";
 import { TrashUndoBar } from "../components/TrashUndoBar";
 import { cn } from "../lib/utils";
@@ -47,7 +47,7 @@ export function NotebookPage({
   const [renameValue, setRenameValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [statusRight, setStatusRight] = useState("");
+  const [, setStatusRight] = useState("");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [undoTrash, setUndoTrash] = useState<{
     paths: string[];
@@ -560,9 +560,15 @@ export function NotebookPage({
         persistLayout={workspace.currentSection === "notebook"}
         context={context}
         sidebar={
-          <div className="flex h-full min-h-0 w-full flex-col bg-panel">
+          <div
+            className="flex h-full min-h-0 w-full flex-col"
+            style={{ backgroundColor: figma.surface, borderRight: `1px solid ${figma.border}` }}
+          >
             <div className="flex items-center gap-2 p-4">
-              <p className="min-w-0 flex-1 text-[11px] font-semibold uppercase text-muted-foreground">
+              <p
+                className="min-w-0 flex-1 text-[11px] font-semibold uppercase"
+                style={{ color: figma.muted }}
+              >
                 Local Notes ({notes.length})
               </p>
               <Tooltip>
@@ -614,7 +620,7 @@ export function NotebookPage({
                     const title = note.name.replace(/\.md$/i, "");
                     const active = activePath === note.path;
                     return (
-                      <li key={note.path} className="border-b border-border">
+                      <li key={note.path} style={{ borderBottom: `1px solid ${figma.border}` }}>
                         {renaming === note.path ? (
                           <div className="px-4 py-2.5">
                             <Input
@@ -631,10 +637,10 @@ export function NotebookPage({
                           </div>
                         ) : (
                           <div
-                            className={cn(
-                              "group flex min-w-0 items-start",
-                              active ? "bg-select" : "bg-transparent hover:bg-select/50",
-                            )}
+                            className="group flex min-w-0 items-start"
+                            style={{
+                              backgroundColor: active ? figma.select : "transparent",
+                            }}
                           >
                             <button
                               type="button"
@@ -653,13 +659,14 @@ export function NotebookPage({
                             >
                               <p
                                 className={cn(
-                                  "truncate text-[13px] text-foreground",
+                                  "truncate text-[13px]",
                                   active ? "font-medium" : "font-normal",
                                 )}
+                                style={{ color: figma.ink }}
                               >
                                 {title}
                               </p>
-                              <p className="mt-1 text-[11px] text-muted-foreground">
+                              <p className="mt-1 text-[11px]" style={{ color: figma.muted }}>
                                 {note.excerpt ||
                                   (note.modifiedAt
                                     ? formatModifiedLabel(note.modifiedAt)
@@ -709,7 +716,6 @@ export function NotebookPage({
           />
         }
       />
-      <StatusBar left={activePath ?? workspace.path} right={statusRight} />
       {undoTrash ? (
         <TrashUndoBar
           fileCount={1}
