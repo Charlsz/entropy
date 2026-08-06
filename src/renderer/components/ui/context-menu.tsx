@@ -1,0 +1,61 @@
+import * as React from "react";
+import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
+import { cn } from "../../lib/utils";
+
+export const ContextMenu = ContextMenuPrimitive.Root;
+export const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
+export const ContextMenuGroup = ContextMenuPrimitive.Group;
+export const ContextMenuPortal = ContextMenuPrimitive.Portal;
+
+export const ContextMenuContent = React.forwardRef<
+  React.ElementRef<typeof ContextMenuPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Content>
+>(({ className, ...props }, ref) => (
+  <ContextMenuPrimitive.Portal>
+    <ContextMenuPrimitive.Content
+      ref={ref}
+      className={cn(
+        "z-50 min-w-[10rem] overflow-hidden rounded-[8px] border border-border bg-card p-1 text-foreground shadow-sm",
+        className,
+      )}
+      {...props}
+    />
+  </ContextMenuPrimitive.Portal>
+));
+ContextMenuContent.displayName = ContextMenuPrimitive.Content.displayName;
+
+export const ContextMenuItem = React.forwardRef<
+  React.ElementRef<typeof ContextMenuPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Item> & {
+    inset?: boolean;
+    variant?: "default" | "destructive";
+  }
+>(({ className, inset, variant, ...props }, ref) => {
+  void variant;
+  return (
+    <ContextMenuPrimitive.Item
+      ref={ref}
+      className={cn(
+        "relative flex cursor-default select-none items-center rounded-[6px] px-2.5 py-1.5 text-[13px] outline-none",
+        "text-foreground data-[highlighted]:bg-select data-[highlighted]:text-foreground",
+        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        inset && "pl-8",
+        className,
+      )}
+      {...props}
+    />
+  );
+});
+ContextMenuItem.displayName = ContextMenuPrimitive.Item.displayName;
+
+export const ContextMenuSeparator = React.forwardRef<
+  React.ElementRef<typeof ContextMenuPrimitive.Separator>,
+  React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Separator>
+>(({ className, ...props }, ref) => (
+  <ContextMenuPrimitive.Separator
+    ref={ref}
+    className={cn("-mx-1 my-1 h-px bg-border", className)}
+    {...props}
+  />
+));
+ContextMenuSeparator.displayName = ContextMenuPrimitive.Separator.displayName;

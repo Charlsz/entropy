@@ -18,7 +18,8 @@ import { useWorkspace } from "../state/useWorkspace";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
-import { ItemActionsMenu, type ItemAction } from "../components/ItemActionsMenu";
+import { type ItemAction } from "../components/ItemActionsMenu";
+import { ItemContextMenu } from "../components/ItemContextMenu";
 import {
   EntryPreview,
   getFolderPreview,
@@ -1009,78 +1010,77 @@ export function FilesPage({
                     entry.isDirectory && sizeByPath[entry.path] === undefined;
                   const selectedRow = selected?.path === entry.path;
                   return (
-                    <div
+                    <ItemContextMenu
                       key={entry.path}
-                      draggable
-                      role="button"
-                      tabIndex={0}
-                      className={cn(
-                        "group relative flex cursor-pointer items-center gap-4 border-b px-6 py-2 text-[13px]",
-                        entry.isDirectory && dragOverPath === entry.path && "opacity-70",
-                      )}
-                      style={{
-                        borderColor: figma.border,
-                        backgroundColor: selectedRow ? figma.select : "transparent",
-                        color: figma.ink,
-                      }}
-                      onClick={() => {
-                        if (isSearching) {
-                          void openEntry(entry);
-                          return;
-                        }
-                        if (entry.isDirectory) setSelected(null);
-                        else setSelected(entry);
-                      }}
-                      onDoubleClick={() => void openEntry(entry)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") void openEntry(entry);
-                      }}
-                      onDragStart={(event) => onDragStart(event, entry)}
-                      onDragOver={
-                        entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
-                      }
-                      onDrop={
-                        entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
-                      }
+                      label={entry.name}
+                      actions={fileActions(entry)}
                     >
-                      <div className="flex w-[260px] min-w-0 shrink-0 items-center gap-2.5">
-                        <EntryTypeIcon entry={entry} />
+                      <div
+                        draggable
+                        role="button"
+                        tabIndex={0}
+                        className={cn(
+                          "relative flex cursor-pointer items-center gap-4 border-b px-6 py-2 text-[13px]",
+                          entry.isDirectory && dragOverPath === entry.path && "opacity-70",
+                        )}
+                        style={{
+                          borderColor: figma.border,
+                          backgroundColor: selectedRow ? figma.select : "transparent",
+                          color: figma.ink,
+                        }}
+                        onClick={() => {
+                          if (isSearching) {
+                            void openEntry(entry);
+                            return;
+                          }
+                          if (entry.isDirectory) setSelected(null);
+                          else setSelected(entry);
+                        }}
+                        onDoubleClick={() => void openEntry(entry)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") void openEntry(entry);
+                        }}
+                        onDragStart={(event) => onDragStart(event, entry)}
+                        onDragOver={
+                          entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
+                        }
+                        onDrop={
+                          entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
+                        }
+                      >
+                        <div className="flex w-[260px] min-w-0 shrink-0 items-center gap-2.5">
+                          <EntryTypeIcon entry={entry} />
+                          <span
+                            className={cn(
+                              "truncate",
+                              selectedRow ? "font-medium" : "font-normal",
+                            )}
+                            title={entry.name}
+                          >
+                            {entry.name}
+                          </span>
+                        </div>
                         <span
-                          className={cn(
-                            "truncate",
-                            selectedRow ? "font-medium" : "font-normal",
-                          )}
-                          title={entry.name}
+                          className="min-w-0 flex-1 truncate text-[12px] tracking-tight"
+                          style={{ color: figma.muted }}
+                          title={pathLabel}
                         >
-                          {entry.name}
+                          {pathLabel}
+                        </span>
+                        <span
+                          className="w-20 shrink-0 text-right font-mono text-[12px]"
+                          style={{ color: figma.muted }}
+                        >
+                          {sizePending ? "…" : formatBytes(entry.size)}
+                        </span>
+                        <span
+                          className="w-[140px] shrink-0 text-right text-[12px]"
+                          style={{ color: figma.muted }}
+                        >
+                          {formatModifiedLabel(entry.modifiedAt)}
                         </span>
                       </div>
-                      <span
-                        className="min-w-0 flex-1 truncate text-[12px] tracking-tight"
-                        style={{ color: figma.muted }}
-                        title={pathLabel}
-                      >
-                        {pathLabel}
-                      </span>
-                      <span
-                        className="w-20 shrink-0 text-right font-mono text-[12px]"
-                        style={{ color: figma.muted }}
-                      >
-                        {sizePending ? "…" : formatBytes(entry.size)}
-                      </span>
-                      <span
-                        className="w-[140px] shrink-0 text-right text-[12px]"
-                        style={{ color: figma.muted }}
-                      >
-                        {formatModifiedLabel(entry.modifiedAt)}
-                      </span>
-                      <div
-                        className="absolute right-3 opacity-0 group-hover:opacity-100"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <ItemActionsMenu label={entry.name} actions={fileActions(entry)} />
-                      </div>
-                    </div>
+                    </ItemContextMenu>
                   );
                 })
               : null}
@@ -1314,46 +1314,46 @@ const FileGridCard = memo(
     }, [entry.isDirectory, entry.path, isPreviewable]);
 
     return (
-      <div
-        draggable
-        className={cn(
-          "group min-w-0 cursor-pointer rounded-lg border p-2",
-          dropTarget && "opacity-70",
-        )}
-        style={{
-          backgroundColor: figma.canvas,
-          borderColor: selected ? figma.accent : figma.border,
-          outline: "none",
-        }}
-        onClick={onSelect}
-        onDoubleClick={onOpen}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-      >
+      <ItemContextMenu label={entry.name} actions={actions}>
         <div
-          className="mb-2 flex aspect-square w-full items-center justify-center overflow-hidden rounded-[4px]"
-          style={{ backgroundColor: figma.surface }}
+          draggable
+          className={cn(
+            "min-w-0 cursor-pointer rounded-lg border p-2",
+            dropTarget && "opacity-70",
+          )}
+          style={{
+            backgroundColor: figma.canvas,
+            borderColor: selected ? figma.accent : figma.border,
+            outline: "none",
+          }}
+          onClick={onSelect}
+          onDoubleClick={onOpen}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
         >
-          {face === "icon" ? (
-            entry.isDirectory ? (
-              <Folder className="size-9" style={{ color: figma.muted }} strokeWidth={1.15} />
-            ) : mediaKind(entry.extension) === "image" ? (
-              <Image className="size-9" style={{ color: figma.muted }} strokeWidth={1.15} />
-            ) : (
-              <FileText className="size-9" style={{ color: figma.muted }} strokeWidth={1.15} />
-            )
-          ) : face === "preview" ? (
-            <EntryPreview
-              entry={entry}
-              size="lg"
-              className="aspect-auto h-full w-full rounded-[4px]"
-            />
-          ) : null}
-        </div>
+          <div
+            className="mb-2 flex aspect-square w-full items-center justify-center overflow-hidden rounded-[4px]"
+            style={{ backgroundColor: figma.surface }}
+          >
+            {face === "icon" ? (
+              entry.isDirectory ? (
+                <Folder className="size-9" style={{ color: figma.muted }} strokeWidth={1.15} />
+              ) : mediaKind(entry.extension) === "image" ? (
+                <Image className="size-9" style={{ color: figma.muted }} strokeWidth={1.15} />
+              ) : (
+                <FileText className="size-9" style={{ color: figma.muted }} strokeWidth={1.15} />
+              )
+            ) : face === "preview" ? (
+              <EntryPreview
+                entry={entry}
+                size="lg"
+                className="aspect-auto h-full w-full rounded-[4px]"
+              />
+            ) : null}
+          </div>
 
-        <div className="flex min-w-0 items-start gap-1">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             <p
               className="truncate text-[12px] font-medium"
               style={{ color: figma.ink }}
@@ -1362,7 +1362,7 @@ const FileGridCard = memo(
               {entry.name}
             </p>
             <p
-              className="mt-0.5 truncate font-mono text-[11px]"
+              className="mt-0.5 truncate text-[11px]"
               style={{ color: figma.muted }}
               title={pathLabel}
             >
@@ -1381,14 +1381,8 @@ const FileGridCard = memo(
               )}
             </p>
           </div>
-          <div
-            className="shrink-0 opacity-0 group-hover:opacity-100"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <ItemActionsMenu label={entry.name} actions={actions} />
-          </div>
         </div>
-      </div>
+      </ItemContextMenu>
     );
   },
   (prev, next) =>
