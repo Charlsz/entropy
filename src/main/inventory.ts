@@ -553,20 +553,33 @@ export interface LargeFilesApproxResult {
   truncated: boolean;
 }
 
+export interface LargeFileHit {
+  path: string;
+  name: string;
+  size: number;
+  modifiedAt: number;
+  extension: string;
+}
+
+export interface LargeFilesScanResult extends LargeFilesApproxResult {
+  files: LargeFileHit[];
+}
+
 const LARGE_FILES_MIN_BYTES = 100 * 1024 * 1024;
-const LARGE_FILES_MAX_DEPTH = 10;
-const LARGE_FILES_MAX_VISIT = 80_000;
+const LARGE_FILES_MAX_DEPTH = 12;
+const LARGE_FILES_MAX_VISIT = 120_000;
+const LARGE_FILES_MAX_RESULTS = 500;
 
 /**
- * Approximate sum of files ≥100MB under inventory roots (Home + added folders).
+ * Find files ≥100MB under inventory roots (Home + added folders).
  * Skips protected OS trees; stops early if the visit budget is hit.
  */
-export async function scanLargeFilesApprox(
+export async function scanLargeFiles(
   rootPaths: string[],
   minBytes = LARGE_FILES_MIN_BYTES,
-): Promise<LargeFilesApproxResult> {
+): Promise<LargeFilesScanResult> {
+  const files: LargeFileHit[] = [];
   let totalBytes = 0;
-  let count = 0;
   let visited = 0;
   let truncated = false;
   const seenRoots = new Set<string>();
@@ -605,7 +618,13 @@ export async function scanLargeFilesApprox(
         }
         if (!link.isFile() || link.size < minBytes) continue;
         totalBytes += link.size;
-        count += 1;
+        files.push({
+          path: fullPath,
+          name: dirent.name,
+          size: link.size,
+          modifiedAt: link.mtimeMs,
+          extension: path.extname(dirent.name).toLowerCase(),
+        });
       } catch {
         // Skip unreadable entries.
       }
@@ -622,5 +641,27 @@ export async function scanLargeFilesApprox(
     await walk(normalized, 0);
   }
 
-  return { totalBytes, count, truncated };
+  files.sort((a, b) => b.size - a.size);
+  const limited = files.slice(0, LARGE_FILES_MAX_RESULTS);
+  if (files.length > limited.length) truncated = true;
+
+  return {
+    files: limited,
+    totalBytes,
+    count: files.length,
+    truncated,
+  };
+}
+
+/** Lightweight sum-only pass (sidebar badge). */
+export async function scanLargeFilesApprox(
+  rootPaths: string[],
+  minBytes = LARGE_FILES_MIN_BYTES,
+): Promise<LargeFilesApproxResult> {
+  const result = await scanLargeFiles(rootPaths, minBytes);
+  return {
+    totalBytes: result.totalBytes,
+    count: result.count,
+    truncated: result.truncated,
+  };
 }

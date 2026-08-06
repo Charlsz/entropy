@@ -68,6 +68,18 @@ export interface LargeFilesApproxResult {
   truncated: boolean;
 }
 
+export interface LargeFileHit {
+  path: string;
+  name: string;
+  size: number;
+  modifiedAt: number;
+  extension: string;
+}
+
+export interface LargeFilesScanResult extends LargeFilesApproxResult {
+  files: LargeFileHit[];
+}
+
 export interface DuplicateGroup {
   hash: string;
   size: number;
@@ -209,6 +221,10 @@ export interface EntropyApi {
       rootPaths: string[],
       minBytes?: number,
     ) => Promise<LargeFilesApproxResult>;
+    scanLargeFiles: (
+      rootPaths: string[],
+      minBytes?: number,
+    ) => Promise<LargeFilesScanResult>;
     /** True when the OS can produce a thumbnail/preview face for this path. */
     canOsPreview: (targetPath: string) => Promise<boolean>;
     findFileReferences: (workspacePath: string, filePath: string) => Promise<NoteSearchResult[]>;

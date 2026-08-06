@@ -250,6 +250,11 @@ function registerIpc(): void {
     (_event, rootPaths: string[], minBytes?: number) =>
       inventory.scanLargeFilesApprox(rootPaths, minBytes),
   );
+  ipcMain.handle(
+    "fs:scanLargeFiles",
+    (_event, rootPaths: string[], minBytes?: number) =>
+      inventory.scanLargeFiles(rootPaths, minBytes),
+  );
   ipcMain.handle("fs:canOsPreview", async (_event, targetPath: string) => {
     const normalized = path.normalize(targetPath);
     const ext = path.extname(normalized).toLowerCase();

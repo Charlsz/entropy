@@ -108,6 +108,8 @@ const api: EntropyApi = {
     scanTreemapLevel: (dirPath) => ipcRenderer.invoke("fs:scanTreemapLevel", dirPath),
     scanLargeFilesApprox: (rootPaths, minBytes) =>
       ipcRenderer.invoke("fs:scanLargeFilesApprox", rootPaths, minBytes),
+    scanLargeFiles: (rootPaths, minBytes) =>
+      ipcRenderer.invoke("fs:scanLargeFiles", rootPaths, minBytes),
     canOsPreview: (targetPath) => ipcRenderer.invoke("fs:canOsPreview", targetPath),
     watchDir: (dirPath, options) => ipcRenderer.invoke("fs:watchDir", dirPath, options),
     unwatchDir: (dirPath) => ipcRenderer.invoke("fs:unwatchDir", dirPath),
