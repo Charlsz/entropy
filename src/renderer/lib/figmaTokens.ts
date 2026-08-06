@@ -1,13 +1,14 @@
 /**
- * Pixel tokens from Figma Entropy frames (39:7, 39:155, 39:253, 39:410).
- * Prefer these over remapped ink/paper when matching the redesign.
+ * Theme-aware color tokens (CSS variables).
+ * Light default: soft shell · Dark: #131413 surfaces with light ink.
  */
 export const figma = {
-  ink: "#131413",
-  muted: "#6b6d69",
-  border: "#e7e6e3",
-  surface: "#fafaf9",
-  canvas: "#ffffff",
-  select: "#eef2f8",
-  accent: "#6a7ba2",
+  ink: "var(--color-ink)",
+  muted: "var(--color-muted)",
+  border: "var(--color-border)",
+  surface: "var(--color-surface)",
+  canvas: "var(--color-canvas)",
+  select: "var(--color-select)",
+  accent: "var(--color-accent)",
 } as const;
+

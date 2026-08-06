@@ -218,6 +218,9 @@ function registerIpc(): void {
     filesystem.openExternal(targetPath),
   );
   ipcMain.handle("fs:getHomePath", () => inventory.getHomePath());
+  ipcMain.handle("fs:getDiskSpace", (_event, targetPath?: string) =>
+    inventory.getDiskSpace(targetPath),
+  );
   ipcMain.handle("fs:getInventoryRoots", (_event, extraPaths?: string[]) =>
     inventory.getInventoryRoots(extraPaths ?? []),
   );
@@ -352,6 +355,20 @@ function registerIpc(): void {
   });
   ipcMain.handle("window:isMaximized", (event) => {
     return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
+  });
+  ipcMain.handle("window:setChromeTheme", (event, theme: "light" | "dark") => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || process.platform === "darwin") return;
+    const light = theme !== "dark";
+    try {
+      win.setTitleBarOverlay({
+        color: light ? "#fafaf9" : "#131413",
+        symbolColor: light ? "#131413" : "#fafaf9",
+        height: 36,
+      });
+    } catch {
+      // Overlay unsupported on some Linux builds.
+    }
   });
 
   ipcMain.on("app:flushed", () => {

@@ -157,6 +157,28 @@ export function getHomePath(): string {
   return path.normalize(app.getPath("home"));
 }
 
+/** Free / total bytes for the volume containing targetPath (Home by default). */
+export async function getDiskSpace(
+  targetPath?: string,
+): Promise<{ free: number; total: number }> {
+  const probe = path.normalize(targetPath || app.getPath("home"));
+  try {
+    const stats = await fs.statfs(probe);
+    const block = Number(stats.bsize) || 4096;
+    const total = Number(stats.blocks) * block;
+    const free = Number(stats.bavail ?? stats.bfree) * block;
+    if (total > 0) {
+      return {
+        free: Math.max(0, free),
+        total: Math.max(total, free),
+      };
+    }
+  } catch {
+    // Fall through.
+  }
+  return { free: 0, total: 0 };
+}
+
 /** Recursive size; caches by path+mtime. Skips heavy/system dirs. */
 export async function measurePath(targetPath: string): Promise<number> {
   const normalized = path.normalize(targetPath);

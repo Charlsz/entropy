@@ -40,6 +40,7 @@ const api: EntropyApi = {
     maximize: () => ipcRenderer.invoke("window:maximize"),
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
+    setChromeTheme: (theme) => ipcRenderer.invoke("window:setChromeTheme", theme),
     // Electron titleBarOverlay covers Win/Linux; macOS uses traffic lights.
     needsCustomControls: false,
   },
@@ -95,6 +96,7 @@ const api: EntropyApi = {
     reveal: (targetPath) => ipcRenderer.invoke("fs:reveal", targetPath),
     openExternal: (targetPath) => ipcRenderer.invoke("fs:openExternal", targetPath),
     getHomePath: () => ipcRenderer.invoke("fs:getHomePath"),
+    getDiskSpace: (targetPath) => ipcRenderer.invoke("fs:getDiskSpace", targetPath),
     getInventoryRoots: (extraPaths) => ipcRenderer.invoke("fs:getInventoryRoots", extraPaths),
     listMountRoots: () => ipcRenderer.invoke("fs:listMountRoots"),
     pickInventoryFolder: () => ipcRenderer.invoke("fs:pickInventoryFolder"),

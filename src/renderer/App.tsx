@@ -43,14 +43,12 @@ export function App() {
         const session = await window.entropy.session.load();
         if (cancelled) return;
 
-        // Figma redesign is light-first — migrate old dark sessions.
-        const settings = {
-          ...fromSessionSettings(session.settings),
-          theme: "light" as const,
-        };
+        // Respect saved theme (default light for first launch).
+        const settings = fromSessionSettings(session.settings);
         setInitialSettings(settings);
         latestSettings.current = settings;
-        document.documentElement.dataset.theme = "light";
+        document.documentElement.dataset.theme = settings.theme;
+        document.documentElement.dataset.density = settings.uiDensity;
 
         if (session.lastWorkspace && (await window.entropy.fs.exists(session.lastWorkspace))) {
           latestWorkspace.current = session.lastWorkspace;
@@ -87,7 +85,7 @@ export function App() {
       const settings = latestSettings.current ?? DEFAULT_SETTINGS;
       await window.entropy.session.save({
         lastWorkspace: latestWorkspace.current,
-        settings: toSessionSettings({ ...settings, theme: "light" }),
+        settings: toSessionSettings(settings),
       });
       await flushAll();
     });
@@ -101,7 +99,7 @@ export function App() {
 
   const openWorkspace = useCallback(
     async (nextPath: string, notePath?: string | null) => {
-      const settings = { ...(initialSettings ?? DEFAULT_SETTINGS), theme: "light" as const };
+      const settings = initialSettings ?? DEFAULT_SETTINGS;
       await window.entropy.workspace.remember(nextPath).catch(() => undefined);
       await window.entropy.session.save({
         lastWorkspace: nextPath,
@@ -127,7 +125,7 @@ export function App() {
 
   const closeWorkspace = useCallback(async () => {
     await flushAll();
-    const settings = { ...(initialSettings ?? DEFAULT_SETTINGS), theme: "light" as const };
+    const settings = initialSettings ?? DEFAULT_SETTINGS;
     await window.entropy.session.save({
       lastWorkspace: null,
       settings: toSessionSettings(settings),
@@ -149,7 +147,7 @@ export function App() {
     content = (
       <div
         className="relative flex h-full flex-col items-center justify-center"
-        data-theme="light"
+        data-theme={initialSettings?.theme ?? "light"}
         style={{ backgroundColor: figma.surface }}
       >
         <div className="absolute right-0 top-0">
@@ -167,7 +165,7 @@ export function App() {
     content = (
       <div
         className="relative flex h-full flex-col"
-        data-theme="light"
+        data-theme={initialSettings.theme}
         style={{ backgroundColor: figma.surface }}
       >
         <div className="absolute right-0 top-0 z-10">
@@ -181,13 +179,12 @@ export function App() {
       <WorkspaceProvider
         key={`${workspacePath}:${libraryOnly ? "lib" : "ws"}`}
         path={workspacePath}
-        initialSettings={{ ...initialSettings, theme: "light" }}
+        initialSettings={initialSettings}
         initialNotePath={libraryOnly ? null : pendingNotePath}
         onInitialNoteConsumed={() => setPendingNotePath(null)}
         onSettingsChange={(settings) => {
-          const next = { ...settings, theme: "light" as const };
-          setInitialSettings(next);
-          persistSession(libraryOnly ? null : workspacePath, next);
+          setInitialSettings(settings);
+          persistSession(libraryOnly ? null : workspacePath, settings);
         }}
         onClose={() => void closeWorkspace()}
         onOpenInWorkspace={(nextPath, notePath) => void switchWorkspace(nextPath, notePath)}
