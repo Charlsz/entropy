@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { isProtectedOsDirName, isProtectedOsPath } from "../../shared/protectedPaths";
+import { isProtectedOsDirName, isUnsafeReclaimPath } from "../../shared/protectedPaths";
 import type { ScannedFile } from "./types";
 
 export interface ScanOptions {
@@ -13,7 +13,7 @@ export interface ScanOptions {
 
 /**
  * Recursively collect file metadata only — never reads file contents.
- * Skips OS-protected trees so duplicate reclaim cannot target system files.
+ * Skips OS-protected trees and language/tooling directories so reclaim cannot target them.
  */
 export async function scanFiles(
   rootPath: string,
@@ -26,7 +26,7 @@ export async function scanFiles(
   const platform = process.platform;
   let seen = 0;
 
-  if (isProtectedOsPath(root, platform)) {
+  if (isUnsafeReclaimPath(root, platform)) {
     return {
       files: [],
       errors: [
@@ -41,7 +41,7 @@ export async function scanFiles(
   async function walk(dir: string, depth: number): Promise<void> {
     if (options.signal?.aborted) return;
     if (depth > maxDepth) return;
-    if (isProtectedOsPath(dir, platform)) return;
+    if (isUnsafeReclaimPath(dir, platform)) return;
 
     let dirents;
     try {
@@ -60,7 +60,7 @@ export async function scanFiles(
       if (isProtectedOsDirName(dirent.name, platform)) continue;
 
       const full = path.join(dir, dirent.name);
-      if (isProtectedOsPath(full, platform)) continue;
+      if (isUnsafeReclaimPath(full, platform)) continue;
 
       try {
         const link = await fs.lstat(full);

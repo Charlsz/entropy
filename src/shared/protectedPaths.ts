@@ -43,18 +43,51 @@ const WIN_ROOT_FILES = new Set([
 
 /**
  * Directory basenames to skip during deep walks (any depth).
- * Keep aligned with measure/duplicate scanners.
+ * Tooling / package trees and build outputs — reclaim must not target language runtimes or app installs.
+ * Matched case-insensitively.
  */
-const SKIP_DIR_COMMON = new Set([
-  "node_modules",
-  ".git",
-  ".svn",
-  ".hg",
-  "dist",
-  "build",
-  ".next",
-  ".cache",
-]);
+const SKIP_DIR_COMMON_LOWER = new Set(
+  [
+    "node_modules",
+    "bower_components",
+    "jspm_packages",
+    "elm-stuff",
+    "__pycache__",
+    "site-packages",
+    "venv",
+    "virtualenv",
+    "Pods",
+    "Carthage",
+    "DerivedData",
+    "vendor",
+    "dist",
+    "build",
+    "cmake-build-debug",
+    "cmake-build-release",
+    "xcuserdata",
+    "pyenv",
+    "conda-meta",
+    "miniconda3",
+    "anaconda3",
+    ".git",
+    ".svn",
+    ".hg",
+    ".next",
+    ".cache",
+    ".gradle",
+    ".nuget",
+    ".cargo",
+    ".rustup",
+    ".npm",
+    ".yarn",
+    ".pnpm-store",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".dart_tool",
+    ".pub-cache",
+  ].map((name) => name.toLowerCase()),
+);
 
 const SKIP_DIR_WIN = new Set([
   "$Recycle.Bin",
@@ -156,12 +189,17 @@ function isUnixProtected(normalized: string, platform: HostPlatform): boolean {
 
   // System Library only (not ~/Library).
   if (platform === "darwin" && pathIsUnder(path, "/Library", platform)) return true;
+  // Installed apps — never reclaim from system application trees.
+  if (platform === "darwin" && pathIsUnder(path, "/Applications", platform)) return true;
+  if (platform === "darwin" && pathIsUnder(path, "/System/Applications", platform)) return true;
 
   // Common Linux OS install roots.
   if (platform === "linux") {
     if (pathIsUnder(path, "/snap", platform)) return true;
     if (pathIsUnder(path, "/var/lib/apt", platform)) return true;
     if (pathIsUnder(path, "/var/lib/dpkg", platform)) return true;
+    if (pathIsUnder(path, "/usr/lib", platform)) return true;
+    if (pathIsUnder(path, "/usr/share", platform)) return true;
   }
 
   return false;
@@ -178,20 +216,47 @@ export function isProtectedOsPath(filePath: string, platform: HostPlatform): boo
 
 /**
  * Basename skip for deep directory walks (duplicates / measure / trees).
- * Broader than mutate guards — also skips noisy user profile junctions.
+ * Broader than mutate guards — also skips noisy user profile junctions and language tooling trees.
  */
 export function isProtectedOsDirName(name: string, platform: HostPlatform): boolean {
   if (!name || name === "." || name === "..") return true;
   if (name.startsWith(".")) return true;
-  if (SKIP_DIR_COMMON.has(name)) return true;
+  if (SKIP_DIR_COMMON_LOWER.has(name.toLowerCase())) return true;
 
   if (platform === "win32") {
     if (SKIP_DIR_WIN_LOWER.has(name.toLowerCase())) return true;
   }
 
   if (platform === "darwin" && name === "Library") return true;
+  if (platform === "darwin" && name.toLowerCase() === "applications") return true;
 
   return false;
+}
+
+/**
+ * True when any path segment is a skipped tooling / system directory.
+ * Defense in depth for duplicate scan results and reclaim selection.
+ */
+export function pathHasSkippedDirSegment(filePath: string, platform: HostPlatform): boolean {
+  const normalized = normalizeSlashes(filePath);
+  const segments = normalized.split("/").filter(Boolean);
+  // Drop Windows drive letter.
+  const start = segments[0]?.endsWith(":") ? 1 : 0;
+  for (let i = start; i < segments.length; i += 1) {
+    const seg = segments[i]!;
+    // Terminal segment with an extension is a file name (e.g. note.md), not a folder.
+    if (i === segments.length - 1) {
+      const dot = seg.lastIndexOf(".");
+      if (dot > 0) continue;
+    }
+    if (isProtectedOsDirName(seg, platform)) return true;
+  }
+  return false;
+}
+
+/** True when a path must never be offered for duplicate reclaim. */
+export function isUnsafeReclaimPath(filePath: string, platform: HostPlatform): boolean {
+  return isProtectedOsPath(filePath, platform) || pathHasSkippedDirSegment(filePath, platform);
 }
 
 export function protectedPathMessage(filePath: string, action = "change"): string {

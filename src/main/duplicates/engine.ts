@@ -4,6 +4,7 @@ import {
   extensionsForScope,
   type DuplicateScanScopeId,
 } from "../../shared/duplicateScopes";
+import { isUnsafeReclaimPath } from "../../shared/protectedPaths";
 import { DuplicateHashCache } from "./cache";
 import { chooseHashWorkers } from "./concurrency";
 import { fullHash, mapPool, partialHash } from "./hasher";
@@ -36,7 +37,16 @@ function etaFromCounts(done: number, total: number, phaseStarted: number): numbe
 function buildGroup(key: string, list: ScannedFile[]): ExactDuplicateGroup {
   const size = list[0].size;
   const hash = key.slice(key.indexOf(":") + 1);
-  const copies = list.map(toFileEntry).sort((a, b) => b.modifiedAt - a.modifiedAt);
+  const platform = process.platform;
+  // Prefer keeping a copy outside tooling/system trees when choosing the survivor.
+  const copies = list
+    .map(toFileEntry)
+    .sort((a, b) => {
+      const aUnsafe = isUnsafeReclaimPath(a.path, platform) ? 1 : 0;
+      const bUnsafe = isUnsafeReclaimPath(b.path, platform) ? 1 : 0;
+      if (aUnsafe !== bUnsafe) return aUnsafe - bUnsafe;
+      return b.modifiedAt - a.modifiedAt;
+    });
   return {
     hash,
     size,

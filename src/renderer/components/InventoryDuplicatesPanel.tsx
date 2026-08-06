@@ -27,7 +27,7 @@ import { osRevealLabel, osTrashName, hostPlatform } from "../lib/platform";
 import { withMediaReleased } from "../lib/mediaRelease";
 import { cn } from "../lib/utils";
 import { formatBytes } from "../lib/format";
-import { isProtectedOsPath, protectedPathMessage } from "../../shared/protectedPaths";
+import { isUnsafeReclaimPath, protectedPathMessage } from "../../shared/protectedPaths";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms} ms`;
@@ -160,7 +160,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     setDeleting(true);
     setError(null);
     const platform = hostPlatform();
-    const batch = pendingDelete.paths.filter((filePath) => !isProtectedOsPath(filePath, platform));
+    const batch = pendingDelete.paths.filter((filePath) => !isUnsafeReclaimPath(filePath, platform));
     const skipped = pendingDelete.paths.length - batch.length;
     if (batch.length === 0) {
       setError(protectedPathMessage(pendingDelete.paths[0] ?? "", "delete"));
@@ -376,7 +376,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
                     group={group}
                     disabled={running || deleting}
                     onDeleteCopy={(copyPath) => {
-                      if (isProtectedOsPath(copyPath, hostPlatform())) {
+                      if (isUnsafeReclaimPath(copyPath, hostPlatform())) {
                         setError(protectedPathMessage(copyPath, "delete"));
                         return;
                       }
@@ -391,7 +391,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
                     onDeleteOtherCopies={() => {
                       const remove = group.copies.filter(
                         (c) =>
-                          c.path !== group.keepPath && !isProtectedOsPath(c.path, hostPlatform()),
+                          c.path !== group.keepPath && !isUnsafeReclaimPath(c.path, hostPlatform()),
                       );
                       if (remove.length === 0) {
                         setError("All extra copies are on protected system paths.");
