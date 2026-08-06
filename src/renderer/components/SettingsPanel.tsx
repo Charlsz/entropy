@@ -15,7 +15,6 @@ const DENSITY_OPTIONS: Array<{ id: UiDensity; label: string; hint: string }> = [
 
 /**
  * Sparse preferences — appearance and a few essentials.
- * Workspace pick lives in Notebook; recent files are not a Settings concern.
  */
 export function SettingsPanel() {
   const { workspace, updateSettings, resetSettings } = useWorkspace();
@@ -45,7 +44,7 @@ export function SettingsPanel() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-foreground">Dark theme</p>
                 <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  Soft light by default. Dark uses deep ink chrome.
+                  Dark is the default. Turn off for a light shell.
                 </p>
               </div>
               <Switch
@@ -61,7 +60,7 @@ export function SettingsPanel() {
             <div className="py-3">
               <p className="text-sm text-foreground">Density</p>
               <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                Font and icon size for chrome and lists.
+                Scales chrome, lists, and panels.
               </p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 {DENSITY_OPTIONS.map((option) => {
@@ -86,33 +85,6 @@ export function SettingsPanel() {
                   );
                 })}
               </div>
-            </div>
-          </section>
-
-          <div className="my-8 h-px bg-border" />
-
-          <section aria-labelledby="settings-library">
-            <h2
-              id="settings-library"
-              className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
-            >
-              Library
-            </h2>
-            <div className="flex items-center justify-between gap-6 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-foreground">Hide storage map</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  Keep perspectives wide; leave the treemap collapsed.
-                </p>
-              </div>
-              <Switch
-                id="treemap-switch"
-                checked={Boolean(workspace.settings.inventoryTreemapCollapsed)}
-                aria-label="Hide storage map"
-                onCheckedChange={(checked) =>
-                  updateSettings({ inventoryTreemapCollapsed: checked })
-                }
-              />
             </div>
           </section>
 

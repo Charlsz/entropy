@@ -10,6 +10,8 @@ interface ContentAreaProps {
   onPendingNoteHandled?: () => void;
   pendingReference?: string | null;
   onPendingReferenceHandled?: () => void;
+  librarySearchQuery?: string;
+  onLibrarySearchQueryChange?: (query: string) => void;
 }
 
 export function ContentArea({
@@ -18,6 +20,8 @@ export function ContentArea({
   onPendingNoteHandled,
   pendingReference,
   onPendingReferenceHandled,
+  librarySearchQuery = "",
+  onLibrarySearchQueryChange,
 }: ContentAreaProps) {
   return (
     <div className="relative h-full min-h-0 w-full">
@@ -30,7 +34,10 @@ export function ContentArea({
         />
       </SectionPane>
       <SectionPane active={section === "inventory"}>
-        <FilesPage />
+        <FilesPage
+          searchQuery={librarySearchQuery}
+          onSearchQueryChange={onLibrarySearchQueryChange}
+        />
       </SectionPane>
       <SectionPane active={section === "settings"}>
         <SettingsPanel />

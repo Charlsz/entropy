@@ -43,7 +43,7 @@ export function App() {
         const session = await window.entropy.session.load();
         if (cancelled) return;
 
-        // Respect saved theme (default light for first launch).
+        // Dark is the product default; respect an explicit saved light theme.
         const settings = fromSessionSettings(session.settings);
         setInitialSettings(settings);
         latestSettings.current = settings;
@@ -51,11 +51,12 @@ export function App() {
         document.documentElement.dataset.density = settings.uiDensity;
 
         if (session.lastWorkspace && (await window.entropy.fs.exists(session.lastWorkspace))) {
+          await window.entropy.workspace.remember(session.lastWorkspace).catch(() => undefined);
           latestWorkspace.current = session.lastWorkspace;
           setLibraryOnly(false);
           setWorkspacePath(session.lastWorkspace);
         } else {
-          // Library does not need a notes workspace — bootstrap from Home so Figma shell opens.
+          // Library does not need a notes workspace — bootstrap from Home.
           const home = await window.entropy.fs.getHomePath();
           latestWorkspace.current = null;
           setLibraryOnly(true);
@@ -63,7 +64,7 @@ export function App() {
         }
       } catch {
         if (!cancelled) {
-          setInitialSettings({ ...DEFAULT_SETTINGS, theme: "light" });
+          setInitialSettings({ ...DEFAULT_SETTINGS });
           try {
             const home = await window.entropy.fs.getHomePath();
             setLibraryOnly(true);
