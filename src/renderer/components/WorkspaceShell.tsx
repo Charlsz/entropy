@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Titlebar } from "./Titlebar";
-import { IconRail } from "./IconRail";
+import { AppSidebar } from "./AppSidebar";
 import { ContentArea } from "./ContentArea";
 import { SearchPalette } from "./SearchPalette";
 import { useWorkspace } from "../state/useWorkspace";
@@ -38,7 +38,6 @@ export function WorkspaceShell() {
         return;
       }
 
-      // Browser-style history: Alt+← / Alt+→ (and macOS Cmd+[ / Cmd+]).
       if (event.altKey && (key === "arrowleft" || key === "arrowright")) {
         event.preventDefault();
         if (key === "arrowleft" && canGoBack) goBack();
@@ -53,7 +52,6 @@ export function WorkspaceShell() {
     }
 
     function onMouseUp(event: MouseEvent): void {
-      // Mouse back / forward buttons.
       if (event.button === 3 && canGoBack) {
         event.preventDefault();
         goBack();
@@ -77,11 +75,10 @@ export function WorkspaceShell() {
       <Titlebar
         workspaceName={workspace.name}
         onCloseWorkspace={closeWorkspace}
-        onOpenSearch={() => setSearchOpen(true)}
         onOpenSettings={() => visitSection("settings")}
       />
       <div className="flex min-h-0 flex-1">
-        <IconRail active={workspace.currentSection} onChange={visitSection} />
+        <AppSidebar onOpenSearch={() => setSearchOpen(true)} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <ContentArea
             section={workspace.currentSection}

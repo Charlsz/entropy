@@ -208,6 +208,8 @@ export interface AppSession {
     sidebarCollapsed: boolean;
     contextCollapsed: boolean;
     inventoryTreemapCollapsed?: boolean;
+    libraryPerspective?: "folders" | "gallery" | "large-files" | "duplicates" | "recent";
+    intelligenceView?: "relationships" | "copilot" | null;
     panelLayout: {
       sidebar: number;
       main: number;

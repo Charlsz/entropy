@@ -12,6 +12,8 @@ export function toSessionSettings(settings: WorkspaceSettings) {
     sidebarCollapsed: settings.sidebarCollapsed,
     contextCollapsed: settings.contextCollapsed,
     inventoryTreemapCollapsed: settings.inventoryTreemapCollapsed,
+    libraryPerspective: settings.libraryPerspective,
+    intelligenceView: settings.intelligenceView,
     panelLayout: { ...settings.panelLayout },
     inventoryPanelLayout: { ...settings.inventoryPanelLayout },
     inventoryExtraRoots: [...settings.inventoryExtraRoots],
@@ -21,14 +23,29 @@ export function toSessionSettings(settings: WorkspaceSettings) {
 export function fromSessionSettings(
   settings: Awaited<ReturnType<typeof window.entropy.session.load>>["settings"],
 ): WorkspaceSettings {
+  const raw = settings as {
+    libraryPerspective?: string;
+    intelligenceView?: string | null;
+    inventoryTreemapCollapsed?: boolean;
+  };
+  const perspective = raw.libraryPerspective;
+  const intelligence = raw.intelligenceView;
   return {
     theme: settings.theme,
     filesView: settings.filesView,
     sidebarCollapsed: Boolean(settings.sidebarCollapsed),
     contextCollapsed: Boolean(settings.contextCollapsed),
-    inventoryTreemapCollapsed: Boolean(
-      (settings as { inventoryTreemapCollapsed?: boolean }).inventoryTreemapCollapsed,
-    ),
+    inventoryTreemapCollapsed: Boolean(raw.inventoryTreemapCollapsed),
+    libraryPerspective:
+      perspective === "gallery" ||
+      perspective === "large-files" ||
+      perspective === "duplicates" ||
+      perspective === "recent" ||
+      perspective === "folders"
+        ? perspective
+        : "folders",
+    intelligenceView:
+      intelligence === "relationships" || intelligence === "copilot" ? intelligence : null,
     panelLayout: normalizePanelLayout(settings.panelLayout ?? DEFAULT_PANEL_LAYOUT),
     inventoryPanelLayout: normalizePanelLayout(
       settings.inventoryPanelLayout ?? DEFAULT_INVENTORY_PANEL_LAYOUT,

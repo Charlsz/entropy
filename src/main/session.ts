@@ -14,6 +14,8 @@ export interface AppSettings {
   sidebarCollapsed: boolean;
   contextCollapsed: boolean;
   inventoryTreemapCollapsed: boolean;
+  libraryPerspective: "folders" | "gallery" | "large-files" | "duplicates" | "recent";
+  intelligenceView: "relationships" | "copilot" | null;
   panelLayout: PanelLayoutState;
   inventoryPanelLayout: PanelLayoutState;
   inventoryExtraRoots: string[];
@@ -32,16 +34,40 @@ const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
 
 const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
   sidebar: 0,
-  main: 50,
-  context: 50,
+  main: 72,
+  context: 28,
 };
 
+function normalizePerspective(
+  value: string | undefined,
+): AppSettings["libraryPerspective"] {
+  if (
+    value === "gallery" ||
+    value === "large-files" ||
+    value === "duplicates" ||
+    value === "recent" ||
+    value === "folders"
+  ) {
+    return value;
+  }
+  return "folders";
+}
+
+function normalizeIntelligence(
+  value: string | null | undefined,
+): AppSettings["intelligenceView"] {
+  if (value === "relationships" || value === "copilot") return value;
+  return null;
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
-  theme: "dark",
-  filesView: "grid",
+  theme: "light",
+  filesView: "list",
   sidebarCollapsed: false,
   contextCollapsed: false,
-  inventoryTreemapCollapsed: false,
+  inventoryTreemapCollapsed: true,
+  libraryPerspective: "folders",
+  intelligenceView: null,
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],
@@ -71,11 +97,17 @@ export async function loadSession(): Promise<AppSession> {
     return {
       lastWorkspace: typeof parsed.lastWorkspace === "string" ? parsed.lastWorkspace : null,
       settings: {
-        theme: parsed.settings?.theme === "light" ? "light" : "dark",
-        filesView: parsed.settings?.filesView === "list" ? "list" : "grid",
+        theme: parsed.settings?.theme === "dark" ? "dark" : "light",
+        filesView: parsed.settings?.filesView === "grid" ? "grid" : "list",
         sidebarCollapsed: Boolean(parsed.settings?.sidebarCollapsed),
         contextCollapsed: Boolean(parsed.settings?.contextCollapsed),
         inventoryTreemapCollapsed: Boolean(parsed.settings?.inventoryTreemapCollapsed),
+        libraryPerspective: normalizePerspective(
+          (parsed.settings as { libraryPerspective?: string } | undefined)?.libraryPerspective,
+        ),
+        intelligenceView: normalizeIntelligence(
+          (parsed.settings as { intelligenceView?: string | null } | undefined)?.intelligenceView,
+        ),
         panelLayout: normalizePanelLayout(parsed.settings?.panelLayout),
         inventoryPanelLayout: normalizePanelLayout(
           parsed.settings?.inventoryPanelLayout,

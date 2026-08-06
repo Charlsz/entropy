@@ -14,6 +14,7 @@ module.exports = {
         ring: "var(--ring)",
         background: "var(--background)",
         foreground: "var(--foreground)",
+        panel: "var(--panel)",
         select: "var(--select)",
         "accent-bar": "var(--accent-bar)",
         primary: {

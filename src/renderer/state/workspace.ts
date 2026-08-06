@@ -1,4 +1,5 @@
 import type { Layout } from "react-resizable-panels";
+import type { IntelligenceView, LibraryPerspective } from "../types/library";
 import type { SectionId } from "../types/section";
 
 export interface PanelLayoutState {
@@ -14,10 +15,14 @@ export interface WorkspaceSettings {
   /** Hide Inventory Storage map for a wide gallery. */
   inventoryTreemapCollapsed: boolean;
   filesView: "list" | "grid";
+  /** Active Library perspective (Folders / Gallery / …). */
+  libraryPerspective: LibraryPerspective;
+  /** Intelligence stub view; null when browsing Library normally. */
+  intelligenceView: IntelligenceView | null;
   panelLayout: PanelLayoutState;
-  /** File Inventory: Nav | Content | Treemap */
+  /** Library: content | File Intelligence inspector */
   inventoryPanelLayout: PanelLayoutState;
-  /** User-added drives/folders for Inventory indexing. */
+  /** User-added drives/folders for Library indexing. */
   inventoryExtraRoots: string[];
 }
 
@@ -62,16 +67,18 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
 
 export const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
   sidebar: 0,
-  main: 50,
-  context: 50,
+  main: 72,
+  context: 28,
 };
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
-  theme: "dark",
+  theme: "light",
   sidebarCollapsed: false,
   contextCollapsed: false,
-  inventoryTreemapCollapsed: false,
-  filesView: "grid",
+  inventoryTreemapCollapsed: true,
+  filesView: "list",
+  libraryPerspective: "folders",
+  intelligenceView: null,
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],

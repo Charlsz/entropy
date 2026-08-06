@@ -43,7 +43,7 @@ export function SettingsPanel() {
               <div className="min-w-0">
                 <p className="text-sm text-foreground">Dark theme</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Ink surfaces and paper text — toggles Entropy’s light and dark maps.
+                  Optional. Light is the default Figma Entropy look.
                 </p>
               </div>
               <Switch
