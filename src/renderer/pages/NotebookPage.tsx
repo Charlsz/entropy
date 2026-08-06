@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { FilePlus2 } from "lucide-react";
-import type { FileEntry, NoteSearchResult } from "../../shared/types";
+import type { FileEntry } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { MarkdownEditor, type MarkdownEditorHandle } from "../pages/MarkdownEditor";
 import { Button } from "../components/ui/button";
@@ -38,8 +38,6 @@ export function NotebookPage({
 } = {}) {
   const { workspace, addRecentFile, visitNote } = useWorkspace();
   const [notes, setNotes] = useState<FileEntry[]>([]);
-  const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<NoteSearchResult[] | null>(null);
   const [openPaths, setOpenPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [previewEntry, setPreviewEntry] = useState<FileEntry | null>(null);
@@ -284,28 +282,6 @@ export function NotebookPage({
     };
   }, [queuedReference, activePath, insertReferenceIntoOpenNote]);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    let cancelled = false;
-    const handle = window.setTimeout(() => {
-      void window.entropy.fs
-        .searchMarkdown(workspace.path, query)
-        .then((results) => {
-          if (!cancelled) setSearchResults(results);
-        })
-        .catch(() => {
-          if (!cancelled) setSearchResults([]);
-        });
-    }, 180);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(handle);
-    };
-  }, [query, workspace.path]);
-
   function openNoteLocal(notePath: string): void {
     setOpenPaths((prev) => (prev.includes(notePath) ? prev : [...prev, notePath]));
     setActivePath(notePath);
@@ -507,19 +483,11 @@ export function NotebookPage({
     });
   }
 
-  const visibleNotes = searchResults
-    ? searchResults.map((result) => ({
-        path: result.path,
-        name: result.name,
-        excerpt: result.excerpt,
-        modifiedAt: notes.find((note) => note.path === result.path)?.modifiedAt ?? 0,
-      }))
-    : notes.map((note) => ({
-        path: note.path,
-        name: note.name,
-        excerpt: "",
-        modifiedAt: note.modifiedAt,
-      }));
+  const visibleNotes = notes.map((note) => ({
+    path: note.path,
+    name: note.name,
+    modifiedAt: note.modifiedAt,
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -586,16 +554,6 @@ export function NotebookPage({
                 </TooltipTrigger>
                 <TooltipContent>New note</TooltipContent>
               </Tooltip>
-            </div>
-            <div className="px-4 pb-3">
-              <Input
-                type="search"
-                placeholder="Filter notes…"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                aria-label="Filter notes"
-                className="h-8 border-border bg-background"
-              />
             </div>
 
             <ScrollArea className="min-h-0 flex-1" type="hover">
@@ -667,10 +625,9 @@ export function NotebookPage({
                                 {title}
                               </p>
                               <p className="mt-1 text-[11px]" style={{ color: figma.muted }}>
-                                {note.excerpt ||
-                                  (note.modifiedAt
-                                    ? formatModifiedLabel(note.modifiedAt)
-                                    : "Local note")}
+                                {note.modifiedAt
+                                  ? formatModifiedLabel(note.modifiedAt)
+                                  : "Local note"}
                               </p>
                             </button>
                             <div className="shrink-0 py-2 pr-2 opacity-0 group-hover:opacity-100">
