@@ -483,7 +483,7 @@ function capLeafCount(
   return { files: kept, truncated: true };
 }
 
-const LEVEL_MAX_LEAVES = 120;
+const LEVEL_MAX_LEAVES = 500;
 
 const NAME_SEARCH_MAX_DEPTH = 8;
 const NAME_SEARCH_MAX_RESULTS = 40;

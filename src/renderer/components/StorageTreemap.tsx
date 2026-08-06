@@ -4,8 +4,10 @@ import {
   FILE_KIND_FILL,
   FILE_KIND_FILL_LIGHT,
   FILE_KIND_LABEL,
+  FILE_KIND_ORDER,
   FOLDER_FILL_DARK,
   FOLDER_FILL_LIGHT,
+  type FileKindId,
 } from "../../shared/fileKinds";
 import { cn } from "../lib/utils";
 import { samePath } from "../lib/platform";
@@ -13,59 +15,8 @@ import { squarify } from "../lib/squarify";
 import { useWorkspace } from "../state/useWorkspace";
 import { formatBytes } from "../lib/format";
 
-/** Smallest rendered tile — readable as a block while still scaling with the panel. */
-const MIN_TILE_EDGE = 16;
-
-/** Fold leaves too small for the current panel into Other so every tile meets MIN_TILE_EDGE. */
-function layoutLeaves(
-  files: TreemapFileLeaf[],
-  total: number,
-  frameWidth: number,
-  frameHeight: number,
-): TreemapFileLeaf[] {
-  const frameArea = Math.max(frameWidth * frameHeight, 1);
-  const minAreaShare = (MIN_TILE_EDGE * MIN_TILE_EDGE) / frameArea;
-  const floorSize = Math.max(1, Math.floor(total * minAreaShare));
-
-  const kept: TreemapFileLeaf[] = [];
-  let otherSize = 0;
-  let otherCount = 0;
-  let existingOther: TreemapFileLeaf | null = null;
-
-  for (const file of files) {
-    if (isAggregateLeaf(file)) {
-      existingOther = file;
-      otherSize += file.size;
-      const match = /\((\d+)/.exec(file.name);
-      otherCount += match ? Number(match[1]) : 1;
-      continue;
-    }
-    if (file.size >= floorSize) {
-      kept.push(file);
-      continue;
-    }
-    otherSize += file.size;
-    otherCount += 1;
-  }
-
-  if (otherCount > 0 && otherSize > 0) {
-    const rootHint = existingOther?.path ?? kept[0]?.path ?? files[0]?.path ?? "other";
-    const slash = rootHint.includes("\\") && !rootHint.includes("/") ? "\\" : "/";
-    const parent = rootHint.replace(/[/\\][^/\\]+$/, "") || rootHint;
-    kept.push({
-      path: existingOther?.path ?? `${parent}${slash}.__entropy_other__`,
-      name: `Other (${otherCount.toLocaleString()})`,
-      size: otherSize,
-      extension: "",
-      kind: "other",
-      isDirectory: false,
-      location: existingOther?.location,
-      modifiedAt: existingOther?.modifiedAt,
-    });
-  }
-
-  return kept;
-}
+/** Soft floor so tiny leaves stay visible without hiding siblings. */
+const MIN_TILE_EDGE = 8;
 
 interface StorageTreemapProps {
   scan?: TreemapScanResult | null;
@@ -83,6 +34,13 @@ interface HoverState {
   y: number;
 }
 
+interface LegendRow {
+  id: string;
+  label: string;
+  fill: string;
+  size: number;
+}
+
 function isAggregateLeaf(leaf: TreemapFileLeaf): boolean {
   return leaf.path.endsWith(".__entropy_other__") || leaf.name.startsWith("Other (");
 }
@@ -97,6 +55,45 @@ function kindLabelFor(leaf: TreemapFileLeaf): string {
 function fillFor(leaf: TreemapFileLeaf, light: boolean): string {
   if (leaf.isDirectory) return light ? FOLDER_FILL_LIGHT : FOLDER_FILL_DARK;
   return (light ? FILE_KIND_FILL_LIGHT : FILE_KIND_FILL)[leaf.kind];
+}
+
+function buildLegend(files: TreemapFileLeaf[], light: boolean): LegendRow[] {
+  let folderBytes = 0;
+  const byKind = new Map<FileKindId, number>();
+
+  for (const file of files) {
+    if (isAggregateLeaf(file)) {
+      // Count Other toward its reported kind.
+      byKind.set("other", (byKind.get("other") ?? 0) + file.size);
+      continue;
+    }
+    if (file.isDirectory) {
+      folderBytes += file.size;
+      continue;
+    }
+    byKind.set(file.kind, (byKind.get(file.kind) ?? 0) + file.size);
+  }
+
+  const rows: LegendRow[] = [];
+  if (folderBytes > 0) {
+    rows.push({
+      id: "folder",
+      label: "Folders",
+      fill: light ? FOLDER_FILL_LIGHT : FOLDER_FILL_DARK,
+      size: folderBytes,
+    });
+  }
+  for (const kind of FILE_KIND_ORDER) {
+    const size = byKind.get(kind) ?? 0;
+    if (size <= 0) continue;
+    rows.push({
+      id: kind,
+      label: FILE_KIND_LABEL[kind],
+      fill: (light ? FILE_KIND_FILL_LIGHT : FILE_KIND_FILL)[kind],
+      size,
+    });
+  }
+  return rows;
 }
 
 export function StorageTreemap({
@@ -132,18 +129,16 @@ export function StorageTreemap({
   const files = scan?.files ?? [];
   const total = scan?.totalSize ?? 0;
   const showMap = files.length > 0 && total > 0;
+  const legend = useMemo(() => buildLegend(files, light), [files, light]);
 
   const layout = useMemo(() => {
     if (!showMap || size.width < MIN_TILE_EDGE || size.height < MIN_TILE_EDGE) return [];
     const gap = 1;
-    const leaves = layoutLeaves(files, total, size.width, size.height);
-    const leafTotal = leaves.reduce((sum, leaf) => sum + leaf.size, 0);
-    if (leafTotal <= 0) return [];
-
+    // Soft area floor so squarify still places very small siblings — do not drop them.
     const frameArea = Math.max(size.width * size.height, 1);
-    const floor = Math.max(1, Math.floor((leafTotal * (MIN_TILE_EDGE * MIN_TILE_EDGE)) / frameArea));
+    const floor = Math.max(1, Math.floor((total * (MIN_TILE_EDGE * MIN_TILE_EDGE)) / frameArea));
     const rects = squarify(
-      leaves.map((file) => ({
+      files.map((file) => ({
         id: file.path,
         size: Math.max(file.size, floor),
       })),
@@ -152,20 +147,19 @@ export function StorageTreemap({
       size.width,
       size.height,
     );
-    const byPath = new Map(leaves.map((file) => [file.path, file]));
+    const byPath = new Map(files.map((file) => [file.path, file]));
     return rects
       .map((rect) => {
         const file = byPath.get(rect.id);
         if (!file) return null;
-        const width = Math.max(0, rect.width - gap);
-        const height = Math.max(0, rect.height - gap);
-        if (width < MIN_TILE_EDGE - 1 || height < MIN_TILE_EDGE - 1) return null;
+        const width = Math.max(MIN_TILE_EDGE, rect.width - gap);
+        const height = Math.max(MIN_TILE_EDGE, rect.height - gap);
         return {
           ...file,
           x: rect.x + gap / 2,
           y: rect.y + gap / 2,
-          width: Math.max(width, MIN_TILE_EDGE),
-          height: Math.max(height, MIN_TILE_EDGE),
+          width,
+          height,
           fill: fillFor(file, light),
         };
       })
@@ -229,7 +223,7 @@ export function StorageTreemap({
               layout.map((cell) => {
                 const selected = selectedPath != null && samePath(selectedPath, cell.path);
                 const showName =
-                  cell.width >= 28 && cell.height >= 16 && !isAggregateLeaf(cell);
+                  cell.width >= 36 && cell.height >= 18 && !isAggregateLeaf(cell);
                 return (
                   <button
                     key={cell.path}
@@ -249,8 +243,6 @@ export function StorageTreemap({
                       width: cell.width,
                       height: cell.height,
                       backgroundColor: cell.fill,
-                      minWidth: MIN_TILE_EDGE,
-                      minHeight: MIN_TILE_EDGE,
                     }}
                     onPointerEnter={(event: PointerEvent<HTMLButtonElement>) => {
                       setHoverAt(cell, event.clientX, event.clientY);
@@ -310,6 +302,27 @@ export function StorageTreemap({
           </div>
         )}
       </div>
+
+      {showMap && legend.length > 0 ? (
+        <div
+          className="shrink-0 border-t border-border px-3 py-2.5"
+          aria-label="Storage type legend"
+        >
+          <ul className="flex flex-col gap-1.5">
+            {legend.map((row) => (
+              <li key={row.id} className="flex items-center gap-2 text-[11px]">
+                <span
+                  className="size-2.5 shrink-0 rounded-[2px] border border-border/60"
+                  style={{ backgroundColor: row.fill }}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">{row.label}</span>
+                <span className="shrink-0 font-mono text-foreground/80">{formatBytes(row.size)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
