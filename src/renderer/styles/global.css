@@ -761,16 +761,18 @@
   }
 }
 
-/* Floating menus — always follow html theme (Radix portals under body). */
+/* Floating menus — pin tokens so first open matches later remounts (Radix → body). */
 .entropy-menu {
-  background-color: var(--card);
-  color: var(--foreground);
-  border-color: var(--border);
+  background-color: var(--card) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 8%, transparent);
 }
 
-.entropy-menu [data-highlighted] {
-  background-color: var(--select);
-  color: var(--foreground);
+.entropy-menu [data-highlighted],
+.entropy-menu [data-state="open"] {
+  background-color: var(--select) !important;
+  color: var(--foreground) !important;
 }
 
 @keyframes entropy-skeleton-shimmer {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { ContentArea } from "./ContentArea";
 import { WindowControls } from "./WindowControls";
@@ -37,7 +37,7 @@ export function WorkspaceShell({
   const density = workspace.settings.uiDensity ?? "default";
   const perspective = workspace.settings.libraryPerspective;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
     document.body.dataset.theme = theme;
     document.documentElement.dataset.density = density;

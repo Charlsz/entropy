@@ -50,6 +50,7 @@ export function App() {
         document.documentElement.dataset.theme = settings.theme;
         document.body.dataset.theme = settings.theme;
         document.documentElement.dataset.density = settings.uiDensity;
+        void window.entropy.window.setChromeTheme?.(settings.theme);
 
         if (session.lastWorkspace && (await window.entropy.fs.exists(session.lastWorkspace))) {
           await window.entropy.workspace.remember(session.lastWorkspace).catch(() => undefined);
