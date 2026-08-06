@@ -67,31 +67,40 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center bg-background px-4 py-6 sm:p-8">
-      <div className="w-full max-w-lg space-y-8">
+    <div className="flex min-h-0 flex-1 items-center justify-center bg-panel px-4 py-6 sm:p-8">
+      <div className="w-full max-w-md space-y-6 rounded-lg border border-border bg-background p-8 shadow-none">
         <div className="space-y-3 text-center">
-          <img
-            src={logoUrl}
-            alt="Entropy"
-            className="mx-auto h-12 w-12 object-contain"
-            draggable={false}
-          />
-          <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          <div className="mx-auto flex items-center justify-center gap-2">
+            <img
+              src={logoUrl}
+              alt=""
+              className="h-[18px] w-[18px] object-contain"
+              draggable={false}
+            />
+            <span className="text-sm font-semibold text-foreground">Entropy</span>
+          </div>
+          <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground">
             Choose a workspace
           </h1>
-          <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">
-            A workspace is just a folder on your computer. Entropy never imports or duplicates your
-            files.
+          <p className="mx-auto max-w-sm text-[13px] leading-relaxed text-muted-foreground">
+            A folder on your computer for notes and settings. Library still browses your real files
+            in place — Entropy never imports them.
           </p>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-2">
-          <Button type="button" disabled={busy} onClick={() => void handleOpen()}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <Button
+            type="button"
+            className="bg-foreground text-background hover:bg-foreground/90"
+            disabled={busy}
+            onClick={() => void handleOpen()}
+          >
             Open Workspace
           </Button>
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
+            className="border-border bg-panel text-foreground"
             disabled={busy}
             onClick={() => void handleCreate()}
           >
@@ -100,13 +109,11 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
         </div>
 
         <section
-          className="overflow-hidden rounded-xl border border-border bg-ink-2"
+          className="overflow-hidden rounded-md border border-border bg-panel"
           aria-label="Recent workspaces"
         >
           <div className="border-b border-border px-4 py-3">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Recent
-            </h2>
+            <h2 className="text-[11px] font-semibold uppercase text-muted-foreground">Recent</h2>
           </div>
 
           <ScrollArea className="max-h-64">
@@ -121,21 +128,28 @@ export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
                 <EmptyDescription>Open or create a folder to get started.</EmptyDescription>
               </Empty>
             ) : (
-              <ul className="p-1">
+              <ul>
                 {recent.map((item) => (
-                  <li key={item.path} className="group flex items-center gap-1">
+                  <li
+                    key={item.path}
+                    className="group flex items-center border-b border-border last:border-b-0"
+                  >
                     <button
                       type="button"
-                      className="flex min-w-0 flex-1 flex-col rounded-lg px-3 py-2.5 text-left hover:bg-accent"
+                      className="flex min-w-0 flex-1 flex-col px-4 py-2.5 text-left hover:bg-select"
                       disabled={busy}
                       onClick={() => void handleRecent(item)}
                     >
-                      <span className="truncate text-sm text-foreground">{item.name}</span>
-                      <span className="truncate text-[11px] text-muted-foreground">{item.path}</span>
+                      <span className="truncate text-[13px] font-medium text-foreground">
+                        {item.name}
+                      </span>
+                      <span className="truncate font-mono text-[11px] text-muted-foreground">
+                        {item.path}
+                      </span>
                     </button>
                     <button
                       type="button"
-                      className="mr-1 rounded-md px-2 py-1 text-xs text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground group-hover:opacity-100"
+                      className="mr-2 rounded-md px-2 py-1 text-xs text-muted-foreground opacity-0 hover:bg-select hover:text-foreground group-hover:opacity-100"
                       aria-label={`Remove ${item.name} from recent`}
                       onClick={(event) => void handleRemove(event, item)}
                     >

@@ -20,7 +20,7 @@ import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../l
 import { noteContextIsUseful } from "../lib/noteContext";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isLiveEmbedExt, linkMarkdown, mediaEmbedMarkdown } from "../lib/markdownBlocks";
-import { formatBytes } from "../lib/format";
+import { formatBytes, formatModifiedLabel } from "../lib/format";
 import { osTrashName } from "../lib/platform";
 import { TrashUndoBar } from "../components/TrashUndoBar";
 import { cn } from "../lib/utils";
@@ -512,11 +512,13 @@ export function NotebookPage({
         path: result.path,
         name: result.name,
         excerpt: result.excerpt,
+        modifiedAt: notes.find((note) => note.path === result.path)?.modifiedAt ?? 0,
       }))
     : notes.map((note) => ({
         path: note.path,
         name: note.name,
         excerpt: "",
+        modifiedAt: note.modifiedAt,
       }));
 
   useEffect(() => {
@@ -558,23 +560,18 @@ export function NotebookPage({
         persistLayout={workspace.currentSection === "notebook"}
         context={context}
         sidebar={
-          <div className="entropy-notes-sidebar flex h-full min-h-0 flex-col">
-            <div className="entropy-chrome-bar entropy-notes-chrome border-b border-border">
-              <Input
-                type="search"
-                placeholder="Filter notes…"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                aria-label="Filter notes"
-                className="h-8 min-w-0 flex-1"
-              />
+          <div className="flex h-full min-h-0 w-full flex-col bg-panel">
+            <div className="flex items-center gap-2 p-4">
+              <p className="min-w-0 flex-1 text-[11px] font-semibold uppercase text-muted-foreground">
+                Local Notes ({notes.length})
+              </p>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0"
+                    className="h-7 w-7 shrink-0 text-muted-foreground"
                     aria-label="New note"
                     onClick={() => void handleCreate()}
                   >
@@ -584,15 +581,25 @@ export function NotebookPage({
                 <TooltipContent>New note</TooltipContent>
               </Tooltip>
             </div>
+            <div className="px-4 pb-3">
+              <Input
+                type="search"
+                placeholder="Filter notes…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                aria-label="Filter notes"
+                className="h-8 border-border bg-background"
+              />
+            </div>
 
             <ScrollArea className="min-h-0 flex-1" type="hover">
-              <div className="entropy-notes-list px-4 pb-6 pt-2">
-                {error ? <p className="px-0 pb-2 text-sm text-muted-foreground">{error}</p> : null}
+              <div className="pb-6">
+                {error ? <p className="px-4 pb-2 text-sm text-muted-foreground">{error}</p> : null}
                 {loading ? (
-                  <div className="space-y-1">
-                    <Skeleton className="h-9 w-full rounded-lg" />
-                    <Skeleton className="h-9 w-full rounded-lg" />
-                    <Skeleton className="h-9 w-full rounded-lg" />
+                  <div className="space-y-1 px-4">
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
                   </div>
                 ) : null}
                 {!loading && visibleNotes.length === 0 ? (
@@ -602,39 +609,36 @@ export function NotebookPage({
                   </Empty>
                 ) : null}
 
-                <ul className="space-y-0.5" aria-label="Notes">
+                <ul aria-label="Notes">
                   {visibleNotes.map((note) => {
                     const title = note.name.replace(/\.md$/i, "");
                     const active = activePath === note.path;
                     return (
-                      <li key={note.path}>
+                      <li key={note.path} className="border-b border-border">
                         {renaming === note.path ? (
-                          <Input
-                            className="h-9"
-                            value={renameValue}
-                            autoFocus
-                            onChange={(event) => setRenameValue(event.target.value)}
-                            onBlur={() => void commitRename(note.path)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") void commitRename(note.path);
-                              if (event.key === "Escape") setRenaming(null);
-                            }}
-                          />
+                          <div className="px-4 py-2.5">
+                            <Input
+                              className="h-9"
+                              value={renameValue}
+                              autoFocus
+                              onChange={(event) => setRenameValue(event.target.value)}
+                              onBlur={() => void commitRename(note.path)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") void commitRename(note.path);
+                                if (event.key === "Escape") setRenaming(null);
+                              }}
+                            />
+                          </div>
                         ) : (
                           <div
                             className={cn(
-                              "group flex min-w-0 items-center rounded-lg",
-                              active && "bg-background ring-1 ring-border",
+                              "group flex min-w-0 items-start",
+                              active ? "bg-select" : "bg-transparent hover:bg-select/50",
                             )}
                           >
                             <button
                               type="button"
-                              className={cn(
-                                "min-w-0 flex-1 truncate px-3 py-2 text-left text-sm",
-                                active
-                                  ? "font-medium text-foreground"
-                                  : "text-muted-foreground hover:text-foreground",
-                              )}
+                              className="min-w-0 flex-1 px-4 py-2.5 text-left"
                               onClick={() => openNote(note.path)}
                               onDoubleClick={() =>
                                 startRename({
@@ -642,23 +646,31 @@ export function NotebookPage({
                                   path: note.path,
                                   isDirectory: false,
                                   size: 0,
-                                  modifiedAt: 0,
+                                  modifiedAt: note.modifiedAt,
                                   extension: ".md",
                                 })
                               }
                             >
-                              {title}
+                              <p
+                                className={cn(
+                                  "truncate text-[13px] text-foreground",
+                                  active ? "font-medium" : "font-normal",
+                                )}
+                              >
+                                {title}
+                              </p>
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                {note.excerpt ||
+                                  (note.modifiedAt
+                                    ? formatModifiedLabel(note.modifiedAt)
+                                    : "Local note")}
+                              </p>
                             </button>
-                            <div className="entropy-note-actions shrink-0 pr-1">
+                            <div className="shrink-0 py-2 pr-2 opacity-0 group-hover:opacity-100">
                               <ItemActionsMenu label={title} actions={noteActions(note)} />
                             </div>
                           </div>
                         )}
-                        {note.excerpt ? (
-                          <p className="line-clamp-2 px-3 pb-2 text-[11px] text-muted-foreground">
-                            {note.excerpt}
-                          </p>
-                        ) : null}
                       </li>
                     );
                   })}

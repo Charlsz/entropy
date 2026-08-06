@@ -214,8 +214,10 @@
   }
 
   .markdown-preview h1 {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
 
   .markdown-preview h2 {
@@ -710,18 +712,20 @@
 }
 
 .entropy-prose-pad {
-  padding-inline: 1rem;
+  padding-inline: 1.5rem;
+  padding-block: 2rem;
 }
 
 @container editor (min-width: 40rem) {
   .entropy-prose-pad {
-    padding-inline: 1.5rem;
+    padding-inline: 2rem;
   }
 }
 
 @container editor (min-width: 56rem) {
   .entropy-prose-pad {
-    padding-inline: 2rem;
+    padding-inline: 3rem;
+    padding-block: 3rem;
   }
 }
 
