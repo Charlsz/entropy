@@ -7,7 +7,8 @@ import { MarkdownEditor, type MarkdownEditorHandle } from "../pages/MarkdownEdit
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
-import { ItemActionsMenu } from "../components/ItemActionsMenu";
+import { ItemContextMenu } from "../components/ItemContextMenu";
+import type { ItemAction } from "../components/ItemActionsMenu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,13 +23,14 @@ import { Skeleton } from "../components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { NoteContextPanel } from "../components/NoteContextPanel";
-import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
+import { copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { noteContextIsUseful } from "../lib/noteContext";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isLiveEmbedExt, linkMarkdown, mediaEmbedMarkdown } from "../lib/markdownBlocks";
 import { formatBytes, formatModifiedLabel } from "../lib/format";
 import { figma } from "../lib/figmaTokens";
 import { osTrashName, samePath } from "../lib/platform";
+import { revealInFolderLabel } from "../../shared/platform";
 import { TrashUndoBar } from "../components/TrashUndoBar";
 import { cn } from "../lib/utils";
 
@@ -45,7 +47,7 @@ export function NotebookPage({
   onPendingReferenceHandled?: () => void;
   onPickWorkspace?: (path: string) => void;
 } = {}) {
-  const { workspace, addRecentFile, visitNote } = useWorkspace();
+  const { workspace, addRecentFile, visitNote, openFolder, updateSettings } = useWorkspace();
   const [notes, setNotes] = useState<FileEntry[]>([]);
   const [openPaths, setOpenPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
@@ -475,23 +477,54 @@ export function NotebookPage({
     }
   }
 
-  function noteActions(note: { path: string; name: string }) {
-    return buildEntryActions({
-      canReference: false,
-      onRename: () =>
-        startRename({
-          name: note.name,
-          path: note.path,
-          isDirectory: false,
-          size: 0,
-          modifiedAt: 0,
-          extension: ".md",
-        }),
-      onCopyPath: () => void copyPath(note.path),
-      onReveal: () => void revealPath(note.path),
-      onMoveTo: () => setMovingPath(note.path),
-      onDelete: () => requestDelete(note.path),
-    });
+  function noteActions(note: { path: string; name: string }): ItemAction[] {
+    const osRevealLabel = revealInFolderLabel(window.entropy.platform).replace(/^Show in\s+/i, "");
+    return [
+      {
+        label: "Rename",
+        onSelect: () =>
+          startRename({
+            name: note.name,
+            path: note.path,
+            isDirectory: false,
+            size: 0,
+            modifiedAt: 0,
+            extension: ".md",
+          }),
+      },
+      { label: "Copy path", onSelect: () => void copyPath(note.path) },
+      {
+        label: "Show in",
+        children: [
+          {
+            label: "Folders",
+            onSelect: () => {
+              void (async () => {
+                const dir = await window.entropy.fs.dirname(note.path);
+                updateSettings({ libraryPerspective: "folders", intelligenceView: null });
+                openFolder(dir);
+              })();
+            },
+          },
+          {
+            label: "Gallery",
+            onSelect: () => {
+              void (async () => {
+                const dir = await window.entropy.fs.dirname(note.path);
+                updateSettings({ libraryPerspective: "gallery", intelligenceView: null });
+                openFolder(dir);
+              })();
+            },
+          },
+          {
+            label: osRevealLabel,
+            onSelect: () => void revealPath(note.path),
+          },
+        ],
+      },
+      { label: "Move to…", onSelect: () => setMovingPath(note.path) },
+      { label: "Delete", destructive: true, onSelect: () => requestDelete(note.path) },
+    ];
   }
 
   const visibleNotes = notes.map((note) => ({
@@ -652,46 +685,45 @@ export function NotebookPage({
                             />
                           </div>
                         ) : (
-                          <div
-                            className="group flex min-w-0 items-start"
-                            style={{
-                              backgroundColor: active ? figma.select : "transparent",
-                            }}
-                          >
-                            <button
-                              type="button"
-                              className="min-w-0 flex-1 px-4 py-2.5 text-left"
-                              onClick={() => openNote(note.path)}
-                              onDoubleClick={() =>
-                                startRename({
-                                  name: note.name,
-                                  path: note.path,
-                                  isDirectory: false,
-                                  size: 0,
-                                  modifiedAt: note.modifiedAt,
-                                  extension: ".md",
-                                })
-                              }
+                          <ItemContextMenu label={title} actions={noteActions(note)}>
+                            <div
+                              className="group flex min-w-0 items-start"
+                              style={{
+                                backgroundColor: active ? figma.select : "transparent",
+                              }}
                             >
-                              <p
-                                className={cn(
-                                  "truncate text-[13px]",
-                                  active ? "font-medium" : "font-normal",
-                                )}
-                                style={{ color: figma.ink }}
+                              <button
+                                type="button"
+                                className="min-w-0 flex-1 px-4 py-2.5 text-left"
+                                onClick={() => openNote(note.path)}
+                                onDoubleClick={() =>
+                                  startRename({
+                                    name: note.name,
+                                    path: note.path,
+                                    isDirectory: false,
+                                    size: 0,
+                                    modifiedAt: note.modifiedAt,
+                                    extension: ".md",
+                                  })
+                                }
                               >
-                                {title}
-                              </p>
-                              <p className="mt-1 text-[11px]" style={{ color: figma.muted }}>
-                                {note.modifiedAt
-                                  ? formatModifiedLabel(note.modifiedAt)
-                                  : "Local note"}
-                              </p>
-                            </button>
-                            <div className="shrink-0 py-2 pr-2 opacity-0 group-hover:opacity-100">
-                              <ItemActionsMenu label={title} actions={noteActions(note)} />
+                                <p
+                                  className={cn(
+                                    "truncate text-[13px]",
+                                    active ? "font-medium" : "font-normal",
+                                  )}
+                                  style={{ color: figma.ink }}
+                                >
+                                  {title}
+                                </p>
+                                <p className="mt-1 text-[11px]" style={{ color: figma.muted }}>
+                                  {note.modifiedAt
+                                    ? formatModifiedLabel(note.modifiedAt)
+                                    : "Local note"}
+                                </p>
+                              </button>
                             </div>
-                          </div>
+                          </ItemContextMenu>
                         )}
                       </li>
                     );

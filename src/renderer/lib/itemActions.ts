@@ -1,6 +1,8 @@
 import type { ItemAction } from "../components/ItemActionsMenu";
 import { revealInFolderLabel } from "../../shared/platform";
 
+export type { ItemAction };
+
 export async function copyPath(filePath: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(filePath);
