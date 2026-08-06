@@ -143,6 +143,8 @@ export interface EntropyApi {
     create: () => Promise<string | null>;
     remember: (path: string) => Promise<void>;
     getRecent: () => Promise<RecentWorkspace[]>;
+    listMarked: () => Promise<RecentWorkspace[]>;
+    isMarked: (path: string) => Promise<boolean>;
     clearRecent: () => Promise<void>;
     removeRecent: (path: string) => Promise<void>;
   };
@@ -249,7 +251,7 @@ export interface AppSession {
     sidebarCollapsed: boolean;
     contextCollapsed: boolean;
     inventoryTreemapCollapsed?: boolean;
-    libraryPerspective?: "folders" | "gallery" | "large-files" | "duplicates" | "recent";
+    libraryPerspective?: "folders" | "gallery" | "large-files" | "duplicates";
     intelligenceView?: "relationships" | "copilot" | null;
     uiDensity?: "comfortable" | "default" | "compact";
     panelLayout: {
@@ -263,7 +265,6 @@ export interface AppSession {
       context: number;
     };
     inventoryExtraRoots?: string[];
-    lastDuplicatesCount?: number | null;
     largeFilesApproxBytes?: number | null;
   };
 }

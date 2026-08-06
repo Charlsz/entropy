@@ -47,6 +47,7 @@ export async function getRecentWorkspaces(): Promise<RecentWorkspace[]> {
 }
 
 export async function rememberWorkspace(workspacePath: string): Promise<void> {
+  await ensureWorkspaceMarker(workspacePath);
   const items = await readRecent();
   const next: RecentWorkspace = {
     path: workspacePath,
@@ -57,6 +58,31 @@ export async function rememberWorkspace(workspacePath: string): Promise<void> {
   const filtered = items.filter((item) => item.path !== workspacePath);
   filtered.unshift(next);
   await writeRecent(filtered.slice(0, MAX_RECENT));
+}
+
+/** Marker folder Entropy uses to recognize Notebook workspaces. */
+export async function ensureWorkspaceMarker(workspacePath: string): Promise<void> {
+  const marker = path.join(path.normalize(workspacePath), ".entropy");
+  await fs.mkdir(marker, { recursive: true });
+}
+
+export async function isEntropyWorkspace(workspacePath: string): Promise<boolean> {
+  try {
+    const info = await fs.stat(path.join(path.normalize(workspacePath), ".entropy"));
+    return info.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Recent folders that still have an Entropy workspace marker. */
+export async function listMarkedWorkspaces(): Promise<RecentWorkspace[]> {
+  const recent = await getRecentWorkspaces();
+  const marked: RecentWorkspace[] = [];
+  for (const item of recent) {
+    if (await isEntropyWorkspace(item.path)) marked.push(item);
+  }
+  return marked;
 }
 
 export async function removeRecentWorkspace(workspacePath: string): Promise<void> {

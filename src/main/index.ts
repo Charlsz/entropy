@@ -19,6 +19,8 @@ import {
   clearRecentWorkspaces,
   createWorkspaceDialog,
   getRecentWorkspaces,
+  isEntropyWorkspace,
+  listMarkedWorkspaces,
   openWorkspaceDialog,
   rememberWorkspace,
   removeRecentWorkspace,
@@ -143,6 +145,10 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("workspace:getRecent", async () => getRecentWorkspaces());
+  ipcMain.handle("workspace:listMarked", async () => listMarkedWorkspaces());
+  ipcMain.handle("workspace:isMarked", async (_event, workspacePath: string) =>
+    isEntropyWorkspace(workspacePath),
+  );
   ipcMain.handle("workspace:clearRecent", async () => clearRecentWorkspaces());
   ipcMain.handle("workspace:removeRecent", async (_event, workspacePath: string) => {
     await removeRecentWorkspace(workspacePath);

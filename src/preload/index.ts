@@ -13,6 +13,8 @@ const api: EntropyApi = {
     create: () => ipcRenderer.invoke("workspace:create"),
     remember: (workspacePath: string) => ipcRenderer.invoke("workspace:remember", workspacePath),
     getRecent: () => ipcRenderer.invoke("workspace:getRecent"),
+    listMarked: () => ipcRenderer.invoke("workspace:listMarked"),
+    isMarked: (workspacePath) => ipcRenderer.invoke("workspace:isMarked", workspacePath),
     clearRecent: () => ipcRenderer.invoke("workspace:clearRecent"),
     removeRecent: (workspacePath: string) =>
       ipcRenderer.invoke("workspace:removeRecent", workspacePath),
