@@ -35,7 +35,7 @@ import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
-import { StorageTreemap, TreemapIcon } from "../components/StorageTreemap";
+import { StorageTreemap } from "../components/StorageTreemap";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
@@ -901,10 +901,6 @@ export function FilesPage({
     setSortAsc(true);
   }
 
-  function toggleTreemap(): void {
-    updateSettings({ inventoryTreemapCollapsed: !treemapCollapsed });
-  }
-
   async function selectTreemapLeaf(leaf: TreemapFileLeaf): Promise<void> {
     if (leaf.isDirectory) {
       setSelected(null);
@@ -970,28 +966,7 @@ export function FilesPage({
               />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Refresh large files</TooltipContent>
-        </Tooltip>
-      ) : null}
-      {showTreemapToggle ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-8 w-8 text-muted-foreground",
-                showTreemap && "text-foreground",
-              )}
-              aria-label={treemapCollapsed ? "Show storage map" : "Hide storage map"}
-              aria-pressed={showTreemap}
-              onClick={toggleTreemap}
-            >
-              <TreemapIcon className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{treemapCollapsed ? "Show storage map" : "Hide storage map"}</TooltipContent>
+          <TooltipContent side="bottom">Refresh large files</TooltipContent>
         </Tooltip>
       ) : null}
     </div>

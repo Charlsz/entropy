@@ -2,9 +2,12 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { ContentArea } from "./ContentArea";
 import { WindowControls } from "./WindowControls";
+import { TreemapIcon } from "./StorageTreemap";
 import { useWorkspace } from "../state/useWorkspace";
 import { figma } from "../lib/figmaTokens";
 import { WorkspaceSelector } from "./WorkspaceSelector";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { cn } from "../lib/utils";
 
 /**
  * Entropy shell: sidebar + content.
@@ -114,6 +117,10 @@ export function WorkspaceShell({
   const densityZoom =
     density === "comfortable" ? 1.08 : density === "compact" ? 0.92 : 1;
 
+  const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed ?? true;
+  const showTreemapToggle =
+    workspace.currentSection === "inventory" && perspective === "folders";
+
   return (
     <div
       className="relative flex h-full min-h-0 w-full origin-top-left"
@@ -132,15 +139,42 @@ export function WorkspaceShell({
       />
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        {needsCustomControls ? (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-9 items-center justify-end">
-            <div className="pointer-events-auto no-drag flex items-center">
-              <WindowControls />
-            </div>
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-9 items-center justify-end">
+          <div
+            className={cn(
+              "pointer-events-auto no-drag flex items-center gap-0.5",
+              needsCustomControls ? "entropy-titlebar-end" : "pr-2",
+            )}
+          >
+            {showTreemapToggle ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-select hover:text-foreground",
+                      !treemapCollapsed && "text-foreground",
+                    )}
+                    aria-label={treemapCollapsed ? "Show storage map" : "Hide storage map"}
+                    aria-pressed={!treemapCollapsed}
+                    onClick={() =>
+                      updateSettings({ inventoryTreemapCollapsed: !treemapCollapsed })
+                    }
+                  >
+                    <TreemapIcon className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={8}>
+                  {treemapCollapsed ? "Show storage map" : "Hide storage map"}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+            {needsCustomControls ? <WindowControls /> : null}
           </div>
-        ) : (
+        </div>
+        {!needsCustomControls ? (
           <div className="drag-region absolute inset-x-0 top-0 z-40 h-9" aria-hidden />
-        )}
+        ) : null}
 
         <div
           className={
