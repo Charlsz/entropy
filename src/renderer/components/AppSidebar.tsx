@@ -95,6 +95,8 @@ export function AppSidebar({
   }
 
   function goLibrary(next?: LibraryPerspective): void {
+    // Perspective navigation leaves search so Folders/Gallery/etc. show themselves.
+    onSearchQueryChange("");
     updateSettings({
       intelligenceView: null,
       ...(next ? { libraryPerspective: next } : {}),
