@@ -579,8 +579,8 @@ export function NotebookPage({
             style={{ backgroundColor: figma.surface, borderRight: `1px solid ${figma.border}` }}
           >
             <div
-              className="flex items-center gap-1.5 px-4 pb-3"
-              style={{ paddingTop: window.entropy.platform === "darwin" ? 40 : 20 }}
+              className="flex items-center gap-1.5 px-4 pb-2"
+              style={{ paddingTop: window.entropy.platform === "darwin" ? 36 : 8 }}
             >
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -734,35 +734,33 @@ export function NotebookPage({
           </div>
         }
         main={
-          <div className="entropy-titlebar-pad flex h-full min-h-0 min-w-0 flex-col">
-            <MarkdownEditor
-              ref={editorRef}
-              openPaths={openPaths}
-              activePath={activePath}
-              diskEpoch={diskEpoch}
-              onActiveChange={(notePath) => {
-                openNoteLocal(notePath);
-                visitNote(notePath);
-              }}
-              onCloseTab={closeTab}
-              onStatsChange={setStatusRight}
-              onLiveContentChange={setLiveContent}
-              onOpenLocalPath={(absolutePath) => {
-                void (async () => {
-                  try {
-                    const info = await window.entropy.fs.stat(absolutePath);
-                    if (info.extension.toLowerCase() === ".md") {
-                      openNote(info.path);
-                      return;
-                    }
-                    setPreviewEntry(info);
-                  } catch {
-                    // Ignore missing targets.
+          <MarkdownEditor
+            ref={editorRef}
+            openPaths={openPaths}
+            activePath={activePath}
+            diskEpoch={diskEpoch}
+            onActiveChange={(notePath) => {
+              openNoteLocal(notePath);
+              visitNote(notePath);
+            }}
+            onCloseTab={closeTab}
+            onStatsChange={setStatusRight}
+            onLiveContentChange={setLiveContent}
+            onOpenLocalPath={(absolutePath) => {
+              void (async () => {
+                try {
+                  const info = await window.entropy.fs.stat(absolutePath);
+                  if (info.extension.toLowerCase() === ".md") {
+                    openNote(info.path);
+                    return;
                   }
-                })();
-              }}
-            />
-          </div>
+                  setPreviewEntry(info);
+                } catch {
+                  // Ignore missing targets.
+                }
+              })();
+            }}
+          />
         }
       />
       {undoTrash ? (

@@ -591,64 +591,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }
 
   return (
-    <div className="entropy-editor-shell flex h-full min-h-0 flex-col bg-background">
+    <div className="entropy-editor-shell relative flex h-full min-h-0 flex-col bg-background">
       <div
-        className="entropy-chrome-bar entropy-notes-chrome shrink-0 border-b border-border"
-        aria-label="Open notes"
+        className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 z-40 flex h-9 items-center justify-end",
+          window.entropy.window?.needsCustomControls ? "entropy-titlebar-end" : "pr-2",
+        )}
       >
-        <div
-          className="flex min-h-8 min-w-0 flex-1 items-stretch gap-1 overflow-x-auto"
-          role="tablist"
-        >
-          {tabs.map((tab) => {
-            const dirty = tab.content !== tab.savedContent;
-            const active = tab.path === activePath;
-            return (
-              <div
-                key={tab.path}
-                className={cn(
-                  "group flex max-w-[14rem] shrink-0 items-center gap-1 border-b-2 px-1.5 text-[13px] transition-colors duration-150",
-                  active
-                    ? "border-foreground text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-                role="tab"
-                aria-selected={active}
-              >
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-1.5 truncate py-2 text-left font-medium"
-                  onClick={() => onActiveChange(tab.path)}
-                  title={tab.title}
-                >
-                  <span className="truncate">{tab.title}</span>
-                  <span
-                    className={cn(
-                      "size-1.5 shrink-0 rounded-full bg-foreground/70 transition-opacity duration-150",
-                      dirty ? "opacity-100" : "opacity-0",
-                    )}
-                    aria-hidden={!dirty}
-                    title={dirty ? "Unsaved changes" : undefined}
-                  />
-                  {tab.missing ? (
-                    <span className="text-muted-foreground" title="Missing on disk">
-                      !
-                    </span>
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-select hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
-                  aria-label={`Close ${tab.title}`}
-                  onClick={() => handleClose(tab.path)}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="pointer-events-auto no-drag flex items-center gap-0.5">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -659,23 +609,23 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   "h-8 w-8 text-muted-foreground",
                   !split && surface === "preview" && "bg-ink-2 text-foreground",
                 )}
-                  aria-label={surface === "edit" ? "Show reading view" : "Show live preview"}
-                  aria-pressed={!split && surface === "preview"}
-                  onClick={() => {
-                    setSplit(false);
-                    setSurface((prev) => (prev === "edit" ? "preview" : "edit"));
-                  }}
-                >
-                  {surface === "edit" ? (
-                    <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  ) : (
-                    <PenLine className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  )}
-                </Button>
+                aria-label={surface === "edit" ? "Show reading view" : "Show live preview"}
+                aria-pressed={!split && surface === "preview"}
+                onClick={() => {
+                  setSplit(false);
+                  setSurface((prev) => (prev === "edit" ? "preview" : "edit"));
+                }}
+              >
+                {surface === "edit" ? (
+                  <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
+                ) : (
+                  <PenLine className="h-3.5 w-3.5" strokeWidth={1.75} />
+                )}
+              </Button>
             </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {surface === "edit" ? "Reading view" : "Live Preview"}
-              </TooltipContent>
+            <TooltipContent side="bottom" sideOffset={8}>
+              {surface === "edit" ? "Reading view" : "Live Preview"}
+            </TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -694,10 +644,71 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 <Columns2 className="h-3.5 w-3.5" strokeWidth={1.75} />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Split</TooltipContent>
+            <TooltipContent side="bottom" sideOffset={8}>
+              Split
+            </TooltipContent>
           </Tooltip>
         </div>
       </div>
+
+      <div className="entropy-titlebar-pad flex min-h-0 min-w-0 flex-1 flex-col">
+        <div
+          className="entropy-chrome-bar entropy-notes-chrome shrink-0 border-b border-border"
+          aria-label="Open notes"
+        >
+          <div
+            className="flex min-h-8 min-w-0 flex-1 items-stretch gap-1 overflow-x-auto"
+            role="tablist"
+          >
+            {tabs.map((tab) => {
+              const dirty = tab.content !== tab.savedContent;
+              const active = tab.path === activePath;
+              return (
+                <div
+                  key={tab.path}
+                  className={cn(
+                    "group flex max-w-[14rem] shrink-0 items-center gap-1 border-b-2 px-1.5 text-[13px] transition-colors duration-150",
+                    active
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
+                  role="tab"
+                  aria-selected={active}
+                >
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-1.5 truncate py-1.5 text-left font-medium"
+                    onClick={() => onActiveChange(tab.path)}
+                    title={tab.title}
+                  >
+                    <span className="truncate">{tab.title}</span>
+                    <span
+                      className={cn(
+                        "size-1.5 shrink-0 rounded-full bg-foreground/70 transition-opacity duration-150",
+                        dirty ? "opacity-100" : "opacity-0",
+                      )}
+                      aria-hidden={!dirty}
+                      title={dirty ? "Unsaved changes" : undefined}
+                    />
+                    {tab.missing ? (
+                      <span className="text-muted-foreground" title="Missing on disk">
+                        !
+                      </span>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-select hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                    aria-label={`Close ${tab.title}`}
+                    onClick={() => handleClose(tab.path)}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
       {statusMessage || activeTab?.missing || activeTab?.conflict ? (
         <div
@@ -820,6 +831,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           </div>
         </div>
       )}
+      </div>
     </div>
   );
   },
