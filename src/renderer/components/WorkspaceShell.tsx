@@ -39,6 +39,7 @@ export function WorkspaceShell({
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    document.body.dataset.theme = theme;
     document.documentElement.dataset.density = density;
     document.documentElement.dataset.platform = window.entropy.platform;
     void window.entropy.window.setChromeTheme?.(theme);

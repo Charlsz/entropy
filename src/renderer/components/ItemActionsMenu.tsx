@@ -23,7 +23,7 @@ export function ItemActionsMenu({ label, actions }: ItemActionsMenuProps) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-select hover:text-foreground"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground outline-none hover:bg-select hover:text-foreground focus-visible:bg-select data-[state=open]:bg-select data-[state=open]:text-foreground"
           aria-label={`${label} actions`}
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
@@ -36,6 +36,11 @@ export function ItemActionsMenu({ label, actions }: ItemActionsMenuProps) {
           <DropdownMenuItem
             key={action.label}
             variant={action.destructive ? "destructive" : "default"}
+            className={
+              action.destructive
+                ? "text-muted-foreground data-[highlighted]:text-foreground"
+                : undefined
+            }
             onSelect={(event) => {
               event.preventDefault();
               action.onSelect();

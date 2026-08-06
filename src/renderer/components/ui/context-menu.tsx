@@ -15,7 +15,7 @@ export const ContextMenuContent = React.forwardRef<
     <ContextMenuPrimitive.Content
       ref={ref}
       className={cn(
-        "z-50 min-w-[10rem] overflow-hidden rounded-[8px] border border-border bg-card p-1 text-foreground shadow-sm",
+        "z-50 min-w-[10rem] overflow-hidden rounded-[8px] border border-border bg-card p-1 text-foreground shadow-sm entropy-menu",
         className,
       )}
       {...props}
