@@ -158,7 +158,7 @@ export function ThreeColumnLayout({
           <Panel
             id="context"
             className={cn(
-              "min-h-0 bg-ink-2",
+              "min-h-0 bg-panel",
               isInventory ? "min-w-0" : showContext ? "min-w-[15rem]" : "min-w-0",
               keepContextSlot && !showContext && "overflow-hidden",
             )}
