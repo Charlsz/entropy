@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect, type KeyboardEvent, type PointerEvent } from "react";
-import { HardDrive } from "lucide-react";
 import type { TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
 import {
   FILE_KIND_FILL,
@@ -14,8 +13,59 @@ import { squarify } from "../lib/squarify";
 import { useWorkspace } from "../state/useWorkspace";
 import { formatBytes } from "../lib/format";
 
-/** Smallest rendered tile — keep every leaf legible as a color block. */
-const MIN_TILE_EDGE = 8;
+/** Smallest rendered tile — readable as a block while still scaling with the panel. */
+const MIN_TILE_EDGE = 16;
+
+/** Fold leaves too small for the current panel into Other so every tile meets MIN_TILE_EDGE. */
+function layoutLeaves(
+  files: TreemapFileLeaf[],
+  total: number,
+  frameWidth: number,
+  frameHeight: number,
+): TreemapFileLeaf[] {
+  const frameArea = Math.max(frameWidth * frameHeight, 1);
+  const minAreaShare = (MIN_TILE_EDGE * MIN_TILE_EDGE) / frameArea;
+  const floorSize = Math.max(1, Math.floor(total * minAreaShare));
+
+  const kept: TreemapFileLeaf[] = [];
+  let otherSize = 0;
+  let otherCount = 0;
+  let existingOther: TreemapFileLeaf | null = null;
+
+  for (const file of files) {
+    if (isAggregateLeaf(file)) {
+      existingOther = file;
+      otherSize += file.size;
+      const match = /\((\d+)/.exec(file.name);
+      otherCount += match ? Number(match[1]) : 1;
+      continue;
+    }
+    if (file.size >= floorSize) {
+      kept.push(file);
+      continue;
+    }
+    otherSize += file.size;
+    otherCount += 1;
+  }
+
+  if (otherCount > 0 && otherSize > 0) {
+    const rootHint = existingOther?.path ?? kept[0]?.path ?? files[0]?.path ?? "other";
+    const slash = rootHint.includes("\\") && !rootHint.includes("/") ? "\\" : "/";
+    const parent = rootHint.replace(/[/\\][^/\\]+$/, "") || rootHint;
+    kept.push({
+      path: existingOther?.path ?? `${parent}${slash}.__entropy_other__`,
+      name: `Other (${otherCount.toLocaleString()})`,
+      size: otherSize,
+      extension: "",
+      kind: "other",
+      isDirectory: false,
+      location: existingOther?.location,
+      modifiedAt: existingOther?.modifiedAt,
+    });
+  }
+
+  return kept;
+}
 
 interface StorageTreemapProps {
   scan?: TreemapScanResult | null;
@@ -86,10 +136,14 @@ export function StorageTreemap({
   const layout = useMemo(() => {
     if (!showMap || size.width < MIN_TILE_EDGE || size.height < MIN_TILE_EDGE) return [];
     const gap = 1;
+    const leaves = layoutLeaves(files, total, size.width, size.height);
+    const leafTotal = leaves.reduce((sum, leaf) => sum + leaf.size, 0);
+    if (leafTotal <= 0) return [];
+
     const frameArea = Math.max(size.width * size.height, 1);
-    const floor = Math.max(1, Math.floor((total * (MIN_TILE_EDGE * MIN_TILE_EDGE)) / frameArea));
+    const floor = Math.max(1, Math.floor((leafTotal * (MIN_TILE_EDGE * MIN_TILE_EDGE)) / frameArea));
     const rects = squarify(
-      files.map((file) => ({
+      leaves.map((file) => ({
         id: file.path,
         size: Math.max(file.size, floor),
       })),
@@ -98,19 +152,20 @@ export function StorageTreemap({
       size.width,
       size.height,
     );
-    const byPath = new Map(files.map((file) => [file.path, file]));
+    const byPath = new Map(leaves.map((file) => [file.path, file]));
     return rects
       .map((rect) => {
         const file = byPath.get(rect.id);
         if (!file) return null;
-        const width = Math.max(rect.width - gap, MIN_TILE_EDGE);
-        const height = Math.max(rect.height - gap, MIN_TILE_EDGE);
+        const width = Math.max(0, rect.width - gap);
+        const height = Math.max(0, rect.height - gap);
+        if (width < MIN_TILE_EDGE - 1 || height < MIN_TILE_EDGE - 1) return null;
         return {
           ...file,
           x: rect.x + gap / 2,
           y: rect.y + gap / 2,
-          width,
-          height,
+          width: Math.max(width, MIN_TILE_EDGE),
+          height: Math.max(height, MIN_TILE_EDGE),
           fill: fillFor(file, light),
         };
       })
@@ -137,7 +192,7 @@ export function StorageTreemap({
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)} aria-label="Storage treemap">
       <div className="flex items-center gap-2 px-4 py-3">
-        <HardDrive className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} />
+        <TreemapIcon className="h-3.5 w-3.5 text-muted-foreground" />
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Storage
         </h2>
