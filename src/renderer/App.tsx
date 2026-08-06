@@ -48,6 +48,7 @@ export function App() {
         setInitialSettings(settings);
         latestSettings.current = settings;
         document.documentElement.dataset.theme = settings.theme;
+        document.body.dataset.theme = settings.theme;
         document.documentElement.dataset.density = settings.uiDensity;
 
         if (session.lastWorkspace && (await window.entropy.fs.exists(session.lastWorkspace))) {
