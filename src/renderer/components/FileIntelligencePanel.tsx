@@ -24,6 +24,7 @@ export function FileIntelligencePanel({ entry, scanRoot }: FileIntelligencePanel
   const [noteCount, setNoteCount] = useState<number | null>(null);
   const [dupBytes, setDupBytes] = useState<number | null>(null);
   const [relatedCount, setRelatedCount] = useState<number | null>(null);
+  const [osPreview, setOsPreview] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,11 +61,25 @@ export function FileIntelligencePanel({ entry, scanRoot }: FileIntelligencePanel
     };
   }, [entry.isDirectory, entry.path, entry.size, scanRoot]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setOsPreview(false);
+    if (!isPreviewableEntry(entry)) return;
+    void window.entropy.fs.canOsPreview(entry.path).then((ok) => {
+      if (!cancelled) setOsPreview(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [entry]);
+
   const parentName =
     entry.path.replace(/\\/g, "/").split("/").slice(-2, -1)[0] ||
     workspace.inventoryRootLabel ||
     "Home";
-  const showPreview = isPreviewableEntry(entry) && mediaKind(entry.extension) === "image";
+  const kind = mediaKind(entry.extension);
+  const previewLabel =
+    kind === "image" ? "Image Analysis - Preview" : "Preview";
   const modified = formatModifiedLabel(entry.modifiedAt);
 
   return (
@@ -147,10 +162,10 @@ export function FileIntelligencePanel({ entry, scanRoot }: FileIntelligencePanel
         </div>
       </div>
 
-      {showPreview ? (
+      {osPreview ? (
         <div className="flex flex-col gap-2.5 p-5 pt-0">
           <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
-            Image Analysis - Preview
+            {previewLabel}
           </p>
           <div
             className="relative h-[140px] overflow-hidden rounded-[6px]"

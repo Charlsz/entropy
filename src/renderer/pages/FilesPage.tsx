@@ -723,7 +723,10 @@ export function FilesPage() {
                   ? "bg-select font-medium text-foreground"
                   : "text-muted-foreground hover:bg-panel hover:text-foreground",
               )}
-              onClick={() => updateSettings({ libraryPerspective: chip, intelligenceView: null })}
+              onClick={() => {
+                updateSettings({ libraryPerspective: chip, intelligenceView: null });
+                if (chip === "gallery" && homePath) goToFolder(homePath);
+              }}
             >
               {PERSPECTIVE_LABELS[chip]}
             </button>
@@ -764,24 +767,26 @@ export function FilesPage() {
             ) : null}
 
             {!listLoading && galleryVisible.length > 0 ? (
-              <div className="flex flex-wrap content-start gap-5">
-                {rendered.map((entry) => (
-                  <FileGridCard
-                    key={entry.path}
-                    entry={entry}
-                    homePath={homePath}
-                    selected={selected?.path === entry.path}
-                    dropTarget={false}
-                    sizePending={false}
-                    onSelect={() => setSelected(entry)}
-                    onOpen={() => void openEntry(entry)}
-                    onDragStart={(event) => onDragStart(event, entry)}
-                    actions={fileActions(entry)}
-                  />
-                ))}
-                {rendered.length < galleryVisible.length ? (
-                  <div ref={loadMoreRef} className="h-8 w-full" aria-hidden />
-                ) : null}
+              <div className="entropy-gallery">
+                <div className="entropy-gallery-grid px-1">
+                  {rendered.map((entry) => (
+                    <FileGridCard
+                      key={entry.path}
+                      entry={entry}
+                      homePath={homePath}
+                      selected={selected?.path === entry.path}
+                      dropTarget={false}
+                      sizePending={false}
+                      onSelect={() => setSelected(entry)}
+                      onOpen={() => void openEntry(entry)}
+                      onDragStart={(event) => onDragStart(event, entry)}
+                      actions={fileActions(entry)}
+                    />
+                  ))}
+                  {rendered.length < galleryVisible.length ? (
+                    <div ref={loadMoreRef} className="h-8 w-full" aria-hidden />
+                  ) : null}
+                </div>
               </div>
             ) : null}
           </div>
@@ -954,7 +959,10 @@ const FileGridCard = memo(
     return (
       <div
         draggable
-        className={cn("group w-[260px] shrink-0 cursor-pointer rounded-lg border p-2.5", dropTarget && "opacity-70")}
+        className={cn(
+          "entropy-gallery-card group cursor-pointer rounded-lg border p-2",
+          dropTarget && "opacity-70",
+        )}
         style={{
           backgroundColor: figma.canvas,
           borderColor: figma.border,
@@ -968,18 +976,18 @@ const FileGridCard = memo(
       >
         <div
           className={cn(
-            "mb-2.5 h-40 w-full overflow-hidden rounded-[4px]",
-            face === "icon" && "flex items-center justify-center",
+            "entropy-gallery-face mb-2 w-full overflow-hidden rounded-[4px]",
+            face === "icon" && "entropy-gallery-face--icon",
           )}
           style={{ backgroundColor: figma.surface }}
         >
           {face === "icon" ? (
             entry.isDirectory ? (
-              <Folder className="size-10" style={{ color: figma.muted }} strokeWidth={1.15} />
+              <Folder style={{ color: figma.muted }} strokeWidth={1.15} />
             ) : mediaKind(entry.extension) === "image" ? (
-              <Image className="size-10" style={{ color: figma.muted }} strokeWidth={1.15} />
+              <Image style={{ color: figma.muted }} strokeWidth={1.15} />
             ) : (
-              <FileText className="size-10" style={{ color: figma.muted }} strokeWidth={1.15} />
+              <FileText style={{ color: figma.muted }} strokeWidth={1.15} />
             )
           ) : face === "preview" ? (
             <EntryPreview
@@ -993,7 +1001,7 @@ const FileGridCard = memo(
         <div className="flex min-w-0 items-start gap-1">
           <div className="min-w-0 flex-1">
             <p
-              className="truncate text-[13px] font-medium"
+              className="entropy-gallery-label truncate font-medium"
               style={{ color: figma.ink }}
               title={entry.name}
             >
