@@ -722,6 +722,46 @@
   display: none;
 }
 
+/* Subtle shimmer — transform/opacity only for calm, cheap loading faces. */
+.entropy-skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: color-mix(in srgb, var(--color-muted) 18%, var(--color-canvas));
+  isolation: isolate;
+}
+
+.entropy-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-muted) 22%, transparent) 45%,
+    color-mix(in srgb, var(--foreground) 6%, transparent) 50%,
+    color-mix(in srgb, var(--color-muted) 22%, transparent) 55%,
+    transparent 100%
+  );
+  animation: entropy-skeleton-shimmer 1.6s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entropy-skeleton::after {
+    animation: none;
+    opacity: 0.35;
+    transform: none;
+    background: color-mix(in srgb, var(--color-muted) 16%, transparent);
+  }
+}
+
+@keyframes entropy-skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .entropy-context-bar {
   container-type: inline-size;
   container-name: context-bar;
