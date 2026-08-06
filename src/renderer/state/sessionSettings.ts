@@ -18,7 +18,6 @@ export function toSessionSettings(settings: WorkspaceSettings) {
     panelLayout: { ...settings.panelLayout },
     inventoryPanelLayout: { ...settings.inventoryPanelLayout },
     inventoryExtraRoots: [...settings.inventoryExtraRoots],
-    lastDuplicatesCount: settings.lastDuplicatesCount,
     largeFilesApproxBytes: settings.largeFilesApproxBytes,
   };
 }
@@ -30,7 +29,6 @@ export function fromSessionSettings(
     libraryPerspective?: string;
     intelligenceView?: string | null;
     inventoryTreemapCollapsed?: boolean;
-    lastDuplicatesCount?: number | null;
     largeFilesApproxBytes?: number | null;
     uiDensity?: string;
     theme?: string;
@@ -39,16 +37,16 @@ export function fromSessionSettings(
   const intelligence = raw.intelligenceView;
   const density = raw.uiDensity;
   return {
-    theme: raw.theme === "dark" ? "dark" : "light",
+    theme: raw.theme === "light" ? "light" : "dark",
     filesView: settings.filesView,
     sidebarCollapsed: Boolean(settings.sidebarCollapsed),
     contextCollapsed: Boolean(settings.contextCollapsed),
-    inventoryTreemapCollapsed: Boolean(raw.inventoryTreemapCollapsed),
+    inventoryTreemapCollapsed:
+      raw.inventoryTreemapCollapsed === undefined ? true : Boolean(raw.inventoryTreemapCollapsed),
     libraryPerspective:
       perspective === "gallery" ||
       perspective === "large-files" ||
       perspective === "duplicates" ||
-      perspective === "recent" ||
       perspective === "folders"
         ? perspective
         : "folders",
@@ -66,10 +64,6 @@ export function fromSessionSettings(
     inventoryExtraRoots: Array.isArray(settings.inventoryExtraRoots)
       ? settings.inventoryExtraRoots.filter((item): item is string => typeof item === "string")
       : [],
-    lastDuplicatesCount:
-      typeof raw.lastDuplicatesCount === "number"
-        ? Math.max(0, Math.floor(raw.lastDuplicatesCount))
-        : null,
     largeFilesApproxBytes:
       typeof raw.largeFilesApproxBytes === "number"
         ? Math.max(0, Math.floor(raw.largeFilesApproxBytes))

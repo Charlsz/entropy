@@ -1,10 +1,9 @@
-/** Library content perspectives (Figma “Library Perspectives”). */
+/** Library content perspectives. */
 export type LibraryPerspective =
   | "folders"
   | "gallery"
   | "large-files"
-  | "duplicates"
-  | "recent";
+  | "duplicates";
 
 /** Optional Intelligence destinations (may be coming-soon stubs). */
 export type IntelligenceView = "relationships" | "copilot";
@@ -14,7 +13,6 @@ export const LIBRARY_PERSPECTIVES: LibraryPerspective[] = [
   "gallery",
   "large-files",
   "duplicates",
-  "recent",
 ];
 
 export const PERSPECTIVE_LABELS: Record<LibraryPerspective, string> = {
@@ -22,7 +20,6 @@ export const PERSPECTIVE_LABELS: Record<LibraryPerspective, string> = {
   gallery: "Gallery",
   "large-files": "Large Files",
   duplicates: "Duplicates",
-  recent: "Recent",
 };
 
 /** Files larger than this belong in Large Files perspective. */

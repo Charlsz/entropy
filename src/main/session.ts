@@ -14,14 +14,12 @@ export interface AppSettings {
   sidebarCollapsed: boolean;
   contextCollapsed: boolean;
   inventoryTreemapCollapsed: boolean;
-  libraryPerspective: "folders" | "gallery" | "large-files" | "duplicates" | "recent";
+  libraryPerspective: "folders" | "gallery" | "large-files" | "duplicates";
   intelligenceView: "relationships" | "copilot" | null;
   uiDensity: "comfortable" | "default" | "compact";
   panelLayout: PanelLayoutState;
   inventoryPanelLayout: PanelLayoutState;
   inventoryExtraRoots: string[];
-  /** Group count from the last completed Duplicates scan; null until first run. */
-  lastDuplicatesCount: number | null;
   /** Cached approximate bytes of ≥100MB files across Library roots. */
   largeFilesApproxBytes: number | null;
 }
@@ -50,7 +48,6 @@ function normalizePerspective(
     value === "gallery" ||
     value === "large-files" ||
     value === "duplicates" ||
-    value === "recent" ||
     value === "folders"
   ) {
     return value;
@@ -71,7 +68,7 @@ function normalizeDensity(value: string | undefined): AppSettings["uiDensity"] {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  theme: "light",
+  theme: "dark",
   filesView: "list",
   sidebarCollapsed: false,
   contextCollapsed: false,
@@ -82,7 +79,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],
-  lastDuplicatesCount: null,
   largeFilesApproxBytes: null,
 };
 
@@ -110,11 +106,14 @@ export async function loadSession(): Promise<AppSession> {
     return {
       lastWorkspace: typeof parsed.lastWorkspace === "string" ? parsed.lastWorkspace : null,
       settings: {
-        theme: parsed.settings?.theme === "dark" ? "dark" : "light",
+        theme: parsed.settings?.theme === "light" ? "light" : "dark",
         filesView: parsed.settings?.filesView === "grid" ? "grid" : "list",
         sidebarCollapsed: Boolean(parsed.settings?.sidebarCollapsed),
         contextCollapsed: Boolean(parsed.settings?.contextCollapsed),
-        inventoryTreemapCollapsed: Boolean(parsed.settings?.inventoryTreemapCollapsed),
+        inventoryTreemapCollapsed:
+          parsed.settings?.inventoryTreemapCollapsed === undefined
+            ? true
+            : Boolean(parsed.settings.inventoryTreemapCollapsed),
         libraryPerspective: normalizePerspective(
           (parsed.settings as { libraryPerspective?: string } | undefined)?.libraryPerspective,
         ),
@@ -134,16 +133,6 @@ export async function loadSession(): Promise<AppSession> {
               (item): item is string => typeof item === "string",
             )
           : [],
-        lastDuplicatesCount:
-          typeof (parsed.settings as { lastDuplicatesCount?: unknown } | undefined)
-            ?.lastDuplicatesCount === "number"
-            ? Math.max(
-                0,
-                Math.floor(
-                  (parsed.settings as { lastDuplicatesCount: number }).lastDuplicatesCount,
-                ),
-              )
-            : null,
         largeFilesApproxBytes:
           typeof (parsed.settings as { largeFilesApproxBytes?: unknown } | undefined)
             ?.largeFilesApproxBytes === "number"

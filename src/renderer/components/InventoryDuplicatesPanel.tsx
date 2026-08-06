@@ -28,7 +28,6 @@ import { withMediaReleased } from "../lib/mediaRelease";
 import { cn } from "../lib/utils";
 import { formatBytes } from "../lib/format";
 import { isProtectedOsPath, protectedPathMessage } from "../../shared/protectedPaths";
-import { useWorkspace } from "../state/useWorkspace";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms} ms`;
@@ -74,7 +73,6 @@ interface PendingDelete {
  * Inventory duplicates mode: choose scope → live log + streaming groups → simple trash delete.
  */
 export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicatesPanelProps) {
-  const { updateSettings } = useWorkspace();
   const [scope, setScope] = useState<DuplicateScanScopeId>(DEFAULT_DUPLICATE_SCAN_SCOPE);
   const [phase, setPhase] = useState<Phase>("choose");
   const [activeScope, setActiveScope] = useState<DuplicateScanScopeId | null>(null);
@@ -123,7 +121,9 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
           setResult(next);
           setLiveGroups(next.groups);
           setPhase("done");
-          updateSettings({ lastDuplicatesCount: next.groups.length });
+          window.dispatchEvent(
+            new CustomEvent("entropy:duplicates-count", { detail: next.groups.length }),
+          );
         }
       })
       .catch((err) => {
@@ -136,7 +136,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       cancelled = true;
       void window.entropy.duplicates.cancel();
     };
-  }, [phase, rootPath, activeScope, scanKey, updateSettings]);
+  }, [phase, rootPath, activeScope, scanKey]);
 
   function startScan(): void {
     setActiveScope(scope);

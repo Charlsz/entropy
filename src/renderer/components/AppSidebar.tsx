@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  Clock,
   Copy,
   Database,
   FilePen,
@@ -17,6 +16,10 @@ import { cn } from "../lib/utils";
 import { formatBytes } from "../lib/format";
 import { osModKey } from "../lib/platform";
 import { figma } from "../lib/figmaTokens";
+import {
+  getLargeFilesCache,
+  subscribeLargeFilesCache,
+} from "../lib/largeFilesCache";
 import { useWorkspace } from "../state/useWorkspace";
 import {
   PERSPECTIVE_LABELS,
@@ -25,7 +28,10 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface AppSidebarProps {
-  onOpenSearch: () => void;
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
+  onSearchFocus: () => void;
+  duplicateCount?: number | null;
 }
 
 function storageFillColor(occupiedRatio: number): string {
@@ -35,15 +41,37 @@ function storageFillColor(occupiedRatio: number): string {
   return "color-mix(in srgb, var(--color-accent) 70%, var(--color-muted))";
 }
 
+function readLargeFilesBytesFromCache(): number | null {
+  const cached = getLargeFilesCache();
+  return cached?.result.totalBytes ?? null;
+}
+
 /** Shared app sidebar — brand, search, nav, storage footer. */
-export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
+export function AppSidebar({
+  searchQuery,
+  onSearchQueryChange,
+  onSearchFocus,
+  duplicateCount,
+}: AppSidebarProps) {
   const { workspace, visitSection, updateSettings, goToFolder } = useWorkspace();
   const section = workspace.currentSection;
   const perspective = workspace.settings.libraryPerspective;
-  const duplicateCount = workspace.settings.lastDuplicatesCount;
-  const largeFilesBytes = workspace.settings.largeFilesApproxBytes;
+  const settingsLargeFilesBytes = workspace.settings.largeFilesApproxBytes;
   const theme = workspace.settings.theme;
   const [storage, setStorage] = useState<{ free: number; total: number } | null>(null);
+  const [cacheLargeFilesBytes, setCacheLargeFilesBytes] = useState<number | null>(
+    readLargeFilesBytesFromCache,
+  );
+
+  const largeFilesBytes = cacheLargeFilesBytes ?? settingsLargeFilesBytes;
+
+  useEffect(() => {
+    function syncCache(): void {
+      setCacheLargeFilesBytes(readLargeFilesBytesFromCache());
+    }
+    syncCache();
+    return subscribeLargeFilesCache(syncCache);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +90,9 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   }, []);
 
   useEffect(() => {
+    if (getLargeFilesCache() != null) return;
+    if (settingsLargeFilesBytes != null) return;
+
     let cancelled = false;
     void (async () => {
       try {
@@ -70,7 +101,7 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
         );
         const approx = await window.entropy.fs.scanLargeFilesApprox(roots.map((r) => r.path));
         if (cancelled) return;
-        if (approx.totalBytes !== workspace.settings.largeFilesApproxBytes) {
+        if (approx.totalBytes !== settingsLargeFilesBytes) {
           updateSettings({ largeFilesApproxBytes: approx.totalBytes });
         }
       } catch {
@@ -80,8 +111,12 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- roots + path only
-  }, [workspace.settings.inventoryExtraRoots, workspace.path, updateSettings]);
+  }, [
+    workspace.settings.inventoryExtraRoots,
+    workspace.path,
+    settingsLargeFilesBytes,
+    updateSettings,
+  ]);
 
   function goNotebook(): void {
     updateSettings({ intelligenceView: null });
@@ -101,6 +136,11 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
     }
   }
 
+  function handleSearchChange(event: React.ChangeEvent<HTMLInputElement>): void {
+    onSearchQueryChange(event.target.value);
+    onSearchFocus();
+  }
+
   const libraryActive = section === "inventory";
   const notebookActive = section === "notebook";
   const occupiedRatio =
@@ -109,6 +149,7 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
       : 0;
   const isMac = window.entropy.platform === "darwin";
   const logoSrc = theme === "dark" ? logoLight : logoDark;
+  const searchShortcut = osModKey() === "⌘" ? "⌘K" : "Ctrl+K";
 
   return (
     <aside
@@ -144,22 +185,30 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
             <TooltipContent side="bottom">Settings</TooltipContent>
           </Tooltip>
         </div>
-        <button
-          type="button"
-          className="no-drag flex w-full items-center gap-2 rounded-[6px] border px-[10px] py-[6px] text-left"
+        <label
+          className="no-drag flex w-full items-center gap-2 rounded-[6px] border px-[10px] py-[6px]"
           style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
-          onClick={onOpenSearch}
         >
           <span className="relative size-3 shrink-0 overflow-hidden" aria-hidden>
             <img src={searchIcon} alt="" className="absolute inset-0 size-full" width={12} height={12} />
           </span>
-          <span className="min-w-0 flex-1 text-[12px]" style={{ color: figma.muted }}>
-            Search index...
-          </span>
-          <span className="shrink-0 font-mono text-[10px]" style={{ color: figma.muted }}>
-            {osModKey() === "⌘" ? "⌘K" : "Ctrl+K"}
-          </span>
-        </button>
+          <input
+            type="search"
+            data-entropy-search
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onFocus={onSearchFocus}
+            placeholder="Search index..."
+            className="min-w-0 flex-1 bg-transparent text-[12px] outline-none"
+            style={{ color: figma.ink }}
+            aria-label="Search index"
+          />
+          {!searchQuery ? (
+            <span className="shrink-0 font-mono text-[10px]" style={{ color: figma.muted }}>
+              {searchShortcut}
+            </span>
+          ) : null}
+        </label>
       </div>
 
       <nav className="min-h-0 flex-1 overflow-y-auto pb-[88px]">
@@ -184,7 +233,6 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
             ["gallery", GalleryThumbnails],
             ["large-files", Package],
             ["duplicates", Copy],
-            ["recent", Clock],
           ] as const
         ).map(([id, icon]) => (
           <SidebarItem
