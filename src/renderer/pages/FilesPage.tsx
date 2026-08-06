@@ -1,10 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, memo } from "react";
 import { flushSync } from "react-dom";
-import { FileText, Folder, Image, ListFilter } from "lucide-react";
-import type { FileEntry, InventoryRoot } from "../../shared/types";
+import {
+  FileText,
+  Folder,
+  Image,
+  ListFilter,
+  PanelRightClose,
+  PanelRightOpen,
+} from "lucide-react";
+import type {
+  FileEntry,
+  GlobalSearchHit,
+  InventoryRoot,
+  TreemapFileLeaf,
+  TreemapScanResult,
+} from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { ItemActionsMenu, type ItemAction } from "../components/ItemActionsMenu";
 import {
   EntryPreview,
@@ -21,16 +35,26 @@ import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
+import { StorageTreemap } from "../components/StorageTreemap";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
 import { formatBytes, formatModifiedLabel, formatUserPath } from "../lib/format";
+import {
+  getLargeFilesCache,
+  invalidateLargeFilesCache,
+  largeFilesCacheKey,
+  setLargeFilesCache,
+  subscribeLargeFilesCache,
+  toLargeFileEntries,
+} from "../lib/largeFilesCache";
+import { volumeRootFor } from "../lib/volumeRoot";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isUnderPath, osTrashName, samePath, hostPlatform } from "../lib/platform";
 import { isProtectedOsPath, protectedPathMessage } from "../../shared/protectedPaths";
 import { figma } from "../lib/figmaTokens";
 import { cn } from "../lib/utils";
-import { LARGE_FILE_BYTES } from "../types/library";
+import { LARGE_FILE_BYTES, type LibraryPerspective } from "../types/library";
 
 type SortKey = "name" | "modified" | "size" | "type";
 
@@ -62,7 +86,35 @@ function EntryTypeIcon({ entry }: { entry: FileEntry }) {
   return <FileText className="size-[14px] shrink-0" style={{ color: figma.muted }} strokeWidth={1.75} />;
 }
 
-export function FilesPage() {
+function hitToFileEntry(hit: GlobalSearchHit): FileEntry {
+  const extension =
+    hit.source === "folder"
+      ? ""
+      : hit.name.includes(".")
+        ? (hit.name.split(".").pop() ?? "")
+        : "";
+  return {
+    name: hit.name,
+    path: hit.path,
+    isDirectory: hit.source === "folder",
+    size: 0,
+    modifiedAt: 0,
+    extension,
+  };
+}
+
+function normalizePerspective(value: string | undefined): LibraryPerspective {
+  if (value === "gallery" || value === "large-files" || value === "duplicates") return value;
+  return "folders";
+}
+
+export function FilesPage({
+  searchQuery = "",
+  onSearchQueryChange: _onSearchQueryChange,
+}: {
+  searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
+} = {}) {
   const {
     workspace,
     addRecentFile,
@@ -72,6 +124,10 @@ export function FilesPage() {
     visitPreview,
     referenceInNote,
     updateSettings,
+    openInWorkspace,
+    openNote,
+    openFolder,
+    openFileLocation,
   } = useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
   const [scanRoot, setScanRoot] = useState<string>("");
@@ -91,18 +147,32 @@ export function FilesPage() {
   const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
-  const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
-  const [recentLoading, setRecentLoading] = useState(false);
   const [largeFileEntries, setLargeFileEntries] = useState<FileEntry[]>([]);
   const [largeFilesLoading, setLargeFilesLoading] = useState(false);
+  const [largeFilesCacheEpoch, setLargeFilesCacheEpoch] = useState(0);
+  const [remoteSearchEntries, setRemoteSearchEntries] = useState<FileEntry[]>([]);
+  const [searchHitMeta, setSearchHitMeta] = useState<Map<string, GlobalSearchHit>>(new Map());
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [treemapScan, setTreemapScan] = useState<TreemapScanResult | null>(null);
+  const [treemapScanning, setTreemapScanning] = useState(false);
   const [renderedCount, setRenderedCount] = useState(60);
   /** Bumps when the open folder changes on disk so sizes stay current. */
   const [diskEpoch, setDiskEpoch] = useState(0);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const homeBootstrapped = useRef(false);
 
-  const perspective = workspace.settings.libraryPerspective ?? "folders";
+  const rawPerspective = workspace.settings.libraryPerspective ?? "folders";
+  const perspective = normalizePerspective(rawPerspective as string);
   const intelligenceView = workspace.settings.intelligenceView ?? null;
+  const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed ?? true;
+  const trimmedSearch = searchQuery.trim();
+  const isSearching = trimmedSearch.length > 0;
+
+  useEffect(() => {
+    if ((rawPerspective as string) === "recent") {
+      updateSettings({ libraryPerspective: "folders" });
+    }
+  }, [rawPerspective, updateSettings]);
 
   useEffect(() => {
     if (intelligenceView) {
@@ -111,6 +181,12 @@ export function FilesPage() {
     // Clear retired Intelligence stubs from older sessions.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once when remnant is present
   }, [intelligenceView]);
+
+  useEffect(() => {
+    return subscribeLargeFilesCache(() => {
+      setLargeFilesCacheEpoch((value) => value + 1);
+    });
+  }, []);
 
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
@@ -240,7 +316,7 @@ export function FilesPage() {
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
-    if (intelligenceView || perspective === "duplicates" || perspective === "recent") return;
+    if (intelligenceView || perspective === "duplicates") return;
     let cancelled = false;
     void (async () => {
       try {
@@ -265,60 +341,34 @@ export function FilesPage() {
   ]);
 
   useEffect(() => {
-    if (perspective !== "recent" || intelligenceView) {
-      setRecentEntries([]);
-      return;
-    }
+    if (perspective !== "large-files") return;
     let cancelled = false;
-    setRecentLoading(true);
-    void (async () => {
-      const results: FileEntry[] = [];
-      for (const path of workspace.recentFiles) {
-        try {
-          const info = await window.entropy.fs.stat(path);
-          results.push(info);
-        } catch {
-          // File may have been removed.
-        }
-      }
-      if (!cancelled) {
-        setRecentEntries(results);
-        setRecentLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [perspective, intelligenceView, workspace.recentFiles, diskEpoch]);
-
-  useEffect(() => {
-    if (perspective !== "large-files") {
-      setLargeFileEntries([]);
-      return;
-    }
-    let cancelled = false;
-    setLargeFilesLoading(true);
-    setError(null);
     void (async () => {
       try {
         const inventoryRoots = await window.entropy.fs.getInventoryRoots(
           workspace.settings.inventoryExtraRoots,
         );
-        const scan = await window.entropy.fs.scanLargeFiles(
-          inventoryRoots.map((root) => root.path),
-          LARGE_FILE_BYTES,
-        );
+        const paths = inventoryRoots.map((root) => root.path);
+        const key = largeFilesCacheKey(paths);
+        const cached = getLargeFilesCache();
+        if (cached?.key === key) {
+          if (!cancelled) {
+            setLargeFileEntries(cached.entries);
+            setLargeFilesLoading(false);
+            setError(null);
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setLargeFilesLoading(true);
+          setError(null);
+        }
+        const scan = await window.entropy.fs.scanLargeFiles(paths, LARGE_FILE_BYTES);
         if (cancelled) return;
-        setLargeFileEntries(
-          scan.files.map((file) => ({
-            name: file.name,
-            path: file.path,
-            isDirectory: false,
-            size: file.size,
-            modifiedAt: file.modifiedAt,
-            extension: file.extension,
-          })),
-        );
+        const nextEntries = toLargeFileEntries(scan);
+        setLargeFilesCache({ key, result: scan, entries: nextEntries });
+        setLargeFileEntries(nextEntries);
         if (scan.totalBytes !== workspace.settings.largeFilesApproxBytes) {
           updateSettings({ largeFilesApproxBytes: scan.totalBytes });
         }
@@ -334,7 +384,168 @@ export function FilesPage() {
     return () => {
       cancelled = true;
     };
-  }, [perspective, workspace.settings.inventoryExtraRoots, updateSettings]);
+  }, [
+    perspective,
+    workspace.settings.inventoryExtraRoots,
+    updateSettings,
+    largeFilesCacheEpoch,
+  ]);
+
+  // Invalidate Large Files cache when any inventory root changes on disk.
+  useEffect(() => {
+    const rootPaths = roots.map((root) => root.path);
+    if (!rootPaths.length) return;
+
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const scheduleInvalidate = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        invalidateLargeFilesCache();
+      }, 320);
+    };
+
+    // Re-assert watches when the open folder changes so listing watch teardown
+    // cannot permanently drop a root watch that shared the same path.
+    for (const path of rootPaths) {
+      void window.entropy.fs.watchDir(path, { recursive: true });
+    }
+    const stop = window.entropy.fs.onDirChanged((info) => {
+      if (rootPaths.some((root) => samePath(info.path, root))) {
+        scheduleInvalidate();
+      }
+    });
+
+    return () => {
+      stop();
+      if (debounce) clearTimeout(debounce);
+    };
+  }, [roots, workspace.currentFolder]);
+
+  useEffect(() => {
+    if (treemapCollapsed || !workspace.currentFolder) {
+      setTreemapScan(null);
+      setTreemapScanning(false);
+      return;
+    }
+    let cancelled = false;
+    setTreemapScanning(true);
+    const volumeRoot = volumeRootFor(workspace.currentFolder);
+    void (async () => {
+      try {
+        const scan = await window.entropy.fs.scanTreemapLevel(volumeRoot);
+        if (!cancelled) setTreemapScan(scan);
+      } catch {
+        if (!cancelled) setTreemapScan(null);
+      } finally {
+        if (!cancelled) setTreemapScanning(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [treemapCollapsed, workspace.currentFolder, diskEpoch]);
+
+  useEffect(() => {
+    if (!isSearching) {
+      setRemoteSearchEntries([]);
+      setSearchHitMeta(new Map());
+      setSearchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearchLoading(true);
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const inventoryRoot = scanRoot || workspace.currentFolder;
+          const marked = await window.entropy.workspace.listMarked().catch(() => []);
+          const workspaceRoots = new Map<string, string>();
+          workspaceRoots.set(workspace.path, workspace.name);
+          for (const item of marked) {
+            if (!workspaceRoots.has(item.path)) {
+              workspaceRoots.set(item.path, item.name);
+            }
+          }
+
+          const noteSearches = [...workspaceRoots.entries()].map(async ([root, name]) => {
+            const notes = await window.entropy.fs.searchMarkdown(root, trimmedSearch).catch(() => []);
+            return notes.map(
+              (note): GlobalSearchHit => ({
+                path: note.path,
+                name: note.name,
+                excerpt: note.excerpt,
+                source: "note",
+                workspacePath: root,
+                workspaceName: name,
+              }),
+            );
+          });
+
+          const [noteLists, inventoryHits] = await Promise.all([
+            Promise.all(noteSearches),
+            inventoryRoot
+              ? window.entropy.fs.searchInventoryNames(inventoryRoot, trimmedSearch)
+              : Promise.resolve([] as GlobalSearchHit[]),
+          ]);
+          if (cancelled) return;
+
+          const hits: GlobalSearchHit[] = [];
+          const seen = new Set<string>();
+          for (const list of noteLists) {
+            for (const hit of list) {
+              const key = hit.path.replace(/\\/g, "/").toLowerCase();
+              if (seen.has(key)) continue;
+              seen.add(key);
+              hits.push(hit);
+            }
+          }
+          for (const hit of inventoryHits) {
+            const key = hit.path.replace(/\\/g, "/").toLowerCase();
+            if (seen.has(key)) continue;
+            seen.add(key);
+            hits.push(hit);
+          }
+
+          const meta = new Map<string, GlobalSearchHit>();
+          const resolved: FileEntry[] = [];
+          await Promise.all(
+            hits.map(async (hit) => {
+              const key = hit.path.replace(/\\/g, "/").toLowerCase();
+              meta.set(key, hit);
+              try {
+                resolved.push(await window.entropy.fs.stat(hit.path));
+              } catch {
+                resolved.push(hitToFileEntry(hit));
+              }
+            }),
+          );
+          if (cancelled) return;
+          setSearchHitMeta(meta);
+          setRemoteSearchEntries(resolved);
+        } catch {
+          if (!cancelled) {
+            setRemoteSearchEntries([]);
+            setSearchHitMeta(new Map());
+          }
+        } finally {
+          if (!cancelled) setSearchLoading(false);
+        }
+      })();
+    }, 120);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [
+    isSearching,
+    trimmedSearch,
+    scanRoot,
+    workspace.currentFolder,
+    workspace.path,
+    workspace.name,
+  ]);
 
   useEffect(() => {
     if (!pendingSelectPath || loading) return;
@@ -357,7 +568,7 @@ export function FilesPage() {
   );
 
   const folderVisible = useMemo(() => {
-    return [...sizedEntries].sort((a, b) => {
+    const sorted = [...sizedEntries].sort((a, b) => {
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
       let cmp = 0;
       if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
@@ -366,7 +577,10 @@ export function FilesPage() {
       if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
       return sortAsc ? cmp : -cmp;
     });
-  }, [sizedEntries, sortAsc, sortKey]);
+    if (!isSearching) return sorted;
+    const q = trimmedSearch.toLowerCase();
+    return sorted.filter((entry) => entry.name.toLowerCase().includes(q));
+  }, [sizedEntries, sortAsc, sortKey, isSearching, trimmedSearch]);
 
   const largeFileVisible = useMemo(() => {
     return [...largeFileEntries].sort((a, b) => {
@@ -395,8 +609,18 @@ export function FilesPage() {
     });
   }, [folderVisible, sortAsc, sortKey]);
 
-  const recentVisible = useMemo(() => {
-    return [...recentEntries].sort((a, b) => {
+  const searchVisible = useMemo(() => {
+    const byPath = new Map<string, FileEntry>();
+    for (const entry of folderVisible) {
+      byPath.set(entry.path.replace(/\\/g, "/").toLowerCase(), entry);
+    }
+    for (const entry of remoteSearchEntries) {
+      const key = entry.path.replace(/\\/g, "/").toLowerCase();
+      if (!byPath.has(key)) byPath.set(key, entry);
+    }
+    const merged = [...byPath.values()];
+    return merged.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
       let cmp = 0;
       if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
       if (sortKey === "modified") cmp = a.modifiedAt - b.modifiedAt;
@@ -404,20 +628,20 @@ export function FilesPage() {
       if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
       return sortAsc ? cmp : -cmp;
     });
-  }, [recentEntries, sortAsc, sortKey]);
+  }, [folderVisible, remoteSearchEntries, sortAsc, sortKey]);
 
   const tableEntries =
-    perspective === "large-files"
-      ? largeFileVisible
-      : perspective === "recent"
-        ? recentVisible
+    isSearching
+      ? searchVisible
+      : perspective === "large-files"
+        ? largeFileVisible
         : folderVisible;
 
   const listLoading =
-    perspective === "recent"
-      ? recentLoading
-      : perspective === "large-files"
-        ? largeFilesLoading
+    perspective === "large-files"
+      ? largeFilesLoading
+      : isSearching
+        ? loading && folderVisible.length === 0
         : loading;
 
   const rendered = useMemo(
@@ -444,6 +668,26 @@ export function FilesPage() {
   }, [galleryVisible.length, rendered.length, listLoading]);
 
   async function openEntry(entry: FileEntry): Promise<void> {
+    if (isSearching) {
+      const hit = searchHitMeta.get(entry.path.replace(/\\/g, "/").toLowerCase());
+      if (hit?.source === "note") {
+        const targetWorkspace = hit.workspacePath ?? workspace.path;
+        if (!samePath(targetWorkspace, workspace.path)) {
+          openInWorkspace(targetWorkspace, hit.path);
+        } else {
+          openNote(hit.path);
+        }
+        return;
+      }
+      if (entry.isDirectory || hit?.source === "folder") {
+        openFolder(entry.path);
+        return;
+      }
+      setSelected(entry);
+      void openFileLocation(entry.path);
+      return;
+    }
+
     if (entry.isDirectory) {
       setSelected(null);
       goToFolder(entry.path);
@@ -501,7 +745,8 @@ export function FilesPage() {
       flushSync(() => {
         if (selected && samePath(selected.path, targetPath)) setSelected(null);
         setEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
-        setRecentEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
+        setLargeFileEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
+        setRemoteSearchEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
         setSizeByPath((prev) => {
           const key = Object.keys(prev).find((item) => samePath(item, targetPath));
           if (!key) return prev;
@@ -644,6 +889,29 @@ export function FilesPage() {
     setSortAsc(true);
   }
 
+  function toggleTreemap(): void {
+    updateSettings({ inventoryTreemapCollapsed: !treemapCollapsed });
+  }
+
+  async function selectTreemapLeaf(leaf: TreemapFileLeaf): Promise<void> {
+    if (leaf.isDirectory) {
+      setSelected(null);
+      return;
+    }
+    try {
+      setSelected(await window.entropy.fs.stat(leaf.path));
+    } catch {
+      setSelected({
+        name: leaf.name,
+        path: leaf.path,
+        isDirectory: false,
+        size: leaf.size,
+        modifiedAt: leaf.modifiedAt ?? 0,
+        extension: leaf.extension,
+      });
+    }
+  }
+
   const sortLabel =
     sortKey === "name"
       ? "Name"
@@ -652,6 +920,47 @@ export function FilesPage() {
         : sortKey === "size"
           ? "Size"
           : "Type";
+
+  const showTreemapToggle =
+    perspective === "folders" || perspective === "gallery" || isSearching;
+
+  const sortControl = (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">Sort by: {sortLabel}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground"
+        aria-label="Change sort"
+        onClick={cycleSort}
+      >
+        <ListFilter className="h-4 w-4" strokeWidth={1.75} />
+      </Button>
+      {showTreemapToggle ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground"
+              aria-label={treemapCollapsed ? "Show storage map" : "Hide storage map"}
+              aria-pressed={!treemapCollapsed}
+              onClick={toggleTreemap}
+            >
+              {treemapCollapsed ? (
+                <PanelRightOpen className="h-4 w-4" strokeWidth={1.75} />
+              ) : (
+                <PanelRightClose className="h-4 w-4" strokeWidth={1.75} />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{treemapCollapsed ? "Show storage map" : "Hide storage map"}</TooltipContent>
+        </Tooltip>
+      ) : null}
+    </div>
+  );
 
   function renderFileTable(rows: FileEntry[], emptyTitle: string, emptyBody: string) {
     return (
@@ -673,7 +982,7 @@ export function FilesPage() {
               </p>
             ) : null}
 
-            {listLoading ? (
+            {listLoading || (isSearching && searchLoading && rows.length === 0) ? (
               <div className="flex flex-col gap-1 px-6 py-4">
                 {Array.from({ length: 8 }).map((_, index) => (
                   <Skeleton key={index} className="h-10 w-full rounded-md" />
@@ -681,7 +990,7 @@ export function FilesPage() {
               </div>
             ) : null}
 
-            {!listLoading && rows.length === 0 ? (
+            {!listLoading && !(isSearching && searchLoading && rows.length === 0) && rows.length === 0 ? (
               <Empty className="py-16">
                 <EmptyTitle>{emptyTitle}</EmptyTitle>
                 <EmptyDescription>{emptyBody}</EmptyDescription>
@@ -711,6 +1020,10 @@ export function FilesPage() {
                         color: figma.ink,
                       }}
                       onClick={() => {
+                        if (isSearching) {
+                          void openEntry(entry);
+                          return;
+                        }
                         if (entry.isDirectory) setSelected(null);
                         else setSelected(entry);
                       }}
@@ -773,22 +1086,6 @@ export function FilesPage() {
     );
   }
 
-  const sortControl = (
-    <div className="flex items-center gap-1.5">
-      <span className="text-xs text-muted-foreground">Sort by: {sortLabel}</span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-muted-foreground"
-        aria-label="Change sort"
-        onClick={cycleSort}
-      >
-        <ListFilter className="h-4 w-4" strokeWidth={1.75} />
-      </Button>
-    </div>
-  );
-
   function renderGallery() {
     return (
       <>
@@ -849,9 +1146,9 @@ export function FilesPage() {
   }
 
   function renderMain() {
-    if (perspective === "gallery") return renderGallery();
+    if (!isSearching && perspective === "gallery") return renderGallery();
 
-    if (perspective === "large-files") {
+    if (!isSearching && perspective === "large-files") {
       return (
         <>
           <InventoryBreadcrumb end={sortControl} />
@@ -864,26 +1161,15 @@ export function FilesPage() {
       );
     }
 
-    if (perspective === "recent") {
-      return (
-        <>
-          <InventoryBreadcrumb end={sortControl} />
-          {renderFileTable(
-            tableEntries,
-            "No recent files",
-            "Files you open in Library will appear here.",
-          )}
-        </>
-      );
-    }
-
     return (
       <>
         <InventoryBreadcrumb end={sortControl} />
         {renderFileTable(
           tableEntries,
-          "Nothing here yet",
-          "Drop files into this folder, or pick another path above.",
+          isSearching ? "No matches" : "Nothing here yet",
+          isSearching
+            ? "Try a different name, or clear the search."
+            : "Drop files into this folder, or pick another path above.",
         )}
       </>
     );
@@ -911,6 +1197,22 @@ export function FilesPage() {
                   entry={selected}
                   scanRoot={scanRoot}
                   onClose={() => setSelected(null)}
+                />
+              ) : !treemapCollapsed ? (
+                <StorageTreemap
+                  scan={treemapScan}
+                  scanning={treemapScanning}
+                  selectedPath={selected?.path ?? null}
+                  workspacePath={workspace.path}
+                  scanRoot={scanRoot}
+                  recentFiles={workspace.recentFiles}
+                  onSelect={(leaf) => void selectTreemapLeaf(leaf)}
+                  onOpen={(leaf) => {
+                    if (leaf.isDirectory) goToFolder(leaf.path);
+                  }}
+                  onZoom={(leaf) => {
+                    if (leaf.isDirectory) goToFolder(leaf.path);
+                  }}
                 />
               ) : null
             }
