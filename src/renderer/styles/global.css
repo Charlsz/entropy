@@ -708,9 +708,22 @@
   background: var(--scrollbar);
 }
 
-/* Search index field — hide native clear chrome; match Geist + palette. */
+/* Search field — plain text chrome; no native square/clear ornaments. */
 .entropy-search-input {
   font-family: Geist, Inter, system-ui, sans-serif;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.entropy-search-input:focus,
+.entropy-search-input:focus-visible {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .entropy-search-input::placeholder {

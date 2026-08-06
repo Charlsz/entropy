@@ -7,6 +7,7 @@ import {
   GalleryThumbnails,
   Package,
   Settings,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import searchIcon from "../assets/icons/search.svg";
@@ -62,6 +63,7 @@ export function AppSidebar({
   const [cacheLargeFilesBytes, setCacheLargeFilesBytes] = useState<number | null>(
     readLargeFilesBytesFromCache,
   );
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const largeFilesBytes = cacheLargeFilesBytes ?? settingsLargeFilesBytes;
 
@@ -131,8 +133,8 @@ export function AppSidebar({
       aria-label="Entropy"
     >
       <div
-        className="drag-region flex flex-col gap-3 px-4 pb-3"
-        style={{ paddingTop: isMac ? 40 : 20 }}
+        className="drag-region flex flex-col gap-2 px-4 pb-3"
+        style={{ paddingTop: isMac ? 36 : 8 }}
       >
         <div className="no-drag flex h-[18px] items-center justify-between">
           <img
@@ -166,31 +168,36 @@ export function AppSidebar({
             <img src={searchIcon} alt="" className="absolute inset-0 size-full" width={14} height={14} />
           </span>
           <input
-            type="search"
+            type="text"
             data-entropy-search
             value={searchQuery}
             onChange={handleSearchChange}
-            onFocus={onSearchFocus}
-            placeholder="Search index…"
+            onFocus={() => {
+              setSearchFocused(true);
+              onSearchFocus();
+            }}
+            onBlur={() => setSearchFocused(false)}
+            placeholder="Search"
             spellCheck={false}
             autoCorrect="off"
             autoCapitalize="off"
             autoComplete="off"
-            className="entropy-search-input min-w-0 flex-1 bg-transparent text-[13px] leading-snug outline-none placeholder:text-[13px]"
+            className="entropy-search-input min-w-0 flex-1 bg-transparent text-[13px] leading-snug"
             style={{ color: figma.ink }}
-            aria-label="Search index"
+            aria-label="Search"
           />
           {searchQuery ? (
             <button
               type="button"
-              className="shrink-0 text-[11px] leading-none"
+              className="inline-flex size-3.5 shrink-0 items-center justify-center"
               style={{ color: figma.muted }}
               aria-label="Clear search"
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => onSearchQueryChange("")}
             >
-              Clear
+              <X className="size-3.5" strokeWidth={1.75} />
             </button>
-          ) : (
+          ) : searchFocused ? null : (
             <span className="shrink-0 font-mono text-[10px] tracking-wide" style={{ color: figma.muted }}>
               {searchShortcut}
             </span>
