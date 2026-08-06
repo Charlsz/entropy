@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, type KeyboardEvent, type PointerEvent } from "react";
+import { RefreshCw } from "lucide-react";
 import type { TreemapFileLeaf, TreemapScanResult } from "../../shared/types";
 import {
   FILE_KIND_FILL,
@@ -14,14 +15,18 @@ import { samePath } from "../lib/platform";
 import { squarify } from "../lib/squarify";
 import { useWorkspace } from "../state/useWorkspace";
 import { formatBytes } from "../lib/format";
+import { Button } from "./ui/button";
+import { Skeleton } from "./ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-/** Soft floor so tiny leaves stay visible without hiding siblings. */
-const MIN_TILE_EDGE = 8;
+/** Minimum tile edge — readable blocks; tiny leaves still render via soft squarify floor. */
+const MIN_TILE_EDGE = 16;
 
 interface StorageTreemapProps {
   scan?: TreemapScanResult | null;
   selectedPath?: string | null;
   scanning?: boolean;
+  onRefresh?: () => void;
   onSelect?: (leaf: TreemapFileLeaf) => void;
   onOpen?: (leaf: TreemapFileLeaf) => void;
   onZoom?: (leaf: TreemapFileLeaf) => void;
@@ -100,6 +105,7 @@ export function StorageTreemap({
   scan = null,
   selectedPath = null,
   scanning = false,
+  onRefresh,
   onSelect,
   onOpen,
   onZoom,
@@ -194,13 +200,35 @@ export function StorageTreemap({
           {total > 0 ? formatBytes(total) : ""}
           {scan?.fileCount ? `${total > 0 ? " · " : ""}${scan.fileCount.toLocaleString()} items` : ""}
         </span>
+        {onRefresh ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 text-muted-foreground"
+                aria-label="Refresh storage map"
+                disabled={scanning}
+                onClick={onRefresh}
+              >
+                <RefreshCw
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    scanning && "animate-spin motion-reduce:animate-none",
+                  )}
+                  strokeWidth={1.75}
+                />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Refresh map</TooltipContent>
+          </Tooltip>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 px-3 pb-2">
         {scanning && !showMap ? (
-          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
-            Mapping this folder…
-          </div>
+          <TreemapSkeleton />
         ) : !showMap ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-6 text-center">
             <p className="text-sm text-muted-foreground">
@@ -293,12 +321,6 @@ export function StorageTreemap({
                 frameHeight={size.height}
               />
             ) : null}
-
-            {scanning ? (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/70 px-2 py-1 text-center text-[10px] text-muted-foreground">
-                Updating map…
-              </div>
-            ) : null}
           </div>
         )}
       </div>
@@ -359,6 +381,24 @@ function HoverCard({
         <span className="mx-1.5 opacity-50">·</span>
         {formatBytes(leaf.size)}
       </p>
+    </div>
+  );
+}
+
+function TreemapSkeleton() {
+  return (
+    <div
+      className="relative h-full min-h-[160px] overflow-hidden rounded-xl border border-border bg-muted"
+      aria-busy="true"
+      aria-label="Loading storage map"
+    >
+      <Skeleton className="absolute left-0 top-0 h-[58%] w-[62%] rounded-none" />
+      <Skeleton className="absolute right-0 top-0 h-[38%] w-[38%] rounded-none" />
+      <Skeleton className="absolute bottom-0 left-0 h-[42%] w-[36%] rounded-none" />
+      <Skeleton className="absolute bottom-0 left-[36%] h-[42%] w-[26%] rounded-none" />
+      <Skeleton className="absolute bottom-[20%] right-0 h-[42%] w-[38%] rounded-none" />
+      <Skeleton className="absolute bottom-0 right-0 h-[20%] w-[18%] rounded-none" />
+      <Skeleton className="absolute bottom-0 right-[18%] h-[20%] w-[20%] rounded-none" />
     </div>
   );
 }

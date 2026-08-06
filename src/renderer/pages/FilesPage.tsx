@@ -47,6 +47,12 @@ import {
   setLargeFilesCache,
   toLargeFileEntries,
 } from "../lib/largeFilesCache";
+import {
+  getTreemapCache,
+  invalidateTreemapCache,
+  setTreemapCache,
+  treemapCacheKey,
+} from "../lib/treemapCache";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isUnderPath, osTrashName, samePath, hostPlatform } from "../lib/platform";
 import { isProtectedOsPath, protectedPathMessage } from "../../shared/protectedPaths";
@@ -154,6 +160,8 @@ export function FilesPage({
   const [searchLoading, setSearchLoading] = useState(false);
   const [treemapScan, setTreemapScan] = useState<TreemapScanResult | null>(null);
   const [treemapScanning, setTreemapScanning] = useState(false);
+  /** Bumps only when the user presses Refresh on the storage map. */
+  const [treemapScanId, setTreemapScanId] = useState(0);
   const [renderedCount, setRenderedCount] = useState(60);
   /** Bumps when the open folder changes on disk so sizes stay current. */
   const [diskEpoch, setDiskEpoch] = useState(0);
@@ -393,20 +401,30 @@ export function FilesPage({
     setLargeFilesScanId((value) => value + 1);
   }
 
-  // Map the folder currently open in Folders — only when the user opts in.
+  // Storage map: show last scan for this folder; rescan only on miss or user Refresh.
   useEffect(() => {
     if (perspective !== "folders" || treemapCollapsed || !workspace.currentFolder) {
-      setTreemapScan(null);
       setTreemapScanning(false);
       return;
     }
     let cancelled = false;
-    setTreemapScanning(true);
     const folder = workspace.currentFolder;
+    const key = treemapCacheKey(folder);
+    const cached = getTreemapCache();
+    if (cached?.folderKey === key) {
+      setTreemapScan(cached.scan);
+      setTreemapScanning(false);
+      return;
+    }
+
+    setTreemapScan(null);
+    setTreemapScanning(true);
     void (async () => {
       try {
         const scan = await window.entropy.fs.scanTreemapLevel(folder);
-        if (!cancelled) setTreemapScan(scan);
+        if (cancelled) return;
+        setTreemapCache({ folderKey: key, scan });
+        setTreemapScan(scan);
       } catch {
         if (!cancelled) setTreemapScan(null);
       } finally {
@@ -416,7 +434,14 @@ export function FilesPage({
     return () => {
       cancelled = true;
     };
-  }, [perspective, treemapCollapsed, workspace.currentFolder, diskEpoch]);
+  }, [perspective, treemapCollapsed, workspace.currentFolder, treemapScanId]);
+
+  function refreshTreemap(): void {
+    invalidateTreemapCache();
+    setTreemapScan(null);
+    setTreemapScanning(true);
+    setTreemapScanId((value) => value + 1);
+  }
 
   useEffect(() => {
     if (!isSearching) {
@@ -1207,6 +1232,7 @@ export function FilesPage({
                   scan={treemapScan}
                   scanning={treemapScanning}
                   selectedPath={selected?.path ?? null}
+                  onRefresh={refreshTreemap}
                   onSelect={(leaf) => void selectTreemapLeaf(leaf)}
                   onOpen={(leaf) => {
                     if (leaf.isDirectory) goToFolder(leaf.path);
