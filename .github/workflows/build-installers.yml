@@ -43,7 +43,7 @@ jobs:
               release/*.blockmap
           - os: ubuntu-latest
             label: Linux
-            args: --linux
+            args: --linux --x64
             artifact: entropy-linux
             path: |
               release/*.AppImage

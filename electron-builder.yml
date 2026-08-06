@@ -50,11 +50,17 @@ dmg:
 
 linux:
   target:
-    - AppImage
-    - deb
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
   category: Office
   icon: build/icon.png
   maintainer: Entropy contributors
+  synopsis: Local-first notes and file library
+  description: A local-first workspace where the filesystem is the source of truth.
   artifactName: ${productName}-${version}-linux-${arch}.${ext}
 
 # Never auto-publish from electron-builder. CI uploads Actions artifacts only.
