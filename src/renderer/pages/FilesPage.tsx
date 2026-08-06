@@ -5,6 +5,7 @@ import {
   Folder,
   Image,
   ListFilter,
+  RefreshCw,
 } from "lucide-react";
 import type {
   FileEntry,
@@ -43,7 +44,6 @@ import {
   invalidateLargeFilesCache,
   largeFilesCacheKey,
   setLargeFilesCache,
-  subscribeLargeFilesCache,
   toLargeFileEntries,
 } from "../lib/largeFilesCache";
 import { useDirWatch } from "../hooks/useDirWatch";
@@ -146,7 +146,8 @@ export function FilesPage({
   const [sortAsc, setSortAsc] = useState(true);
   const [largeFileEntries, setLargeFileEntries] = useState<FileEntry[]>([]);
   const [largeFilesLoading, setLargeFilesLoading] = useState(false);
-  const [largeFilesCacheEpoch, setLargeFilesCacheEpoch] = useState(0);
+  /** Bumps only when the user presses Refresh on Large Files. */
+  const [largeFilesScanId, setLargeFilesScanId] = useState(0);
   const [remoteSearchEntries, setRemoteSearchEntries] = useState<FileEntry[]>([]);
   const [searchHitMeta, setSearchHitMeta] = useState<Map<string, GlobalSearchHit>>(new Map());
   const [searchLoading, setSearchLoading] = useState(false);
@@ -178,12 +179,6 @@ export function FilesPage({
     // Clear retired Intelligence stubs from older sessions.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once when remnant is present
   }, [intelligenceView]);
-
-  useEffect(() => {
-    return subscribeLargeFilesCache(() => {
-      setLargeFilesCacheEpoch((value) => value + 1);
-    });
-  }, []);
 
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
@@ -337,6 +332,7 @@ export function FilesPage({
     perspective,
   ]);
 
+  // Large Files: load from cache when available; full rescan only on first miss or user Refresh.
   useEffect(() => {
     if (perspective !== "large-files") return;
     let cancelled = false;
@@ -385,38 +381,16 @@ export function FilesPage({
     perspective,
     workspace.settings.inventoryExtraRoots,
     updateSettings,
-    largeFilesCacheEpoch,
+    largeFilesScanId,
   ]);
 
-  // Invalidate Large Files cache when any inventory root changes on disk.
-  useEffect(() => {
-    const rootPaths = roots.map((root) => root.path);
-    if (!rootPaths.length) return;
-
-    let debounce: ReturnType<typeof setTimeout> | null = null;
-    const scheduleInvalidate = () => {
-      if (debounce) clearTimeout(debounce);
-      debounce = setTimeout(() => {
-        invalidateLargeFilesCache();
-      }, 320);
-    };
-
-    // Re-assert watches when the open folder changes so listing watch teardown
-    // cannot permanently drop a root watch that shared the same path.
-    for (const path of rootPaths) {
-      void window.entropy.fs.watchDir(path, { recursive: true });
-    }
-    const stop = window.entropy.fs.onDirChanged((info) => {
-      if (rootPaths.some((root) => samePath(info.path, root))) {
-        scheduleInvalidate();
-      }
-    });
-
-    return () => {
-      stop();
-      if (debounce) clearTimeout(debounce);
-    };
-  }, [roots, workspace.currentFolder]);
+  function refreshLargeFiles(): void {
+    invalidateLargeFilesCache();
+    setLargeFileEntries([]);
+    setLargeFilesLoading(true);
+    setError(null);
+    setLargeFilesScanId((value) => value + 1);
+  }
 
   // Map the folder currently open in Folders — only when the user opts in.
   useEffect(() => {
@@ -935,6 +909,30 @@ export function FilesPage({
       >
         <ListFilter className="h-4 w-4" strokeWidth={1.75} />
       </Button>
+      {perspective === "large-files" ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground"
+              aria-label="Refresh large files"
+              disabled={largeFilesLoading}
+              onClick={refreshLargeFiles}
+            >
+              <RefreshCw
+                className={cn(
+                  "h-4 w-4",
+                  largeFilesLoading && "animate-spin motion-reduce:animate-none",
+                )}
+                strokeWidth={1.75}
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Refresh large files</TooltipContent>
+        </Tooltip>
+      ) : null}
       {showTreemapToggle ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -980,9 +978,18 @@ export function FilesPage({
             ) : null}
 
             {listLoading || (isSearching && searchLoading && rows.length === 0) ? (
-              <div className="flex flex-col gap-1 px-6 py-4">
-                {Array.from({ length: 8 }).map((_, index) => (
-                  <Skeleton key={index} className="h-10 w-full rounded-md" />
+              <div className="flex flex-col gap-0 px-6 py-2" aria-busy="true" aria-label="Loading">
+                {Array.from({ length: perspective === "large-files" ? 12 : 8 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-4 border-b py-2.5"
+                    style={{ borderColor: figma.border }}
+                  >
+                    <Skeleton className="h-4 w-[220px] shrink-0 rounded-sm" />
+                    <Skeleton className="h-4 min-w-0 flex-1 rounded-sm" />
+                    <Skeleton className="h-4 w-16 shrink-0 rounded-sm" />
+                    <Skeleton className="h-4 w-[120px] shrink-0 rounded-sm" />
+                  </div>
                 ))}
               </div>
             ) : null}

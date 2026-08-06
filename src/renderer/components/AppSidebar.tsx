@@ -89,35 +89,6 @@ export function AppSidebar({
     };
   }, []);
 
-  useEffect(() => {
-    if (getLargeFilesCache() != null) return;
-    if (settingsLargeFilesBytes != null) return;
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const roots = await window.entropy.fs.getInventoryRoots(
-          workspace.settings.inventoryExtraRoots,
-        );
-        const approx = await window.entropy.fs.scanLargeFilesApprox(roots.map((r) => r.path));
-        if (cancelled) return;
-        if (approx.totalBytes !== settingsLargeFilesBytes) {
-          updateSettings({ largeFilesApproxBytes: approx.totalBytes });
-        }
-      } catch {
-        // Best-effort badge.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    workspace.settings.inventoryExtraRoots,
-    workspace.path,
-    settingsLargeFilesBytes,
-    updateSettings,
-  ]);
-
   function goNotebook(): void {
     updateSettings({ intelligenceView: null });
     visitSection("notebook");
