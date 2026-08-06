@@ -7,7 +7,7 @@ import {
 
 export function toSessionSettings(settings: WorkspaceSettings) {
   return {
-    theme: settings.theme,
+    theme: "light" as const,
     filesView: settings.filesView,
     sidebarCollapsed: settings.sidebarCollapsed,
     contextCollapsed: settings.contextCollapsed,
@@ -31,7 +31,7 @@ export function fromSessionSettings(
   const perspective = raw.libraryPerspective;
   const intelligence = raw.intelligenceView;
   return {
-    theme: settings.theme,
+    theme: "light",
     filesView: settings.filesView,
     sidebarCollapsed: Boolean(settings.sidebarCollapsed),
     contextCollapsed: Boolean(settings.contextCollapsed),
