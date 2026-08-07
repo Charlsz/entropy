@@ -9,6 +9,9 @@ interface CacheFile {
   records: Record<string, HashCacheRecord>;
 }
 
+/** Keep duplicate hash cache from growing into multi‑tens-of-MB JSON blobs. */
+const MAX_RECORDS = 40_000;
+
 function cachePathForRoot(rootPath: string): string {
   const key = createHash("sha1").update(path.normalize(rootPath).toLowerCase()).digest("hex");
   return path.join(app.getPath("userData"), "duplicate-cache", `${key}.json`);
@@ -31,6 +34,7 @@ export class DuplicateHashCache {
       for (const [key, record] of Object.entries(parsed.records)) {
         this.records.set(key, record);
       }
+      this.pruneIfNeeded();
     } catch {
       // Missing or corrupt cache is fine — rebuild.
     }
@@ -57,6 +61,7 @@ export class DuplicateHashCache {
 
   async save(): Promise<void> {
     if (!this.dirty) return;
+    this.pruneIfNeeded();
     const payload: CacheFile = {
       version: 1,
       records: Object.fromEntries(this.records.entries()),
@@ -64,6 +69,20 @@ export class DuplicateHashCache {
     await fs.mkdir(path.dirname(this.filePath), { recursive: true });
     await fs.writeFile(this.filePath, JSON.stringify(payload), "utf8");
     this.dirty = false;
+  }
+
+  /** Drop oldest updatedAt entries when over the soft cap. */
+  private pruneIfNeeded(): void {
+    if (this.records.size <= MAX_RECORDS) return;
+    const ranked = [...this.records.entries()].sort(
+      (a, b) => (a[1].updatedAt || 0) - (b[1].updatedAt || 0),
+    );
+    const removeCount = this.records.size - MAX_RECORDS;
+    for (let i = 0; i < removeCount; i += 1) {
+      const key = ranked[i]?.[0];
+      if (key) this.records.delete(key);
+    }
+    this.dirty = true;
   }
 }
 

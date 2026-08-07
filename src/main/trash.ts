@@ -169,7 +169,11 @@ async function clearUndoCache(cachePath: string | undefined): Promise<void> {
 
 /**
  * Copy for in-app Undo, then move the real file into the OS Recycle Bin / Trash.
+ * Huge files skip the undo buffer so userData does not temporarily 2× their size —
+ * OS trash still holds the original for recovery outside Entropy.
  */
+const UNDO_COPY_MAX_BYTES = 80 * 1024 * 1024;
+
 export async function removeToTrash(targetPath: string): Promise<void> {
   const normalized = normalizeKey(targetPath);
   assertPathMutable(normalized, process.platform, "delete");
@@ -182,13 +186,18 @@ export async function removeToTrash(targetPath: string): Promise<void> {
     await clearUndoCache(existing);
   }
 
-  const base = path.basename(normalized);
-  const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const cachePath = path.join(undoCacheRoot(), `.entropy-undo-${stamp}-${base}`);
+  const info = await fs.stat(normalized);
+  const canUndoCopy = info.size <= UNDO_COPY_MAX_BYTES;
 
-  // Undo buffer first — if OS trash fails we can put the file back.
-  await copyWithRetry(normalized, cachePath);
-  pending.set(normalized, cachePath);
+  let cachePath: string | undefined;
+  if (canUndoCopy) {
+    const base = path.basename(normalized);
+    const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    cachePath = path.join(undoCacheRoot(), `.entropy-undo-${stamp}-${base}`);
+    // Undo buffer first — if OS trash fails we can put the file back.
+    await copyWithRetry(normalized, cachePath);
+    pending.set(normalized, cachePath);
+  }
 
   try {
     // Drop Node media streams before Recycle Bin (Windows share locks).
@@ -196,6 +205,7 @@ export async function removeToTrash(targetPath: string): Promise<void> {
     await sleep(120);
     await sendToOsTrash(normalized);
   } catch (err) {
+    if (!cachePath) throw err;
     // Roll back: restore original from cache and surface the trash error.
     pending.delete(normalized);
     try {

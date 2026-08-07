@@ -9,6 +9,10 @@ export const FILE_PROTOCOL = "entropy";
 
 const THUMB_MAX_EDGE = 320;
 const THUMB_CONCURRENCY = 4;
+/** Soft cap so userData/thumbs cannot grow without bound. */
+const THUMB_CACHE_MAX_FILES = 800;
+const THUMB_CACHE_MAX_BYTES = 64 * 1024 * 1024;
+let thumbPruneQueued = false;
 const thumbJobs = new Map<string, Promise<{ body: Buffer; type: string }>>();
 let thumbActive = 0;
 const thumbWaiters: Array<() => void> = [];
@@ -175,9 +179,11 @@ export function toEntropyThumbUrl(filePath: string): string {
 
 /**
  * Serve local files with short-lived Node reads (not Chromium net.fetch(file://)).
- * file:// fetches leave Windows share locks that block Recycle Bin until the app quits.
+ * file:// fetches leave Windows share locks that block Recycle Bin until the app quits,
+ * and Electron's net.fetch(file://) does not emit proper 206 Content-Range responses
+ * that <video> needs through a custom protocol.
  *
- * Video/audio/PDF always use Range-capable streams (tracked so releaseFileReaders can
+ * Video/audio/PDF use Range-capable Node streams (tracked so releaseFileReaders can
  * destroy them before trash). Small images use a one-shot readFile.
  */
 async function serveFile(filePath: string, request: Request): Promise<Response> {
@@ -322,6 +328,41 @@ function mimeFor(ext: string): string {
   }
 }
 
+async function pruneThumbCache(thumbsDir: string): Promise<void> {
+  if (thumbPruneQueued) return;
+  thumbPruneQueued = true;
+  try {
+    const names = await fs.readdir(thumbsDir);
+    const files: Array<{ full: string; mtimeMs: number; size: number }> = [];
+    for (const name of names) {
+      if (!name.endsWith(".jpg")) continue;
+      const full = path.join(thumbsDir, name);
+      try {
+        const st = await fs.stat(full);
+        if (st.isFile()) files.push({ full, mtimeMs: st.mtimeMs, size: st.size });
+      } catch {
+        // Skip unreadable.
+      }
+    }
+    files.sort((a, b) => a.mtimeMs - b.mtimeMs);
+    let total = files.reduce((sum, file) => sum + file.size, 0);
+    while (files.length > THUMB_CACHE_MAX_FILES || total > THUMB_CACHE_MAX_BYTES) {
+      const victim = files.shift();
+      if (!victim) break;
+      total -= victim.size;
+      await fs.unlink(victim.full).catch(() => undefined);
+    }
+  } catch {
+    // Prune is best-effort.
+  } finally {
+    thumbPruneQueued = false;
+  }
+}
+
+function queueThumbPrune(thumbsDir: string): void {
+  void pruneThumbCache(thumbsDir);
+}
+
 async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type: string }> {
   const ext = path.extname(filePath).toLowerCase();
   const info = await fs.stat(filePath);
@@ -333,7 +374,8 @@ async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type:
   const key = createHash("sha1")
     .update(`${filePath}|${Math.trunc(info.mtimeMs)}|${THUMB_MAX_EDGE}`)
     .digest("hex");
-  const cachePath = path.join(app.getPath("userData"), "thumbs", `${key}.jpg`);
+  const thumbsDir = path.join(app.getPath("userData"), "thumbs");
+  const cachePath = path.join(thumbsDir, `${key}.jpg`);
 
   try {
     return { body: await fs.readFile(cachePath), type: "image/jpeg" };
@@ -352,8 +394,9 @@ async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type:
           });
           if (!osThumb.isEmpty()) {
             const jpeg = Buffer.from(osThumb.toJPEG(78));
-            await fs.mkdir(path.dirname(cachePath), { recursive: true });
+            await fs.mkdir(thumbsDir, { recursive: true });
             await fs.writeFile(cachePath, jpeg);
+            queueThumbPrune(thumbsDir);
             return { body: jpeg, type: "image/jpeg" };
           }
         } catch {
@@ -384,8 +427,9 @@ async function getOrCreateThumb(filePath: string): Promise<{ body: Buffer; type:
           : image;
 
       const jpeg = Buffer.from(resized.toJPEG(78));
-      await fs.mkdir(path.dirname(cachePath), { recursive: true });
+      await fs.mkdir(thumbsDir, { recursive: true });
       await fs.writeFile(cachePath, jpeg);
+      queueThumbPrune(thumbsDir);
       return { body: jpeg, type: "image/jpeg" };
     }).finally(() => {
       thumbJobs.delete(cachePath);
