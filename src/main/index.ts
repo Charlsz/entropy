@@ -362,23 +362,28 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("window:minimize", (event) => {
-    BrowserWindow.fromWebContents(event.sender)?.minimize();
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
+    if (!win || win.isDestroyed()) return;
+    win.minimize();
   });
   ipcMain.handle("window:maximize", (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win) return;
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
+    if (!win || win.isDestroyed()) return;
     if (win.isMaximized()) win.unmaximize();
     else win.maximize();
   });
   ipcMain.handle("window:close", (event) => {
-    BrowserWindow.fromWebContents(event.sender)?.close();
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
+    if (!win || win.isDestroyed()) return;
+    win.close();
   });
   ipcMain.handle("window:isMaximized", (event) => {
-    return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
+    return win && !win.isDestroyed() ? win.isMaximized() : false;
   });
   ipcMain.handle("window:setChromeTheme", (event, theme: "light" | "dark") => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win) return;
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
+    if (!win || win.isDestroyed()) return;
     const chrome = chromeColors(theme === "light" ? "light" : "dark");
     // Background only — caption buttons are custom renderer chrome now.
     win.setBackgroundColor(chrome.backgroundColor);
