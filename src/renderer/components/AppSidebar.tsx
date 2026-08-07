@@ -107,7 +107,6 @@ export function AppSidebar({
 
   function handleSearchChange(event: React.ChangeEvent<HTMLInputElement>): void {
     onSearchQueryChange(event.target.value);
-    onSearchFocus();
   }
 
   const libraryActive = section === "inventory";

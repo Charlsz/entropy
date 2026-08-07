@@ -124,8 +124,9 @@ function WorkspaceShellFrame({
   }, [canGoBack, canGoForward, goBack, goForward]);
 
   function focusLibrarySearch(): void {
-    updateSettings({ libraryPerspective: "folders", intelligenceView: null });
+    // Jump to Library for search results, but keep List|Gallery as the user's view mode.
     visitSection("inventory");
+    updateSettings({ intelligenceView: null });
     window.setTimeout(() => {
       const input = document.querySelector<HTMLInputElement>("[data-entropy-search]");
       input?.focus();
