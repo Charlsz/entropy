@@ -11,6 +11,7 @@ interface ContentAreaProps {
   pendingReference?: string | null;
   onPendingReferenceHandled?: () => void;
   librarySearchQuery?: string;
+  onLibrarySearchQueryChange?: (query: string) => void;
   onPickWorkspace?: (path: string) => void;
 }
 
@@ -21,6 +22,7 @@ export function ContentArea({
   pendingReference,
   onPendingReferenceHandled,
   librarySearchQuery = "",
+  onLibrarySearchQueryChange,
   onPickWorkspace,
 }: ContentAreaProps) {
   return (
@@ -35,7 +37,10 @@ export function ContentArea({
         />
       </SectionPane>
       <SectionPane active={section === "inventory"}>
-        <FilesPage searchQuery={librarySearchQuery} />
+        <FilesPage
+          searchQuery={librarySearchQuery}
+          onSearchQueryChange={onLibrarySearchQueryChange}
+        />
       </SectionPane>
       <SectionPane active={section === "settings"}>
         <SettingsPanel />

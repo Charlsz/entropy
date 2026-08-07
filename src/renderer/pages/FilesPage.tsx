@@ -119,8 +119,10 @@ function normalizePerspective(value: string | undefined): LibraryPerspective {
 
 export function FilesPage({
   searchQuery = "",
+  onSearchQueryChange,
 }: {
   searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
 } = {}) {
   const {
     workspace,
@@ -133,7 +135,6 @@ export function FilesPage({
     openInWorkspace,
     openNote,
     openFolder,
-    openFileLocation,
   } = useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
   const [scanRoot, setScanRoot] = useState<string>("");
@@ -224,7 +225,11 @@ export function FilesPage({
       setEntries(listing);
       setSelected((current) => {
         if (!current) return null;
-        return listing.find((entry) => entry.path === current.path) ?? null;
+        const stillHere = listing.find((entry) => entry.path === current.path);
+        if (stillHere) return stillHere;
+        // Global search hits often live outside the open folder — keep FI open.
+        if (isSearching) return current;
+        return null;
       });
       if (quiet) setError(null);
     } catch (err) {
@@ -232,7 +237,7 @@ export function FilesPage({
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [workspace.currentFolder]);
+  }, [workspace.currentFolder, isSearching]);
 
   const refresh = useCallback(async () => {
     await refreshListing({ quiet: true });
@@ -327,8 +332,8 @@ export function FilesPage({
   }, [refreshListing, workspace.currentSection]);
 
   useEffect(() => {
-    // Changing folders leaves the previous selection behind. List|Gallery and
-    // storage-map toggles must keep File Intelligence open for the same file.
+    // Changing folders leaves the previous selection behind. Search hits re-select
+    // via pendingSelectPath after the destination listing loads.
     setSelected(null);
   }, [workspace.currentFolder]);
 
@@ -566,7 +571,6 @@ export function FilesPage({
     isSearching,
     trimmedSearch,
     scanRoot,
-    workspace.currentFolder,
     workspace.path,
     workspace.name,
   ]);
@@ -657,10 +661,24 @@ export function FilesPage({
         ? loading && folderVisible.length === 0
         : loading;
 
+  function clearLibrarySearch(): void {
+    onSearchQueryChange?.("");
+  }
+
+  function selectLibraryEntry(entry: FileEntry): void {
+    if (entry.isDirectory) {
+      setSelected(null);
+      return;
+    }
+    setSelected(entry);
+    addRecentFile(entry.path);
+  }
+
   async function openEntry(entry: FileEntry): Promise<void> {
     if (isSearching) {
       const hit = searchHitMeta.get(entry.path.replace(/\\/g, "/").toLowerCase());
       if (hit?.source === "note") {
+        clearLibrarySearch();
         const targetWorkspace = hit.workspacePath ?? workspace.path;
         if (!samePath(targetWorkspace, workspace.path)) {
           openInWorkspace(targetWorkspace, hit.path);
@@ -670,11 +688,19 @@ export function FilesPage({
         return;
       }
       if (entry.isDirectory || hit?.source === "folder") {
+        clearLibrarySearch();
         openFolder(entry.path);
         return;
       }
-      setSelected(entry);
-      void openFileLocation(entry.path);
+      // Open file: leave search, land in its folder, keep File Intelligence.
+      try {
+        const dir = await window.entropy.fs.dirname(entry.path);
+        setPendingSelectPath(entry.path);
+        clearLibrarySearch();
+        openFolder(dir);
+      } catch {
+        setSelected(entry);
+      }
       return;
     }
 
@@ -1077,14 +1103,7 @@ export function FilesPage({
                       backgroundColor: selectedRow ? figma.select : "transparent",
                       color: figma.ink,
                     }}
-                    onClick={() => {
-                      if (isSearching) {
-                        void openEntry(entry);
-                        return;
-                      }
-                      if (entry.isDirectory) setSelected(null);
-                      else setSelected(entry);
-                    }}
+                    onClick={() => selectLibraryEntry(entry)}
                     onDoubleClick={() => void openEntry(entry)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") void openEntry(entry);
@@ -1184,10 +1203,7 @@ export function FilesPage({
                   selected={selected?.path === entry.path}
                   dropTarget={false}
                   sizePending={false}
-                  onSelect={() => {
-                    if (!entry.isDirectory) setSelected(entry);
-                    else setSelected(null);
-                  }}
+                  onSelect={() => selectLibraryEntry(entry)}
                   onOpen={() => void openEntry(entry)}
                   onDragStart={(event) => onDragStart(event, entry)}
                   actions={fileActions(entry)}

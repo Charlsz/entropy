@@ -211,6 +211,7 @@ function WorkspaceShellFrame({
             pendingReference={pendingReference}
             onPendingReferenceHandled={clearPendingReference}
             librarySearchQuery={searchQuery}
+            onLibrarySearchQueryChange={setSearchQuery}
             onPickWorkspace={onPickWorkspace}
           />
         </div>
