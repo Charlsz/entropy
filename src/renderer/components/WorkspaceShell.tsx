@@ -119,7 +119,8 @@ export function WorkspaceShell({
 
   const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed ?? true;
   const showTreemapToggle =
-    workspace.currentSection === "inventory" && perspective === "folders";
+    workspace.currentSection === "inventory" &&
+    (perspective === "folders" || perspective === "gallery");
 
   return (
     <div

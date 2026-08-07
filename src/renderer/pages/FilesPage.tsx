@@ -36,6 +36,7 @@ import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
 import { StorageTreemap } from "../components/StorageTreemap";
+import { FoldersViewToggle } from "../components/FoldersViewToggle";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
@@ -929,11 +930,22 @@ export function FilesPage({
           ? "Size"
           : "Type";
 
-  const showTreemapToggle = perspective === "folders";
+  const showTreemapToggle = perspective === "folders" || perspective === "gallery";
   const showTreemap = showTreemapToggle && !treemapCollapsed;
 
   const sortControl = (
     <div className="flex items-center gap-1.5">
+      {perspective === "folders" || perspective === "gallery" ? (
+        <FoldersViewToggle
+          value={perspective === "gallery" ? "gallery" : "list"}
+          onChange={(mode) =>
+            updateSettings({
+              libraryPerspective: mode === "gallery" ? "gallery" : "folders",
+              intelligenceView: null,
+            })
+          }
+        />
+      ) : null}
       <span className="text-xs text-muted-foreground">Sort by: {sortLabel}</span>
       <Button
         type="button"
