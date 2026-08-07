@@ -616,22 +616,6 @@ export function FilesPage({
     });
   }, [largeFileEntries, sortAsc, sortKey]);
 
-  const galleryVisible = useMemo(() => {
-    // Home-style content view: folders (with collage faces) + media, not media-only.
-    const folders = folderVisible.filter((entry) => entry.isDirectory);
-    const media = folderVisible.filter((entry) => isMediaEntry(entry) || isPreviewableEntry(entry));
-    const source = [...folders, ...media];
-    return source.sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-      let cmp = 0;
-      if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-      if (sortKey === "modified") cmp = a.modifiedAt - b.modifiedAt;
-      if (sortKey === "size") cmp = a.size - b.size;
-      if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
-      return sortAsc ? cmp : -cmp;
-    });
-  }, [folderVisible, sortAsc, sortKey]);
-
   const searchVisible = useMemo(() => {
     const byPath = new Map<string, FileEntry>();
     for (const entry of folderVisible) {
@@ -652,6 +636,23 @@ export function FilesPage({
       return sortAsc ? cmp : -cmp;
     });
   }, [folderVisible, remoteSearchEntries, sortAsc, sortKey]);
+
+  const galleryVisible = useMemo(() => {
+    // Gallery is a Folders view mode: same sources as list, including active search hits.
+    const source = isSearching ? searchVisible : folderVisible;
+    const folders = source.filter((entry) => entry.isDirectory);
+    const media = source.filter((entry) => isMediaEntry(entry) || isPreviewableEntry(entry));
+    const combined = [...folders, ...media];
+    return combined.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      let cmp = 0;
+      if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      if (sortKey === "modified") cmp = a.modifiedAt - b.modifiedAt;
+      if (sortKey === "size") cmp = a.size - b.size;
+      if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
+      return sortAsc ? cmp : -cmp;
+    });
+  }, [folderVisible, searchVisible, isSearching, sortAsc, sortKey]);
 
   const tableEntries =
     isSearching
@@ -1162,9 +1163,11 @@ export function FilesPage({
 
         {!listLoading && galleryVisible.length === 0 ? (
           <Empty className="min-h-0 flex-1 py-16">
-            <EmptyTitle>Nothing to preview</EmptyTitle>
+            <EmptyTitle>{isSearching ? "No matches" : "Nothing to preview"}</EmptyTitle>
             <EmptyDescription>
-              Folders and media in this location will show here with previews.
+              {isSearching
+                ? "Try a different name, or clear the search."
+                : "Folders and media in this location will show here with previews."}
             </EmptyDescription>
           </Empty>
         ) : null}
@@ -1198,7 +1201,8 @@ export function FilesPage({
   }
 
   function renderMain() {
-    if (!isSearching && perspective === "gallery") return renderGallery();
+    // Gallery is a Folders view mode — search filters it; it never jumps to the list.
+    if (perspective === "gallery") return renderGallery();
 
     if (!isSearching && perspective === "large-files") {
       return (
