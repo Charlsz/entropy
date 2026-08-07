@@ -303,8 +303,10 @@ export function FilesPage({
   }, [refreshListing, workspace.currentSection]);
 
   useEffect(() => {
+    // Changing folders leaves the previous selection behind. List|Gallery and
+    // storage-map toggles must keep File Intelligence open for the same file.
     setSelected(null);
-  }, [workspace.currentFolder, perspective]);
+  }, [workspace.currentFolder]);
 
   useEffect(() => {
     if (!workspace.inventoryFocusPath) return;
