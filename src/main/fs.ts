@@ -1,10 +1,11 @@
-import { shell } from "electron";
+import { shell, type WebContents } from "electron";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
 import { assertPathMutable, isProtectedOsDirName, isProtectedOsPath } from "../shared/protectedPaths";
+import { releaseFileReaders } from "./protocol";
 import { removeToTrash } from "./trash";
 import { mapPool } from "./asyncPool";
 
@@ -165,8 +166,18 @@ export async function rename(fromPath: string, toPath: string): Promise<void> {
   await fs.rename(fromPath, toPath);
 }
 
-export async function remove(targetPath: string): Promise<void> {
+export async function remove(targetPath: string, sender?: WebContents): Promise<void> {
   assertPathMutable(targetPath, platform, "delete");
+  if (sender && !sender.isDestroyed()) {
+    try {
+      await sender.executeJavaScript(
+        `typeof window.__entropyReleaseMedia==="function"&&window.__entropyReleaseMedia(${JSON.stringify(targetPath)})`,
+      );
+    } catch {
+      // Renderer may be mid-reload.
+    }
+  }
+  await releaseFileReaders(targetPath);
   await removeToTrash(targetPath);
 }
 

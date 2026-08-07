@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { assertPathMutable } from "../shared/protectedPaths";
+import { releaseFileReaders } from "./protocol";
 
 /**
  * Delete flow (macOS / Windows / Linux):
@@ -190,6 +191,9 @@ export async function removeToTrash(targetPath: string): Promise<void> {
   pending.set(normalized, cachePath);
 
   try {
+    // Drop Node media streams before Recycle Bin (Windows share locks).
+    await releaseFileReaders(normalized);
+    await sleep(120);
     await sendToOsTrash(normalized);
   } catch (err) {
     // Roll back: restore original from cache and surface the trash error.

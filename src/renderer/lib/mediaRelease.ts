@@ -157,6 +157,18 @@ export function clearMediaRelease(filePath: string): void {
   notify();
 }
 
+declare global {
+  interface Window {
+    __entropyReleaseMedia?: (filePath: string) => void;
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.__entropyReleaseMedia = (filePath: string) => {
+    stopMediaForPath(filePath);
+  };
+}
+
 /**
  * Unload Chromium media for a path so Windows can move the file to Recycle Bin.
  * Prefer calling this before removing the card from the React tree so the video

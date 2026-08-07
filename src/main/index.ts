@@ -183,7 +183,9 @@ function registerIpc(): void {
   ipcMain.handle("fs:rename", (_event, fromPath: string, toPath: string) =>
     filesystem.rename(fromPath, toPath),
   );
-  ipcMain.handle("fs:remove", (_event, targetPath: string) => filesystem.remove(targetPath));
+  ipcMain.handle("fs:remove", (event, targetPath: string) =>
+    filesystem.remove(targetPath, event.sender),
+  );
   ipcMain.handle("fs:undoRemove", (_event, paths: string[]) => undoRemoves(paths));
   ipcMain.handle("fs:finalizeTrash", (_event, paths?: string[]) => finalizeTrash(paths));
   ipcMain.handle("fs:exists", (_event, targetPath: string) => filesystem.exists(targetPath));

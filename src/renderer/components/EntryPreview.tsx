@@ -485,14 +485,31 @@ function VideoThumb({
 
   useEffect(() => {
     if (!wantsLive) {
-      setUrl(null);
+      setUrl((prev) => {
+        if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return null;
+      });
       unloadVideoEl(videoRef.current);
       return;
     }
     let cancelled = false;
+    let objectUrl: string | null = null;
     void withVideoSlot(async () => {
       try {
         const fileUrl = await getFileUrl(path);
+        if (cancelled || isMediaReleasing(path)) return;
+        // Prefer a blob URL so Chromium releases the disk handle before playback.
+        // Large files keep the stream URL (Range) to avoid loading into RAM.
+        const size = await window.entropy.fs.stat(path).then((e) => e.size).catch(() => 0);
+        if (size > 0 && size <= 48 * 1024 * 1024) {
+          const res = await fetch(fileUrl);
+          if (!res.ok) throw new Error("preview fetch failed");
+          const blob = await res.blob();
+          if (cancelled || isMediaReleasing(path)) return;
+          objectUrl = URL.createObjectURL(blob);
+          setUrl(objectUrl);
+          return;
+        }
         if (!cancelled && !isMediaReleasing(path)) setUrl(fileUrl);
       } catch {
         if (!cancelled) setFailed(true);
@@ -501,6 +518,7 @@ function VideoThumb({
     return () => {
       cancelled = true;
       unloadVideoEl(videoRef.current);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [path, wantsLive]);
 

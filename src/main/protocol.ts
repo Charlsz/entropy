@@ -1,8 +1,9 @@
-import { app, nativeImage, net, protocol } from "electron";
+import { app, nativeImage, protocol } from "electron";
 import { createHash } from "node:crypto";
+import { createReadStream, type ReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { Readable } from "node:stream";
 
 export const FILE_PROTOCOL = "entropy";
 
@@ -11,6 +12,46 @@ const THUMB_CONCURRENCY = 4;
 const thumbJobs = new Map<string, Promise<{ body: Buffer; type: string }>>();
 let thumbActive = 0;
 const thumbWaiters: Array<() => void> = [];
+/** Live Node readers for entropy:// responses — destroyed before trash so Windows unlocks. */
+const activeReaders = new Map<string, Set<ReadStream>>();
+
+function readerKey(filePath: string): string {
+  return path.normalize(filePath);
+}
+
+function trackReader(filePath: string, stream: ReadStream): void {
+  const key = readerKey(filePath);
+  let set = activeReaders.get(key);
+  if (!set) {
+    set = new Set();
+    activeReaders.set(key, set);
+  }
+  set.add(stream);
+  const drop = (): void => {
+    set?.delete(stream);
+    if (set && set.size === 0) activeReaders.delete(key);
+  };
+  stream.once("close", drop);
+  stream.once("error", drop);
+}
+
+/** Abort any in-flight entropy:// body streams for this path (drops Windows share locks). */
+export async function releaseFileReaders(filePath: string): Promise<void> {
+  const key = readerKey(filePath);
+  const set = activeReaders.get(key);
+  if (set) {
+    for (const stream of [...set]) {
+      try {
+        stream.destroy();
+      } catch {
+        // Ignore.
+      }
+    }
+    activeReaders.delete(key);
+  }
+  // Brief settle so the OS releases the last HANDLE.
+  await new Promise((resolve) => setTimeout(resolve, 80));
+}
 
 async function withThumbSlot<T>(task: () => Promise<T>): Promise<T> {
   if (thumbActive >= THUMB_CONCURRENCY) {
@@ -133,36 +174,86 @@ export function toEntropyThumbUrl(filePath: string): string {
 }
 
 /**
- * Serve a local file via Electron's file:// fetch so Range / PDF / video work
- * the same as opening the path on disk.
+ * Serve local files with short-lived Node reads (not Chromium net.fetch(file://)).
+ * file:// fetches leave Windows share locks that block Recycle Bin until the app quits.
  */
 async function serveFile(filePath: string, request: Request): Promise<Response> {
   const stat = await fs.stat(filePath);
   if (!stat.isFile()) return new Response("Not found", { status: 404 });
 
-  const headers = new Headers();
-  const range = request.headers.get("Range") ?? request.headers.get("range");
-  if (range) headers.set("Range", range);
+  const size = stat.size;
+  const ext = path.extname(filePath).toLowerCase();
+  const type = contentTypeFor(ext) ?? "application/octet-stream";
+  const isAv =
+    type.startsWith("video/") || type.startsWith("audio/") || type === "application/pdf";
 
-  const response = await net.fetch(pathToFileURL(filePath).href, { headers });
-  if (!response.ok && response.status !== 206) {
-    return new Response("Not found", { status: 404 });
+  // Images / small blobs: one-shot read so the FD is gone before the Response settles.
+  if (!isAv && size <= 32 * 1024 * 1024) {
+    const body = await fs.readFile(filePath);
+    return new Response(new Uint8Array(body), {
+      headers: {
+        "Content-Type": type,
+        "Content-Length": String(body.byteLength),
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "no-store",
+      },
+    });
   }
 
-  // Ensure PDF/video MIME when the OS guess is wrong.
-  const ext = path.extname(filePath).toLowerCase();
-  const type = contentTypeFor(ext);
-  if (!type) return response;
+  let start = 0;
+  let end = size - 1;
+  let status = 200;
+  const rangeHeader = request.headers.get("Range") ?? request.headers.get("range");
+  if (rangeHeader) {
+    const match = /^bytes=(\d*)-(\d*)$/i.exec(rangeHeader.trim());
+    if (match) {
+      if (match[1] !== "") start = Number(match[1]);
+      if (match[2] !== "") end = Number(match[2]);
+      if (!Number.isFinite(start) || start < 0) start = 0;
+      if (!Number.isFinite(end) || end < 0 || end >= size) end = size - 1;
+      if (start >= size || start > end) {
+        return new Response(null, {
+          status: 416,
+          headers: { "Content-Range": `bytes */${size}` },
+        });
+      }
+      status = 206;
+    }
+  }
 
-  const outHeaders = new Headers(response.headers);
-  outHeaders.set("Content-Type", type);
-  outHeaders.set("Accept-Ranges", "bytes");
-  outHeaders.set("Cache-Control", "no-cache");
+  const stream = createReadStream(filePath, {
+    start,
+    end,
+    autoClose: true,
+    emitClose: true,
+  });
+  trackReader(filePath, stream);
 
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: outHeaders,
+  const abort = (): void => {
+    stream.destroy();
+  };
+  if (request.signal?.aborted) {
+    abort();
+    return new Response(null, { status: 499 });
+  }
+  request.signal?.addEventListener("abort", abort, { once: true });
+  stream.once("close", () => {
+    request.signal?.removeEventListener("abort", abort);
+  });
+
+  const headers = new Headers({
+    "Content-Type": type,
+    "Accept-Ranges": "bytes",
+    "Content-Length": String(end - start + 1),
+    "Cache-Control": "no-store",
+  });
+  if (status === 206) {
+    headers.set("Content-Range", `bytes ${start}-${end}/${size}`);
+  }
+
+  return new Response(Readable.toWeb(stream) as unknown as ReadableStream, {
+    status,
+    headers,
   });
 }
 
