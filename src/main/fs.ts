@@ -589,7 +589,20 @@ export async function openExternal(targetPath: string): Promise<void> {
 /** Open the OS Recycle Bin / Trash so the user can find recently deleted files. */
 export async function openOsTrash(): Promise<void> {
   if (process.platform === "win32") {
-    await execFileAsync("explorer.exe", ["shell:RecycleBinFolder"]);
+    try {
+      await shell.openExternal("shell:RecycleBinFolder");
+      return;
+    } catch {
+      // Fall through to explorer.
+    }
+    try {
+      await execFileAsync("explorer.exe", ["shell:RecycleBinFolder"]);
+    } catch (err) {
+      // explorer.exe often exits with code 1 even after opening the window successfully.
+      const code = (err as { code?: number | string } | null)?.code;
+      if (code === 1 || code === "1") return;
+      throw err;
+    }
     return;
   }
   if (process.platform === "darwin") {
