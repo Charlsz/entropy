@@ -32,8 +32,6 @@ export function FileIntelligencePanel({
   const [noteCount, setNoteCount] = useState<number | null>(null);
   const [dupBytes, setDupBytes] = useState<number | null>(null);
   const [relatedCount, setRelatedCount] = useState<number | null>(null);
-  const [osPreview, setOsPreview] = useState(false);
-
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -69,17 +67,9 @@ export function FileIntelligencePanel({
     };
   }, [entry.isDirectory, entry.path, entry.size, scanRoot]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setOsPreview(false);
-    if (!isPreviewableEntry(entry)) return;
-    void window.entropy.fs.canOsPreview(entry.path).then((ok) => {
-      if (!cancelled) setOsPreview(ok);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [entry]);
+  // Preview whenever the entry is previewable — do not gate on OS thumbs.
+  // Videos play via entropy:// even when createThumbnailFromPath fails.
+  const showPreview = isPreviewableEntry(entry);
 
   const parentName =
     entry.path.replace(/\\/g, "/").split("/").slice(-2, -1)[0] ||
@@ -187,7 +177,7 @@ export function FileIntelligencePanel({
         </div>
       </div>
 
-      {osPreview ? (
+      {showPreview ? (
         <div className="flex min-h-0 flex-col gap-2.5 p-5 pt-0">
           <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
             {previewLabel}

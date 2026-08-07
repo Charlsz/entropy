@@ -38,20 +38,24 @@ export function clearUrlCaches(): void {
   thumbCache.clear();
 }
 
-export function getFileUrl(filePath: string): Promise<string> {
+/** Sync entropy:// URL — same encoding as main protocol (no IPC). */
+export function fileUrlSync(filePath: string): string {
   const existing = cache.get(filePath);
-  if (existing) {
-    remember(cache, filePath, existing);
-    return Promise.resolve(existing);
-  }
-  return Promise.resolve(remember(cache, filePath, toEntropyUrl(filePath)));
+  if (existing) return remember(cache, filePath, existing);
+  return remember(cache, filePath, toEntropyUrl(filePath));
+}
+
+/** Sync entropy:// thumb URL. */
+export function thumbUrlSync(filePath: string): string {
+  const existing = thumbCache.get(filePath);
+  if (existing) return remember(thumbCache, filePath, existing);
+  return remember(thumbCache, filePath, toEntropyThumbUrl(filePath));
+}
+
+export function getFileUrl(filePath: string): Promise<string> {
+  return Promise.resolve(fileUrlSync(filePath));
 }
 
 export function getThumbUrl(filePath: string): Promise<string> {
-  const existing = thumbCache.get(filePath);
-  if (existing) {
-    remember(thumbCache, filePath, existing);
-    return Promise.resolve(existing);
-  }
-  return Promise.resolve(remember(thumbCache, filePath, toEntropyThumbUrl(filePath)));
+  return Promise.resolve(thumbUrlSync(filePath));
 }

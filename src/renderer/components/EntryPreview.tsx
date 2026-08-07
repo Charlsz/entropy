@@ -3,8 +3,7 @@ import { FileText, Folder } from "lucide-react";
 import type { FileEntry } from "../../shared/types";
 import { useInView } from "../hooks/useInView";
 import { isMediaEntry, mediaKind } from "../lib/media";
-import { getFileUrl, getThumbUrl } from "../lib/urlCache";
-import { withVideoSlot } from "../lib/videoSlot";
+import { fileUrlSync, getFileUrl, getThumbUrl, thumbUrlSync } from "../lib/urlCache";
 import { isMediaReleasing, subscribeMediaRelease } from "../lib/mediaRelease";
 import { createSlot } from "../lib/asyncSlot";
 import { cn } from "../lib/utils";
@@ -414,21 +413,29 @@ function PdfThumb({
 function unloadVideoEl(video: HTMLVideoElement | null): void {
   if (!video) return;
   try {
+    video.dataset.entropyUnloading = "1";
+  } catch {
+    // Ignore.
+  }
+  try {
     video.pause();
   } catch {
     // Ignore.
   }
   try {
-    while (video.firstChild) video.removeChild(video.firstChild);
+    video.removeAttribute("src");
+    video.src = "";
+    video.removeAttribute("poster");
+    video.load();
   } catch {
     // Ignore.
   }
-  video.removeAttribute("src");
-  video.src = "";
-  video.removeAttribute("poster");
-  video.load();
 }
 
+/**
+ * Video faces: prefer OS/protocol JPEG thumbs (same path as images — reliable).
+ * Live playback only for Gallery clips / File Intelligence, layered on top of the thumb.
+ */
 function VideoThumb({
   path,
   size,
@@ -441,160 +448,69 @@ function VideoThumb({
   /** clip = gallery 4s loop; full = File Intelligence continuous play; still = poster only */
   playback?: "clip" | "full" | "still";
 }) {
-  // size=lg must not wait on IO — CSS zoom breaks IntersectionObserver.
-  const { ref, inView } = useInView<HTMLDivElement>("120px", {
-    sticky: playback !== "still",
-  });
+  const thumb = thumbUrlSync(path);
+  const file = fileUrlSync(path);
   const [releasing, setReleasing] = useState(() => isMediaReleasing(path));
-  const armed = (size === "lg" || inView) && !releasing;
-  const [url, setUrl] = useState<string | null>(null);
-  const [poster, setPoster] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
-  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
+  const [hasFrame, setHasFrame] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const errorRetriesRef = useRef(0);
-
-  const live = armed && (playback === "clip" || playback === "full");
-
-  const bindVideoRef = (el: HTMLVideoElement | null): void => {
-    if (videoRef.current && videoRef.current !== el) {
-      unloadVideoEl(videoRef.current);
-    }
-    videoRef.current = el;
-    setVideoEl(el);
-  };
+  const clipTimerRef = useRef(0);
+  const live = !releasing && !videoFailed && (playback === "clip" || playback === "full");
 
   useEffect(() => {
     return subscribeMediaRelease(() => {
       const next = isMediaReleasing(path);
       if (next) {
+        window.clearTimeout(clipTimerRef.current);
         unloadVideoEl(videoRef.current);
-        setUrl(null);
-        setVideoEl(null);
-      } else if (releasing) {
-        setReloadToken((value) => value + 1);
-        setFailed(false);
+        setHasFrame(false);
       }
       setReleasing(next);
+      if (!next) setVideoFailed(false);
     });
-  }, [path, releasing]);
-
-  useEffect(() => {
-    errorRetriesRef.current = 0;
   }, [path]);
 
-  // Still faces: OS thumb only. Live faces: entropy:// with Range (proven for MP4).
   useEffect(() => {
-    if (!armed) return;
-    let cancelled = false;
-    setFailed(false);
-    setPoster(null);
-
-    if (playback === "still") {
-      void withVideoSlot(async () => {
-        try {
-          const thumb = await getThumbUrl(path).catch(() => null);
-          if (!cancelled) setPoster(thumb);
-        } catch {
-          if (!cancelled) setFailed(true);
-        }
-      }, () => cancelled);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void withVideoSlot(async () => {
-      try {
-        const [fileUrl, thumb] = await Promise.all([
-          getFileUrl(path),
-          getThumbUrl(path).catch(() => null),
-        ]);
-        if (cancelled || isMediaReleasing(path)) return;
-        if (thumb) setPoster(thumb);
-        setUrl(fileUrl);
-      } catch {
-        if (!cancelled) setFailed(true);
-      }
-    }, () => cancelled);
-
-    return () => {
-      cancelled = true;
-      // Pause only. Clearing src here fires a media error that used to stick the
-      // FileText fallback forever (React Strict Mode / effect churn).
-      try {
-        videoRef.current?.pause();
-      } catch {
-        // Ignore.
-      }
-    };
-  }, [path, armed, playback, reloadToken]);
+    setThumbFailed(false);
+    setVideoFailed(false);
+    setHasFrame(false);
+  }, [path]);
 
   useEffect(() => {
     return () => {
+      window.clearTimeout(clipTimerRef.current);
       unloadVideoEl(videoRef.current);
     };
   }, []);
 
-  // Gallery: first 4s infinite loop. Intelligence: continuous play of the whole file.
-  useEffect(() => {
-    if (!live || !url || !videoEl) return;
+  function clearClipTimer(): void {
+    window.clearTimeout(clipTimerRef.current);
+    clipTimerRef.current = 0;
+  }
 
-    let timer = 0;
-    let cancelled = false;
-    const video = videoEl;
-
-    function clearTimer(): void {
-      window.clearTimeout(timer);
-      timer = 0;
+  async function restartClip(el: HTMLVideoElement): Promise<void> {
+    if (el.dataset.entropyUnloading === "1" || isMediaReleasing(path)) return;
+    try {
+      el.currentTime = 0;
+      await el.play();
+      if (playback !== "clip") return;
+      clearClipTimer();
+      clipTimerRef.current = window.setTimeout(() => {
+        void restartClip(el);
+      }, VIDEO_CLIP_SECONDS * 1000);
+    } catch {
+      // Keep the thumb face when autoplay is blocked.
     }
+  }
 
-    async function playClip(): Promise<void> {
-      const el = videoRef.current;
-      if (!el || cancelled || isMediaReleasing(path) || el.dataset.entropyUnloading === "1") {
-        return;
-      }
-      try {
-        el.currentTime = 0;
-        await el.play();
-        if (cancelled || playback === "full" || isMediaReleasing(path)) return;
-        clearTimer();
-        timer = window.setTimeout(() => {
-          if (!cancelled) void playClip();
-        }, VIDEO_CLIP_SECONDS * 1000);
-      } catch {
-        // Keep poster when autoplay is blocked.
-      }
-    }
+  if (releasing) {
+    return <QuietFace />;
+  }
 
-    function onLoaded(): void {
-      void playClip();
-    }
-
-    video.addEventListener("loadeddata", onLoaded);
-    if (video.readyState >= 2) onLoaded();
-
-    return () => {
-      cancelled = true;
-      clearTimer();
-      video.removeEventListener("loadeddata", onLoaded);
-      try {
-        video.pause();
-      } catch {
-        // Ignore.
-      }
-    };
-  }, [live, url, videoEl, playback, path]);
-
-  const shellProps = {
-    ref,
-    className: "relative h-full w-full overflow-hidden bg-ink-2",
-  } as const;
-
-  if (failed) {
+  if (thumbFailed && videoFailed) {
     return (
-      <div {...shellProps} className="flex h-full w-full items-center justify-center bg-ink-2">
+      <div className="flex h-full w-full items-center justify-center bg-ink-2">
         <FileText
           className={cn(
             "text-muted-foreground/70",
@@ -606,77 +522,78 @@ function VideoThumb({
     );
   }
 
-  if (playback === "still") {
-    if (!poster) {
-      return (
-        <div {...shellProps}>
-          <QuietFace />
-        </div>
-      );
-    }
-    return (
-      <div {...shellProps}>
+  return (
+    <div className="relative h-full w-full overflow-hidden bg-ink-2">
+      {!thumbFailed ? (
         <img
-          src={poster}
+          src={thumb}
           alt=""
           loading="lazy"
           decoding="async"
           draggable={false}
-          className={cn("h-full w-full", objectFit)}
-          onError={() => setFailed(true)}
+          className={cn(
+            "h-full w-full",
+            live ? "absolute inset-0" : "",
+            objectFit,
+          )}
+          onError={() => setThumbFailed(true)}
         />
-      </div>
-    );
-  }
+      ) : null}
 
-  if (!url) {
-    return (
-      <div {...shellProps}>
-        {poster ? (
-          <img
-            src={poster}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-            className={cn("h-full w-full", objectFit)}
-            onError={() => setPoster(null)}
-          />
-        ) : (
-          <QuietFace />
-        )}
-      </div>
-    );
-  }
+      {live ? (
+        <video
+          key={file}
+          ref={videoRef}
+          src={file}
+          muted
+          playsInline
+          autoPlay
+          loop={playback === "full"}
+          preload="auto"
+          draggable={false}
+          className={cn(
+            "relative z-[1] h-full w-full transition-opacity duration-150",
+            hasFrame ? "opacity-100" : "opacity-0",
+            objectFit,
+          )}
+          onLoadedData={(event) => {
+            setHasFrame(true);
+            if (playback === "clip") void restartClip(event.currentTarget);
+          }}
+          onError={(event) => {
+            if (event.currentTarget.dataset.entropyUnloading === "1") return;
+            if (event.currentTarget.error?.code === 1) return;
+            clearClipTimer();
+            setHasFrame(false);
+            setVideoFailed(true);
+          }}
+        />
+      ) : null}
 
-  return (
-    <div {...shellProps}>
-      <video
-        key={`${url}:${reloadToken}`}
-        ref={bindVideoRef}
-        src={url}
-        poster={poster ?? undefined}
-        muted
-        playsInline
-        loop={playback === "full"}
-        preload="auto"
-        autoPlay
-        draggable={false}
-        className={cn("h-full w-full", objectFit)}
-        onError={(event) => {
-          const el = event.currentTarget;
-          if (el.dataset.entropyUnloading === "1") return;
-          if (isMediaReleasing(path)) return;
-          // Transient aborts (effect churn) — retry a couple times before giving up.
-          if (errorRetriesRef.current < 2) {
-            errorRetriesRef.current += 1;
-            setUrl(null);
-            setReloadToken((value) => value + 1);
-            return;
-          }
-          setFailed(true);
-        }}
-      />
+      {/* Still face with no thumb: paint one paused frame from the file. */}
+      {playback === "still" && thumbFailed && !videoFailed ? (
+        <video
+          key={`still:${file}`}
+          src={file}
+          muted
+          playsInline
+          preload="metadata"
+          draggable={false}
+          className={cn("h-full w-full", objectFit)}
+          onLoadedData={(event) => {
+            try {
+              const el = event.currentTarget;
+              if (el.currentTime < 0.05) el.currentTime = 0.05;
+            } catch {
+              // Ignore.
+            }
+          }}
+          onError={(event) => {
+            if (event.currentTarget.dataset.entropyUnloading === "1") return;
+            setVideoFailed(true);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
