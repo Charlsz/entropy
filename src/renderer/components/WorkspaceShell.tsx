@@ -9,6 +9,7 @@ import {
 } from "./ChromeTitlebar";
 import { useWorkspace } from "../state/useWorkspace";
 import { figma } from "../lib/figmaTokens";
+import { requestTreemapPanelToggle } from "../lib/treemapPanelBus";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "../lib/utils";
@@ -183,9 +184,7 @@ function WorkspaceShellFrame({
                     )}
                     aria-label={treemapCollapsed ? "Show storage map" : "Hide storage map"}
                     aria-pressed={!treemapCollapsed}
-                    onClick={() =>
-                      updateSettings({ inventoryTreemapCollapsed: !treemapCollapsed })
-                    }
+                    onClick={() => requestTreemapPanelToggle()}
                   >
                     <TreemapIcon className="h-4 w-4" />
                   </button>

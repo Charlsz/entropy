@@ -43,6 +43,7 @@ import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
 import { formatBytes, formatModifiedLabel, formatUserPath } from "../lib/format";
 import { fileReferenceClipboardMarkdown } from "../lib/markdownBlocks";
+import { onTreemapPanelToggle } from "../lib/treemapPanelBus";
 import {
   getLargeFilesCache,
   invalidateLargeFilesCache,
@@ -176,6 +177,28 @@ export function FilesPage({
       updateSettings({ libraryPerspective: "folders" });
     }
   }, [rawPerspective, updateSettings]);
+
+  // Titlebar map control: File Intelligence ↔ storage map ↔ hidden (one shared right panel).
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const treemapCollapsedRef = useRef(treemapCollapsed);
+  treemapCollapsedRef.current = treemapCollapsed;
+
+  useEffect(() => {
+    return onTreemapPanelToggle(() => {
+      const current = selectedRef.current;
+      const collapsed = treemapCollapsedRef.current;
+      const fileIntelOpen = Boolean(current && !current.isDirectory);
+      if (fileIntelOpen) {
+        setSelected(null);
+        if (collapsed) {
+          updateSettings({ inventoryTreemapCollapsed: false });
+        }
+        return;
+      }
+      updateSettings({ inventoryTreemapCollapsed: !collapsed });
+    });
+  }, [updateSettings]);
 
   useEffect(() => {
     if (intelligenceView) {
