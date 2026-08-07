@@ -116,10 +116,8 @@ function normalizePerspective(value: string | undefined): LibraryPerspective {
 
 export function FilesPage({
   searchQuery = "",
-  onSearchQueryChange: _onSearchQueryChange,
 }: {
   searchQuery?: string;
-  onSearchQueryChange?: (query: string) => void;
 } = {}) {
   const {
     workspace,

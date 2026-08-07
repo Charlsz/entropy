@@ -33,5 +33,13 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  {
+    files: ["scripts/**/*.{js,mjs,cjs,ts}"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: globals.node,
+    },
+  },
   prettier,
 );

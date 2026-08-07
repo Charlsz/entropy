@@ -115,8 +115,7 @@ const ok = (cond, msg) => {
       else if (/\.(tsx?|jsx?|html)$/.test(name)) {
         const text = fs.readFileSync(full, "utf8");
         const re = /dataset\.theme\s*=\s*["']light["']/g;
-        let m;
-        while ((m = re.exec(text))) {
+        while (re.exec(text) !== null) {
           failures.push(`${path.relative(root, full)} forces dataset.theme = "light"`);
         }
       }

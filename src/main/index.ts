@@ -376,7 +376,7 @@ function registerIpc(): void {
   ipcMain.handle("window:isMaximized", (event) => {
     return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
   });
-  ipcMain.handle("window:setChromeTheme", (_event, _theme: "light" | "dark") => {
+  ipcMain.handle("window:setChromeTheme", () => {
     // Custom renderer controls — no native title-bar overlay to recolor.
   });
 
