@@ -191,8 +191,8 @@ export function StorageTreemap({
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)} aria-label="Storage treemap">
-      <div className="flex items-center gap-2 px-4 py-3">
-        <TreemapIcon className="h-3.5 w-3.5 text-muted-foreground" />
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3">
+        <TreemapIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Storage
         </h2>
@@ -221,7 +221,7 @@ export function StorageTreemap({
                 />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Refresh map</TooltipContent>
+            <TooltipContent side="bottom">Refresh map</TooltipContent>
           </Tooltip>
         ) : null}
       </div>

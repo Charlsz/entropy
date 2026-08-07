@@ -934,7 +934,7 @@ export function FilesPage({
   const showTreemap = showTreemapToggle && !treemapCollapsed;
 
   const sortControl = (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-3">
       {perspective === "folders" || perspective === "gallery" ? (
         <FoldersViewToggle
           value={perspective === "gallery" ? "gallery" : "list"}
@@ -946,6 +946,7 @@ export function FilesPage({
           }
         />
       ) : null}
+      <div className="flex items-center gap-1.5">
       <span className="text-[12px] text-muted-foreground">Sort by: {sortLabel}</span>
       <Button
         type="button"
@@ -981,6 +982,7 @@ export function FilesPage({
           <TooltipContent side="bottom">Refresh large files</TooltipContent>
         </Tooltip>
       ) : null}
+      </div>
     </div>
   );
 

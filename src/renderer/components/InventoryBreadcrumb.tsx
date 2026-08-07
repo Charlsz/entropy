@@ -20,13 +20,15 @@ export function InventoryBreadcrumb({
     return (
       <div
         className={cn(
-          "drag-region flex h-9 shrink-0 items-center gap-2 border-b px-4 entropy-titlebar-end",
+          "drag-region flex h-9 shrink-0 items-center gap-3 border-b px-4 entropy-titlebar-end",
           className,
         )}
         style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
       >
         <div className="min-w-0 flex-1" />
-        {end ? <div className="no-drag ml-auto flex shrink-0 items-center gap-1.5">{end}</div> : null}
+        {end ? (
+          <div className="no-drag ml-auto flex shrink-0 items-center gap-3">{end}</div>
+        ) : null}
       </div>
     );
   }
@@ -34,7 +36,7 @@ export function InventoryBreadcrumb({
   return (
     <nav
       className={cn(
-        "drag-region flex h-9 shrink-0 items-center gap-2 border-b px-4 entropy-titlebar-end",
+        "drag-region flex h-9 shrink-0 items-center gap-3 border-b px-4 entropy-titlebar-end",
         className,
       )}
       style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
@@ -90,7 +92,7 @@ export function InventoryBreadcrumb({
           </>
         )}
       </div>
-      {end ? <div className="no-drag ml-auto flex shrink-0 items-center gap-1.5">{end}</div> : null}
+      {end ? <div className="no-drag ml-auto flex shrink-0 items-center gap-3">{end}</div> : null}
     </nav>
   );
 }
