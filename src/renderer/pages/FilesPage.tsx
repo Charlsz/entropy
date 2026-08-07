@@ -946,16 +946,16 @@ export function FilesPage({
           }
         />
       ) : null}
-      <span className="text-xs text-muted-foreground">Sort by: {sortLabel}</span>
+      <span className="text-[12px] text-muted-foreground">Sort by: {sortLabel}</span>
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-muted-foreground"
+        className="h-7 w-7 text-muted-foreground"
         aria-label="Change sort"
         onClick={cycleSort}
       >
-        <ListFilter className="h-4 w-4" strokeWidth={1.75} />
+        <ListFilter className="h-3.5 w-3.5" strokeWidth={1.75} />
       </Button>
       {perspective === "large-files" ? (
         <Tooltip>
@@ -964,14 +964,14 @@ export function FilesPage({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground"
+              className="h-7 w-7 text-muted-foreground"
               aria-label="Refresh large files"
               disabled={largeFilesLoading}
               onClick={refreshLargeFiles}
             >
               <RefreshCw
                 className={cn(
-                  "h-4 w-4",
+                  "h-3.5 w-3.5",
                   largeFilesLoading && "animate-spin motion-reduce:animate-none",
                 )}
                 strokeWidth={1.75}

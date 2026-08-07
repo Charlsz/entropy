@@ -230,38 +230,33 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       className="entropy-duplicates flex h-full min-h-0 flex-col bg-background"
       aria-label="Duplicate files"
     >
-      <div className="entropy-titlebar-end shrink-0 border-b border-border px-4 py-3">
-        <div className="flex w-full min-w-0 items-center gap-2">
+      <div className="drag-region flex h-9 shrink-0 items-center gap-2 border-b border-border px-4 entropy-titlebar-end">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="no-drag h-7 w-7 shrink-0"
+          aria-label="Back to folder"
+          onClick={() => {
+            if (running) void window.entropy.duplicates.cancel();
+            onBack();
+          }}
+        >
+          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
+        </Button>
+        <Copy className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+        <p className="shrink-0 text-[13px] font-medium text-foreground">Exact duplicates</p>
+        <p className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground" title={rootPath}>
+          {rootPath}
+        </p>
+        {running ? (
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            aria-label="Back to folder"
-            onClick={() => {
-              if (running) void window.entropy.duplicates.cancel();
-              onBack();
-            }}
+            size="sm"
+            className="no-drag h-7 shrink-0 gap-1.5 px-2 text-xs"
+            onClick={stopScan}
           >
-            <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
-          </Button>
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-              <p className="truncate text-sm font-medium text-foreground">Exact duplicates</p>
-            </div>
-            <p className="truncate text-sm text-muted-foreground" title={rootPath}>
-              {rootPath}
-            </p>
-          </div>
-          {running ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 shrink-0 gap-1.5 px-2 text-xs"
-              onClick={stopScan}
-            >
               <Square className="h-3 w-3" strokeWidth={1.75} />
               Stop
             </Button>
@@ -289,7 +284,6 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
               <TooltipContent>Change scope</TooltipContent>
             </Tooltip>
           ) : null}
-        </div>
       </div>
 
       {phase === "choose" ? (

@@ -174,7 +174,8 @@ export function WorkspaceShell({
 
         <div
           className={
-            workspace.currentSection === "notebook"
+            workspace.currentSection === "notebook" ||
+            workspace.currentSection === "inventory"
               ? "flex min-h-0 min-w-0 flex-1 flex-col"
               : "entropy-titlebar-pad flex min-h-0 min-w-0 flex-1 flex-col"
           }

@@ -97,14 +97,14 @@ export function FileIntelligencePanel({
       aria-label="File Intelligence"
     >
       <div
-        className="flex items-start gap-2 p-5"
+        className="flex h-9 shrink-0 items-center gap-2 px-3"
         style={{ borderBottom: `1px solid ${figma.border}` }}
       >
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
+        <div className="flex min-w-0 flex-1 flex-col justify-center leading-tight">
+          <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: figma.muted }}>
             File Intelligence
           </p>
-          <p className="break-all text-[14px] font-semibold" style={{ color: figma.ink }}>
+          <p className="truncate text-[12px] font-medium" style={{ color: figma.ink }} title={entry.name}>
             {entry.name}
           </p>
         </div>
@@ -118,10 +118,10 @@ export function FileIntelligencePanel({
               aria-label="Close File Intelligence"
               onClick={onClose}
             >
-              <X className="h-4 w-4" strokeWidth={1.75} />
+              <X className="h-3.5 w-3.5" strokeWidth={1.75} />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Close</TooltipContent>
+          <TooltipContent side="bottom">Close</TooltipContent>
         </Tooltip>
       </div>
 

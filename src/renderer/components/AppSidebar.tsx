@@ -53,7 +53,7 @@ export function AppSidebar({
   onSearchFocus,
   duplicateCount,
 }: AppSidebarProps) {
-  const { workspace, visitSection, updateSettings, goToFolder } = useWorkspace();
+  const { workspace, visitSection, updateSettings } = useWorkspace();
   const section = workspace.currentSection;
   const perspective = workspace.settings.libraryPerspective;
   const settingsLargeFilesBytes = workspace.settings.largeFilesApproxBytes;

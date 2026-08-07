@@ -4,7 +4,7 @@ import { useWorkspace } from "../state/useWorkspace";
 import { figma } from "../lib/figmaTokens";
 import { cn } from "../lib/utils";
 
-/** Library breadcrumb: drive · / · Documents / Projects — optional trailing actions (e.g. sort). */
+/** Library titleband: breadcrumb + trailing actions sit in the same h-9 row as caption buttons. */
 export function InventoryBreadcrumb({
   className,
   end,
@@ -16,18 +16,35 @@ export function InventoryBreadcrumb({
   const rootLabel = workspace.inventoryRootLabel || "Home";
   const hasTrail = Boolean(workspace.inventoryScanRoot);
 
-  if (!hasTrail) return null;
+  if (!hasTrail) {
+    return (
+      <div
+        className={cn(
+          "drag-region flex h-9 shrink-0 items-center gap-2 border-b px-4 entropy-titlebar-end",
+          className,
+        )}
+        style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
+      >
+        <div className="min-w-0 flex-1" />
+        {end ? <div className="no-drag ml-auto flex shrink-0 items-center gap-1.5">{end}</div> : null}
+      </div>
+    );
+  }
 
   return (
     <nav
       className={cn(
-        "flex min-w-0 items-center gap-2 px-6 py-3",
+        "drag-region flex h-9 shrink-0 items-center gap-2 border-b px-4 entropy-titlebar-end",
         className,
       )}
-      style={{ backgroundColor: figma.canvas, borderBottom: `1px solid ${figma.border}` }}
+      style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
       aria-label="Current folder"
     >
-      <HardDrive className="size-[14px] shrink-0" style={{ color: figma.muted }} strokeWidth={1.75} />
+      <HardDrive
+        className="no-drag size-[14px] shrink-0"
+        style={{ color: figma.muted }}
+        strokeWidth={1.75}
+      />
       <span className="font-mono text-[12px]" style={{ color: figma.muted }}>
         /
       </span>
@@ -40,7 +57,7 @@ export function InventoryBreadcrumb({
           <>
             <button
               type="button"
-              className="shrink-0 text-[13px]"
+              className="no-drag shrink-0 text-[13px]"
               style={{ color: figma.muted }}
               onClick={() => void goToInventoryCrumb(-1)}
             >
@@ -60,7 +77,7 @@ export function InventoryBreadcrumb({
                   ) : (
                     <button
                       type="button"
-                      className="max-w-[8rem] truncate text-[13px]"
+                      className="no-drag max-w-[8rem] truncate text-[13px]"
                       style={{ color: figma.muted }}
                       onClick={() => void goToInventoryCrumb(index)}
                     >
@@ -73,7 +90,7 @@ export function InventoryBreadcrumb({
           </>
         )}
       </div>
-      {end ? <div className="ml-auto flex shrink-0 items-center gap-1.5">{end}</div> : null}
+      {end ? <div className="no-drag ml-auto flex shrink-0 items-center gap-1.5">{end}</div> : null}
     </nav>
   );
 }
