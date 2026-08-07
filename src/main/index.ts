@@ -31,6 +31,12 @@ let allowQuit = false;
 let mainWindow: BrowserWindow | null = null;
 const duplicateAbortBySender = new Map<number, AbortController>();
 
+// Stable product id so userData isn't split across entropy / Entropy / Electron.
+app.setName("Entropy");
+
+// Avoid Windows GPU shader disk-cache rename races (Access is denied / Unable to create cache).
+app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: FILE_PROTOCOL,
@@ -43,6 +49,22 @@ protocol.registerSchemesAsPrivileged([
     },
   },
 ]);
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const win =
+      mainWindow && !mainWindow.isDestroyed()
+        ? mainWindow
+        : BrowserWindow.getAllWindows()[0] ?? null;
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  });
+}
 
 function isAppNavigation(url: string): boolean {
   if (isDev) return url.startsWith("http://localhost:5173");
@@ -113,7 +135,10 @@ async function createWindow(): Promise<BrowserWindow> {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // PDF iframe preview needs Chromium's PDF plugin.
       plugins: true,
+      // Slightly lower background timer / cache pressure for a local-first tool.
+      backgroundThrottling: true,
     },
   });
 
@@ -390,6 +415,7 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) return;
   registerFileProtocol();
   registerIpc();
   void finalizeOrphanedStaging();
