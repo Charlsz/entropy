@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import {
   FileText,
   Folder,
+  GalleryThumbnails,
   Image,
   ListFilter,
   RefreshCw,
@@ -920,8 +921,8 @@ export function FilesPage({
           ? "Size"
           : "Type";
 
-  const showTreemapToggle = perspective === "folders";
-  const showTreemap = showTreemapToggle && !treemapCollapsed;
+  const showTreemap = (perspective === "folders" || perspective === "gallery") && !treemapCollapsed;
+  const foldersSurface = perspective === "folders" || perspective === "gallery";
 
   const sortControl = (
     <div className="flex items-center gap-1">
@@ -936,6 +937,34 @@ export function FilesPage({
       >
         <ListFilter className="h-3.5 w-3.5" strokeWidth={1.75} />
       </Button>
+      {foldersSurface ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-7 w-7 text-muted-foreground",
+                perspective === "gallery" && "text-foreground",
+              )}
+              aria-label={perspective === "gallery" ? "Show list" : "Show gallery"}
+              aria-pressed={perspective === "gallery"}
+              onClick={() =>
+                updateSettings({
+                  libraryPerspective: perspective === "gallery" ? "folders" : "gallery",
+                  intelligenceView: null,
+                })
+              }
+            >
+              <GalleryThumbnails className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            {perspective === "gallery" ? "Show list" : "Show gallery"}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
       {perspective === "large-files" ? (
         <Tooltip>
           <TooltipTrigger asChild>
