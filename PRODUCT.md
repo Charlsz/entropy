@@ -42,7 +42,7 @@ The filesystem is the single source of truth. Entropy never owns, duplicates, or
 | Surface | Role |
 |---|---|
 | **Notebook** | Markdown knowledge workspace. Notes live in the workspace folder. Notes can reference any file on any drive without copying it. Inline media while editing; full Preview available. |
-| **Library** | Computer-wide organizer (starts at Home; user may add drives later). Perspectives: Folders (List / Gallery), Large Files, Duplicates. File Intelligence inspector when a file is selected. |
+| **Library** | Computer-wide organizer (starts at Home; user may add drives later). Perspectives: Folders (table), Gallery, Large Files, Duplicates. File Intelligence inspector when a file is selected. |
 | **Settings** | Sparse preferences; no control-panel sprawl. |
 
 ## Workspace vs Library
@@ -55,7 +55,7 @@ The filesystem is the single source of truth. Entropy never owns, duplicates, or
 
 - **Shared app sidebar** — Entropy brand, search (⌘/Ctrl+K), Workspace (Notebook / Library), Library Perspectives, Intelligence, local storage footer.
 - **Notebook:** app sidebar | Local Notes list | editor. Optional right context hides when empty. No Linked / extra notebook-only side panels.
-- **Library:** app sidebar | perspective content (Folders List/Gallery / …) | File Intelligence when selected. Caption bar is Electron chrome only.
+- **Library:** app sidebar | perspective content (Folders table / Gallery grid / …) | File Intelligence when selected. Caption bar is Electron chrome only.
 - Use horizontal space deliberately; maximize the working surface.
 - Performance over decoration.
 
