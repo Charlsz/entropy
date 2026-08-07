@@ -104,14 +104,14 @@ async function renameAside(targetPath: string): Promise<string> {
   const staging = path.join(dir, `.entropy-trash-${stamp}-${base}`);
 
   let lastError: unknown;
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  for (let attempt = 0; attempt < 16; attempt += 1) {
     try {
       await fs.rename(targetPath, staging);
       return staging;
     } catch (err) {
       lastError = err;
-      if (!isRetryableTrashError(err) || attempt === 11) break;
-      await sleep(120 * (attempt + 1));
+      if (!isRetryableTrashError(err) || attempt === 15) break;
+      await sleep(160 * (attempt + 1));
     }
   }
   throw friendlyTrashError(targetPath, lastError);
@@ -137,16 +137,20 @@ async function sendToOsTrash(targetPath: string): Promise<void> {
     }
   }
 
+  // Extra settle — Chromium video Range handles on Windows often linger after the
+  // renderer clears <video src>, then rename + trash succeeds.
+  await sleep(400);
+
   let aside: string | null = null;
   try {
     aside = await renameAside(normalized);
-    for (let attempt = 0; attempt < 6; attempt += 1) {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
       try {
         await trashOnce(aside);
         return;
       } catch (err) {
-        if (!isRetryableTrashError(err) || attempt === 5) throw err;
-        await sleep(150 * (attempt + 1));
+        if (!isRetryableTrashError(err) || attempt === 7) throw err;
+        await sleep(200 * (attempt + 1));
       }
     }
   } catch (err) {

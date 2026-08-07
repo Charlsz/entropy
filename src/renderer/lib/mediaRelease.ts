@@ -31,39 +31,67 @@ export function subscribeMediaRelease(listener: () => void): () => void {
   };
 }
 
-function mediaMatchesPath(el: HTMLMediaElement, filePath: string): boolean {
+function urlMatchesPath(src: string, filePath: string): boolean {
+  if (!src) return false;
   const token = encodePathToken(filePath);
+  if (src.includes(token)) return true;
+  const normalized = filePath.replace(/\\/g, "/");
+  return (
+    src.includes(encodeURIComponent(filePath)) || src.includes(encodeURIComponent(normalized))
+  );
+}
+
+function mediaMatchesPath(el: HTMLMediaElement, filePath: string): boolean {
   const candidates = [el.currentSrc, el.getAttribute("src"), el.src].filter(
     (value): value is string => Boolean(value),
   );
-  for (const src of candidates) {
-    if (src.includes(token)) return true;
-    // Fallback: raw path fragments (legacy / decoded URLs).
-    const normalized = filePath.replace(/\\/g, "/");
-    if (src.includes(encodeURIComponent(filePath)) || src.includes(encodeURIComponent(normalized))) {
-      return true;
-    }
-  }
-  return false;
+  return candidates.some((src) => urlMatchesPath(src, filePath));
 }
 
-/** Tear down Chromium media mappings so Windows can rename/trash the file. */
+function unloadMediaElement(el: HTMLMediaElement): void {
+  try {
+    el.pause();
+  } catch {
+    // Ignore pause failures on unmounted media.
+  }
+  try {
+    el.removeAttribute("src");
+    el.src = "";
+    el.load();
+  } catch {
+    // Ignore teardown races during unmount.
+  }
+}
+
+/** Tear down Chromium media/image mappings so Windows can rename/trash the file. */
 export function unloadDomMedia(filePath: string): void {
-  const media = document.querySelectorAll("video, audio");
-  for (const node of media) {
+  for (const node of document.querySelectorAll("video, audio")) {
     const el = node as HTMLMediaElement;
     if (!mediaMatchesPath(el, filePath)) continue;
-    try {
-      el.pause();
-    } catch {
-      // Ignore pause failures on unmounted media.
-    }
+    unloadMediaElement(el);
+  }
+
+  for (const node of document.querySelectorAll("img")) {
+    const el = node as HTMLImageElement;
+    const src = el.currentSrc || el.getAttribute("src") || el.src || "";
+    if (!urlMatchesPath(src, filePath)) continue;
     try {
       el.removeAttribute("src");
       el.src = "";
-      el.load();
+      el.removeAttribute("srcset");
     } catch {
-      // Ignore teardown races during unmount.
+      // Ignore.
+    }
+  }
+
+  for (const node of document.querySelectorAll("iframe")) {
+    const el = node as HTMLIFrameElement;
+    const src = el.getAttribute("src") || el.src || "";
+    if (!urlMatchesPath(src, filePath)) continue;
+    try {
+      el.src = "about:blank";
+    } catch {
+      // Ignore.
     }
   }
 }
@@ -72,10 +100,25 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function doubleRaf(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
+function isBusyTrashError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  return /still in use|operation was aborted|ebusy|eperm|access is denied|being used by another process|locked|eacces|failed to move|file is in use|aborted/i.test(
+    message,
+  );
+}
+
 /**
  * Unload Chromium media for a path so Windows can move the file to Recycle Bin.
- * Gallery / context video previews otherwise leave the file locked
- * (shell.trashItem -> "Operation was aborted").
+ * Gallery / inspector video previews otherwise leave the file locked
+ * (shell.trashItem / rename → "file is still in use").
  */
 export async function withMediaReleased<T>(
   filePath: string,
@@ -84,17 +127,22 @@ export async function withMediaReleased<T>(
   releasing.add(filePath);
   notify();
   try {
-    unloadDomMedia(filePath);
-    // Two frames so React can swap video faces to posters, then a settle for Chromium.
-    await new Promise<void>((resolve) => {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => resolve());
-      });
-    });
-    await sleep(450);
-    unloadDomMedia(filePath);
-    await sleep(150);
-    return await task();
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      unloadDomMedia(filePath);
+      await doubleRaf();
+      // Chromium keeps Range mappings briefly after src clear — wait longer each try.
+      await sleep(280 + attempt * 220);
+      unloadDomMedia(filePath);
+      await sleep(80);
+      try {
+        return await task();
+      } catch (err) {
+        lastError = err;
+        if (!isBusyTrashError(err) || attempt === 5) throw err;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "Trash failed"));
   } finally {
     releasing.delete(filePath);
     notify();
