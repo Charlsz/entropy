@@ -207,5 +207,9 @@ export function App() {
     );
   }
 
-  return <TooltipProvider delayDuration={400}><ToastProvider>{content}</ToastProvider></TooltipProvider>;
+  return (
+    <TooltipProvider delayDuration={400}>
+      <ToastProvider>{content}</ToastProvider>
+    </TooltipProvider>
+  );
 }
