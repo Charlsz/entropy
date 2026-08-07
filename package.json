@@ -1,6 +1,6 @@
 {
   "name": "entropy",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A local-first workspace where the filesystem is the source of truth.",
   "main": "dist/main/index.js",
   "author": "Charlsz",
