@@ -39,7 +39,7 @@ import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
 import { StorageTreemap } from "../components/StorageTreemap";
 import { VirtualGalleryGrid, VirtualTableBody } from "../components/VirtualLibraryViews";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
-import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
+import { isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
 import { formatBytes, formatModifiedLabel, formatUserPath } from "../lib/format";
 import { fileReferenceClipboardMarkdown } from "../lib/markdownBlocks";
@@ -95,12 +95,13 @@ function EntryTypeIcon({ entry }: { entry: FileEntry }) {
 }
 
 function hitToFileEntry(hit: GlobalSearchHit): FileEntry {
-  const extension =
+  const raw =
     hit.source === "folder"
       ? ""
       : hit.name.includes(".")
         ? (hit.name.split(".").pop() ?? "")
         : "";
+  const extension = raw ? (raw.startsWith(".") ? raw.toLowerCase() : `.${raw.toLowerCase()}`) : "";
   return {
     name: hit.name,
     path: hit.path,
@@ -638,21 +639,9 @@ export function FilesPage({
   }, [folderVisible, remoteSearchEntries, sortAsc, sortKey]);
 
   const galleryVisible = useMemo(() => {
-    // Gallery is a Folders view mode: same sources as list, including active search hits.
-    const source = isSearching ? searchVisible : folderVisible;
-    const folders = source.filter((entry) => entry.isDirectory);
-    const media = source.filter((entry) => isMediaEntry(entry) || isPreviewableEntry(entry));
-    const combined = [...folders, ...media];
-    return combined.sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-      let cmp = 0;
-      if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-      if (sortKey === "modified") cmp = a.modifiedAt - b.modifiedAt;
-      if (sortKey === "size") cmp = a.size - b.size;
-      if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
-      return sortAsc ? cmp : -cmp;
-    });
-  }, [folderVisible, searchVisible, isSearching, sortAsc, sortKey]);
+    // Gallery is only a display mode for the same Folders rows (browse or search).
+    return isSearching ? searchVisible : folderVisible;
+  }, [folderVisible, searchVisible, isSearching]);
 
   const tableEntries =
     isSearching
@@ -1142,6 +1131,10 @@ export function FilesPage({
   }
 
   function renderGallery() {
+    const showLoading =
+      listLoading || (isSearching && searchLoading && galleryVisible.length === 0);
+    const showEmpty = !showLoading && galleryVisible.length === 0;
+
     return (
       <>
         {pathChrome}
@@ -1149,7 +1142,7 @@ export function FilesPage({
           <p className="shrink-0 px-6 pt-3 text-sm text-muted-foreground">{error}</p>
         ) : null}
 
-        {listLoading ? (
+        {showLoading ? (
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
             <div className="entropy-gallery">
               <div className="entropy-gallery-grid">
@@ -1161,18 +1154,18 @@ export function FilesPage({
           </div>
         ) : null}
 
-        {!listLoading && galleryVisible.length === 0 ? (
+        {showEmpty ? (
           <Empty className="min-h-0 flex-1 py-16">
-            <EmptyTitle>{isSearching ? "No matches" : "Nothing to preview"}</EmptyTitle>
+            <EmptyTitle>{isSearching ? "No matches" : "Nothing here yet"}</EmptyTitle>
             <EmptyDescription>
               {isSearching
                 ? "Try a different name, or clear the search."
-                : "Folders and media in this location will show here with previews."}
+                : "Drop files into this folder, or pick another path above."}
             </EmptyDescription>
           </Empty>
         ) : null}
 
-        {!listLoading && galleryVisible.length > 0 ? (
+        {!showLoading && galleryVisible.length > 0 ? (
           <VirtualGalleryGrid count={galleryVisible.length}>
             {(index) => {
               const entry = galleryVisible[index]!;
