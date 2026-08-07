@@ -119,107 +119,96 @@ export function WorkspaceShell({
 
   const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed ?? true;
   const showTreemapToggle =
-    workspace.currentSection === "inventory" &&
-    (perspective === "folders" || perspective === "gallery");
-
-  // Caption chrome stays outside CSS zoom — zoom breaks Electron click/drag hit-testing.
-  const captionChrome =
-    needsCustomControls || showTreemapToggle ? (
-      <div
-        className="pointer-events-none fixed right-0 top-0 z-[200] flex h-9 items-center justify-end pr-1"
-        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-      >
-        <div className="pointer-events-auto no-drag flex h-8 items-center gap-0.5">
-          {showTreemapToggle ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "no-drag inline-flex h-8 w-8 items-center justify-center text-muted-foreground outline-none transition-colors duration-150 hover:bg-select hover:text-foreground",
-                    !treemapCollapsed && "text-foreground",
-                  )}
-                  aria-label={treemapCollapsed ? "Show storage map" : "Hide storage map"}
-                  aria-pressed={!treemapCollapsed}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }}
-                  onClick={() =>
-                    updateSettings({ inventoryTreemapCollapsed: !treemapCollapsed })
-                  }
-                >
-                  <TreemapIcon className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={8}>
-                {treemapCollapsed ? "Show storage map" : "Hide storage map"}
-              </TooltipContent>
-            </Tooltip>
-          ) : null}
-          {needsCustomControls ? <WindowControls /> : null}
-        </div>
-      </div>
-    ) : null;
+    workspace.currentSection === "inventory" && perspective === "folders";
 
   return (
-    <>
-      {captionChrome}
-      <div
-        className="relative flex h-full min-h-0 w-full origin-top-left"
-        data-theme={theme}
-        data-density={density}
-        style={{
-          backgroundColor: figma.canvas,
-          zoom: densityZoom,
-        }}
-      >
-        <AppSidebar
-          searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
-          onSearchFocus={focusLibrarySearch}
-          duplicateCount={duplicateCount}
-        />
+    <div
+      className="relative flex h-full min-h-0 w-full origin-top-left"
+      data-theme={theme}
+      data-density={density}
+      style={{
+        backgroundColor: figma.canvas,
+        zoom: densityZoom,
+      }}
+    >
+      <AppSidebar
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        onSearchFocus={focusLibrarySearch}
+        duplicateCount={duplicateCount}
+      />
 
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          {!needsCustomControls ? (
-            <div className="drag-region absolute inset-x-0 top-0 z-40 h-9" aria-hidden />
-          ) : null}
-
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-9 items-center justify-end">
           <div
-            className={
-              workspace.currentSection === "notebook" ||
-              workspace.currentSection === "inventory"
-                ? "flex min-h-0 min-w-0 flex-1 flex-col"
-                : "entropy-titlebar-pad flex min-h-0 min-w-0 flex-1 flex-col"
-            }
+            className={cn(
+              "pointer-events-auto no-drag flex items-center gap-0.5",
+              needsCustomControls ? "entropy-titlebar-end" : "pr-2",
+            )}
           >
-            <ContentArea
-              section={workspace.currentSection}
-              pendingNote={pendingNote}
-              onPendingNoteHandled={clearPendingNote}
-              pendingReference={pendingReference}
-              onPendingReferenceHandled={clearPendingReference}
-              librarySearchQuery={searchQuery}
-              onLibrarySearchQueryChange={setSearchQuery}
-              onPickWorkspace={onPickWorkspace}
-            />
+            {showTreemapToggle ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-select hover:text-foreground",
+                      !treemapCollapsed && "text-foreground",
+                    )}
+                    aria-label={treemapCollapsed ? "Show storage map" : "Hide storage map"}
+                    aria-pressed={!treemapCollapsed}
+                    onClick={() =>
+                      updateSettings({ inventoryTreemapCollapsed: !treemapCollapsed })
+                    }
+                  >
+                    <TreemapIcon className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={8}>
+                  {treemapCollapsed ? "Show storage map" : "Hide storage map"}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+            {needsCustomControls ? <WindowControls /> : null}
           </div>
-
-          {showNotebookGate ? (
-            <div
-              className="absolute inset-0 z-40 flex items-center justify-center px-6"
-              style={{
-                backgroundColor: "color-mix(in srgb, var(--color-surface) 88%, transparent)",
-              }}
-            >
-              <div className="w-full max-w-md">
-                <WorkspaceSelector onSelect={onPickWorkspace} embedded />
-              </div>
-            </div>
-          ) : null}
         </div>
+        {!needsCustomControls ? (
+          <div className="drag-region absolute inset-x-0 top-0 z-40 h-9" aria-hidden />
+        ) : null}
+
+        <div
+          className={
+            workspace.currentSection === "notebook" ||
+            workspace.currentSection === "inventory"
+              ? "flex min-h-0 min-w-0 flex-1 flex-col"
+              : "entropy-titlebar-pad flex min-h-0 min-w-0 flex-1 flex-col"
+          }
+        >
+          <ContentArea
+            section={workspace.currentSection}
+            pendingNote={pendingNote}
+            onPendingNoteHandled={clearPendingNote}
+            pendingReference={pendingReference}
+            onPendingReferenceHandled={clearPendingReference}
+            librarySearchQuery={searchQuery}
+            onLibrarySearchQueryChange={setSearchQuery}
+            onPickWorkspace={onPickWorkspace}
+          />
+        </div>
+
+        {showNotebookGate ? (
+          <div
+            className="absolute inset-0 z-40 flex items-center justify-center px-6"
+            style={{
+              backgroundColor: "color-mix(in srgb, var(--color-surface) 88%, transparent)",
+            }}
+          >
+            <div className="w-full max-w-md">
+              <WorkspaceSelector onSelect={onPickWorkspace} embedded />
+            </div>
+          </div>
+        ) : null}
       </div>
-    </>
+    </div>
   );
 }

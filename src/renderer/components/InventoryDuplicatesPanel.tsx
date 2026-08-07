@@ -230,7 +230,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       className="entropy-duplicates flex h-full min-h-0 flex-col bg-background"
       aria-label="Duplicate files"
     >
-      <div className="drag-region flex h-9 shrink-0 items-center gap-2 border-b border-border px-4 entropy-titlebar-end">
+      <div className="entropy-titlebar-end drag-region flex h-9 shrink-0 items-center gap-2 border-b border-border px-4">
         <Button
           type="button"
           variant="ghost"
@@ -242,21 +242,26 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
             onBack();
           }}
         >
-          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
+          <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
         </Button>
-        <Copy className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-        <p className="shrink-0 text-[13px] font-medium text-foreground">Exact duplicates</p>
-        <p className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground" title={rootPath}>
-          {rootPath}
-        </p>
-        {running ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="no-drag h-7 shrink-0 gap-1.5 px-2 text-xs"
-            onClick={stopScan}
-          >
+        <div className="no-drag flex min-w-0 flex-1 items-center gap-2">
+          <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+          <p className="shrink-0 truncate text-[13px] font-medium text-foreground">
+            Exact duplicates
+          </p>
+          <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={rootPath}>
+            {rootPath}
+          </span>
+        </div>
+        <div className="no-drag flex shrink-0 items-center">
+          {running ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+              onClick={stopScan}
+            >
               <Square className="h-3 w-3" strokeWidth={1.75} />
               Stop
             </Button>
@@ -267,7 +272,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="ml-auto h-8 w-8 shrink-0"
+                  className="h-7 w-7 shrink-0"
                   aria-label="Change scope"
                   onClick={() => {
                     setResult(null);
@@ -278,12 +283,13 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
                     setPhase("choose");
                   }}
                 >
-                  <Filter className="h-4 w-4" strokeWidth={1.75} />
+                  <Filter className="h-3.5 w-3.5" strokeWidth={1.75} />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Change scope</TooltipContent>
+              <TooltipContent side="bottom">Change scope</TooltipContent>
             </Tooltip>
           ) : null}
+        </div>
       </div>
 
       {phase === "choose" ? (

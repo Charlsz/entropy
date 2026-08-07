@@ -146,6 +146,12 @@
     padding-inline-end: 108px;
   }
 
+  /* Folders: storage-map toggle sits left of window controls. */
+  [data-platform="win32"] .entropy-titlebar-end--map,
+  [data-platform="linux"] .entropy-titlebar-end--map {
+    padding-inline-end: 148px;
+  }
+
   * {
     @apply border-border;
   }

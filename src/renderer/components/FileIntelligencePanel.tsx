@@ -97,14 +97,14 @@ export function FileIntelligencePanel({
       aria-label="File Intelligence"
     >
       <div
-        className="flex h-9 shrink-0 items-center gap-2 px-3"
+        className="flex h-9 shrink-0 items-center gap-2 px-4"
         style={{ borderBottom: `1px solid ${figma.border}` }}
       >
         <div className="flex min-w-0 flex-1 flex-col justify-center leading-tight">
           <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: figma.muted }}>
             File Intelligence
           </p>
-          <p className="truncate text-[12px] font-medium" style={{ color: figma.ink }} title={entry.name}>
+          <p className="truncate text-[12px] font-semibold" style={{ color: figma.ink }} title={entry.name}>
             {entry.name}
           </p>
         </div>

@@ -4,39 +4,31 @@ import { useWorkspace } from "../state/useWorkspace";
 import { figma } from "../lib/figmaTokens";
 import { cn } from "../lib/utils";
 
-/** Library titleband: breadcrumb + trailing actions sit in the same h-9 row as caption buttons. */
+/**
+ * Library path chrome — single titlebar-height row shared with window controls.
+ * Optional trailing actions (sort / refresh) sit before the reserve for overlays.
+ */
 export function InventoryBreadcrumb({
   className,
   end,
+  reserveMapToggle = false,
 }: {
   className?: string;
   end?: ReactNode;
+  /** Leave room for the storage-map control in the shell title strip. */
+  reserveMapToggle?: boolean;
 }) {
   const { workspace, inventoryCrumbs, goToInventoryCrumb } = useWorkspace();
   const rootLabel = workspace.inventoryRootLabel || "Home";
   const hasTrail = Boolean(workspace.inventoryScanRoot);
 
-  if (!hasTrail) {
-    return (
-      <div
-        className={cn(
-          "drag-region flex h-9 shrink-0 items-center gap-3 border-b px-4 entropy-titlebar-end",
-          className,
-        )}
-        style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
-      >
-        <div className="min-w-0 flex-1" />
-        {end ? (
-          <div className="no-drag ml-auto flex shrink-0 items-center gap-3">{end}</div>
-        ) : null}
-      </div>
-    );
-  }
+  if (!hasTrail) return null;
 
   return (
     <nav
       className={cn(
-        "drag-region flex h-9 shrink-0 items-center gap-3 border-b px-4 entropy-titlebar-end",
+        "drag-region flex h-9 min-w-0 shrink-0 items-center gap-2 border-b px-4",
+        reserveMapToggle ? "entropy-titlebar-end--map" : "entropy-titlebar-end",
         className,
       )}
       style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
@@ -47,10 +39,10 @@ export function InventoryBreadcrumb({
         style={{ color: figma.muted }}
         strokeWidth={1.75}
       />
-      <span className="font-mono text-[12px]" style={{ color: figma.muted }}>
+      <span className="no-drag font-mono text-[12px]" style={{ color: figma.muted }}>
         /
       </span>
-      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+      <div className="no-drag flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
         {inventoryCrumbs.length === 0 ? (
           <span className="truncate text-[13px] font-medium" style={{ color: figma.ink }}>
             {rootLabel}
@@ -59,7 +51,7 @@ export function InventoryBreadcrumb({
           <>
             <button
               type="button"
-              className="no-drag shrink-0 text-[13px]"
+              className="shrink-0 text-[13px]"
               style={{ color: figma.muted }}
               onClick={() => void goToInventoryCrumb(-1)}
             >
@@ -79,7 +71,7 @@ export function InventoryBreadcrumb({
                   ) : (
                     <button
                       type="button"
-                      className="no-drag max-w-[8rem] truncate text-[13px]"
+                      className="max-w-[8rem] truncate text-[13px]"
                       style={{ color: figma.muted }}
                       onClick={() => void goToInventoryCrumb(index)}
                     >
@@ -92,7 +84,9 @@ export function InventoryBreadcrumb({
           </>
         )}
       </div>
-      {end ? <div className="no-drag ml-auto flex shrink-0 items-center gap-3">{end}</div> : null}
+      {end ? (
+        <div className="no-drag ml-auto flex shrink-0 items-center gap-1">{end}</div>
+      ) : null}
     </nav>
   );
 }

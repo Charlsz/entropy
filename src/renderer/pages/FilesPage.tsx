@@ -36,7 +36,6 @@ import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
 import { StorageTreemap } from "../components/StorageTreemap";
-import { FoldersViewToggle } from "../components/FoldersViewToggle";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
@@ -930,24 +929,12 @@ export function FilesPage({
           ? "Size"
           : "Type";
 
-  const showTreemapToggle = perspective === "folders" || perspective === "gallery";
+  const showTreemapToggle = perspective === "folders";
   const showTreemap = showTreemapToggle && !treemapCollapsed;
 
   const sortControl = (
-    <div className="flex items-center gap-3">
-      {perspective === "folders" || perspective === "gallery" ? (
-        <FoldersViewToggle
-          value={perspective === "gallery" ? "gallery" : "list"}
-          onChange={(mode) =>
-            updateSettings({
-              libraryPerspective: mode === "gallery" ? "gallery" : "folders",
-              intelligenceView: null,
-            })
-          }
-        />
-      ) : null}
-      <div className="flex items-center gap-1.5">
-      <span className="text-[12px] text-muted-foreground">Sort by: {sortLabel}</span>
+    <div className="flex items-center gap-1">
+      <span className="text-[11px] text-muted-foreground">Sort by: {sortLabel}</span>
       <Button
         type="button"
         variant="ghost"
@@ -982,8 +969,11 @@ export function FilesPage({
           <TooltipContent side="bottom">Refresh large files</TooltipContent>
         </Tooltip>
       ) : null}
-      </div>
     </div>
+  );
+
+  const pathChrome = (
+    <InventoryBreadcrumb end={sortControl} reserveMapToggle={showTreemapToggle} />
   );
 
   function renderFileTable(rows: FileEntry[], emptyTitle: string, emptyBody: string) {
@@ -1121,7 +1111,7 @@ export function FilesPage({
   function renderGallery() {
     return (
       <>
-        <InventoryBreadcrumb end={sortControl} />
+        {pathChrome}
         <ScrollArea className="min-h-0 flex-1" type="hover">
           <div className="px-6 py-4 pb-6">
             {error ? <p className="mb-3 text-sm text-muted-foreground">{error}</p> : null}
@@ -1183,7 +1173,7 @@ export function FilesPage({
     if (!isSearching && perspective === "large-files") {
       return (
         <>
-          <InventoryBreadcrumb end={sortControl} />
+          {pathChrome}
           {renderFileTable(
             tableEntries,
             "No large files found",
@@ -1195,7 +1185,7 @@ export function FilesPage({
 
     return (
       <>
-        <InventoryBreadcrumb end={sortControl} />
+        {pathChrome}
         {renderFileTable(
           tableEntries,
           isSearching ? "No matches" : "Nothing here yet",
