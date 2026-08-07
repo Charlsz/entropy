@@ -445,16 +445,17 @@ function VideoThumb({
   const { ref, inView } = useInView<HTMLDivElement>("120px", {
     sticky: playback !== "still",
   });
-  const armed = (size === "lg" || inView) && !isMediaReleasing(path);
+  const [releasing, setReleasing] = useState(() => isMediaReleasing(path));
+  const armed = (size === "lg" || inView) && !releasing;
   const [url, setUrl] = useState<string | null>(null);
   const [poster, setPoster] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
-  const [releasing, setReleasing] = useState(() => isMediaReleasing(path));
   const [reloadToken, setReloadToken] = useState(0);
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const errorRetriesRef = useRef(0);
 
-  const live = armed && !releasing && (playback === "clip" || playback === "full");
+  const live = armed && (playback === "clip" || playback === "full");
 
   const bindVideoRef = (el: HTMLVideoElement | null): void => {
     if (videoRef.current && videoRef.current !== el) {
@@ -479,12 +480,17 @@ function VideoThumb({
     });
   }, [path, releasing]);
 
-  // Still faces: OS thumb only. Live faces: stream via entropy:// Range.
+  useEffect(() => {
+    errorRetriesRef.current = 0;
+  }, [path]);
+
+  // Still faces: OS thumb only. Live faces: entropy:// with Range (proven for MP4).
   useEffect(() => {
     if (!armed) return;
     let cancelled = false;
     setFailed(false);
     setPoster(null);
+
     if (playback === "still") {
       void withVideoSlot(async () => {
         try {
@@ -506,18 +512,30 @@ function VideoThumb({
           getThumbUrl(path).catch(() => null),
         ]);
         if (cancelled || isMediaReleasing(path)) return;
-        setPoster(thumb);
+        if (thumb) setPoster(thumb);
         setUrl(fileUrl);
       } catch {
         if (!cancelled) setFailed(true);
       }
     }, () => cancelled);
+
     return () => {
       cancelled = true;
-      unloadVideoEl(videoRef.current);
-      setUrl(null);
+      // Pause only. Clearing src here fires a media error that used to stick the
+      // FileText fallback forever (React Strict Mode / effect churn).
+      try {
+        videoRef.current?.pause();
+      } catch {
+        // Ignore.
+      }
     };
   }, [path, armed, playback, reloadToken]);
+
+  useEffect(() => {
+    return () => {
+      unloadVideoEl(videoRef.current);
+    };
+  }, []);
 
   // Gallery: first 4s infinite loop. Intelligence: continuous play of the whole file.
   useEffect(() => {
@@ -534,7 +552,9 @@ function VideoThumb({
 
     async function playClip(): Promise<void> {
       const el = videoRef.current;
-      if (!el || cancelled || isMediaReleasing(path)) return;
+      if (!el || cancelled || isMediaReleasing(path) || el.dataset.entropyUnloading === "1") {
+        return;
+      }
       try {
         el.currentTime = 0;
         await el.play();
@@ -643,7 +663,19 @@ function VideoThumb({
         autoPlay
         draggable={false}
         className={cn("h-full w-full", objectFit)}
-        onError={() => setFailed(true)}
+        onError={(event) => {
+          const el = event.currentTarget;
+          if (el.dataset.entropyUnloading === "1") return;
+          if (isMediaReleasing(path)) return;
+          // Transient aborts (effect churn) — retry a couple times before giving up.
+          if (errorRetriesRef.current < 2) {
+            errorRetriesRef.current += 1;
+            setUrl(null);
+            setReloadToken((value) => value + 1);
+            return;
+          }
+          setFailed(true);
+        }}
       />
     </div>
   );

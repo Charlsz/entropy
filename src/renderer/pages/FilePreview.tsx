@@ -209,6 +209,7 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
 
 function unloadVideo(video: HTMLVideoElement | null): void {
   if (!video) return;
+  video.dataset.entropyUnloading = "1";
   try {
     video.pause();
   } catch {

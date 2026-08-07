@@ -51,6 +51,11 @@ function mediaMatchesPath(el: HTMLMediaElement, filePath: string): boolean {
 export function unloadMediaElement(el: HTMLMediaElement | null | undefined): void {
   if (!el) return;
   try {
+    el.dataset.entropyUnloading = "1";
+  } catch {
+    // Ignore.
+  }
+  try {
     el.pause();
   } catch {
     // Ignore pause failures on unmounted media.
