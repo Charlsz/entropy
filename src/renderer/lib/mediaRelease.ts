@@ -36,12 +36,9 @@ function urlMatchesPath(src: string, filePath: string): boolean {
   const token = encodePathToken(filePath);
   if (src.includes(token)) return true;
   const normalized = filePath.replace(/\\/g, "/");
-  const base = filePath.split(/[/\\]/).pop() ?? "";
-  if (src.includes(encodeURIComponent(filePath)) || src.includes(encodeURIComponent(normalized))) {
-    return true;
-  }
-  // Basename hint for odd Chromium currentSrc forms.
-  return Boolean(base) && src.toLowerCase().includes(base.toLowerCase());
+  return (
+    src.includes(encodeURIComponent(filePath)) || src.includes(encodeURIComponent(normalized))
+  );
 }
 
 function mediaMatchesPath(el: HTMLMediaElement, filePath: string): boolean {
@@ -69,44 +66,12 @@ export function unloadMediaElement(el: HTMLMediaElement | null | undefined): voi
   }
 }
 
-/** Stop every media element — gallery hover can leave a ghost lock if the card unmounts mid-play. */
-export function unloadAllDomMedia(): void {
-  for (const node of document.querySelectorAll("video, audio")) {
-    unloadMediaElement(node as HTMLMediaElement);
-  }
-  for (const node of document.querySelectorAll("iframe")) {
-    const el = node as HTMLIFrameElement;
-    const src = el.getAttribute("src") || el.src || "";
-    if (!src || src === "about:blank") continue;
-    if (src.startsWith("entropy://") || src.includes("entropy://")) {
-      try {
-        el.src = "about:blank";
-      } catch {
-        // Ignore.
-      }
-    }
-  }
-}
-
-/** Tear down Chromium media/image mappings so Windows can rename/trash the file. */
+/** Tear down Chromium media mappings for one path so Windows can rename/trash it. */
 export function unloadDomMedia(filePath: string): void {
   for (const node of document.querySelectorAll("video, audio")) {
     const el = node as HTMLMediaElement;
     if (!mediaMatchesPath(el, filePath)) continue;
     unloadMediaElement(el);
-  }
-
-  for (const node of document.querySelectorAll("img")) {
-    const el = node as HTMLImageElement;
-    const src = el.currentSrc || el.getAttribute("src") || el.src || "";
-    if (!urlMatchesPath(src, filePath)) continue;
-    try {
-      el.removeAttribute("src");
-      el.src = "";
-      el.removeAttribute("srcset");
-    } catch {
-      // Ignore.
-    }
   }
 
   for (const node of document.querySelectorAll("iframe")) {
@@ -141,15 +106,13 @@ function isBusyTrashError(err: unknown): boolean {
 }
 
 /**
- * Mark path releasing, notify subscribers (they must pause sync), and strip DOM media.
+ * Mark path releasing, notify subscribers (they must pause sync), and strip matching DOM media.
  * Call while the gallery/inspector card is still mounted whenever possible.
  */
 export function stopMediaForPath(filePath: string): void {
   releasing.add(filePath);
   notify();
   unloadDomMedia(filePath);
-  // Hovered gallery videos may not match the token if already tearing down — stop all playheads.
-  unloadAllDomMedia();
 }
 
 export function clearMediaRelease(filePath: string): void {
@@ -184,10 +147,9 @@ export async function withMediaReleased<T>(
     for (let attempt = 0; attempt < 6; attempt += 1) {
       stopMediaForPath(filePath);
       await doubleRaf();
-      await sleep(320 + attempt * 240);
+      await sleep(280 + attempt * 200);
       unloadDomMedia(filePath);
-      unloadAllDomMedia();
-      await sleep(100);
+      await sleep(80);
       try {
         return await task();
       } catch (err) {

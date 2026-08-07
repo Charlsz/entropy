@@ -435,22 +435,22 @@ function VideoThumb({
   objectFit?: string;
   autoplay?: boolean;
 }) {
-  // Sticky for inspector autoplay so hover / layout thrash cannot blank the preview.
-  const { ref, inView } = useInView<HTMLDivElement>("80px", { sticky: autoplay });
+  // Sticky for inspector autoplay so layout thrash cannot blank the preview.
+  const { ref, inView } = useInView<HTMLDivElement>("80px", { sticky: autoplay || size !== "lg" });
   const [url, setUrl] = useState<string | null>(null);
   const [poster, setPoster] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [hasFrame, setHasFrame] = useState(false);
   const [releasing, setReleasing] = useState(() => isMediaReleasing(path));
+  const [reloadToken, setReloadToken] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Inspector (autoplay): always live. Gallery: play only while hovered in view.
+  // Inspector (autoplay): always live. Gallery lg: play only while hovered.
   const wantsLive =
     size === "lg" && !releasing && (autoplay || (inView && hovered));
 
   const bindVideoRef = (el: HTMLVideoElement | null): void => {
-    // React clears refs before effect cleanups — unload here so Windows can trash the file.
     if (videoRef.current && videoRef.current !== el) {
       unloadVideoEl(videoRef.current);
     }
@@ -465,10 +465,14 @@ function VideoThumb({
         setUrl(null);
         setHasFrame(false);
         setHovered(false);
+      } else if (releasing) {
+        // This path finished a delete pass — remount poster/video if needed.
+        setReloadToken((value) => value + 1);
+        setFailed(false);
       }
       setReleasing(next);
     });
-  }, [path]);
+  }, [path, releasing]);
 
   useEffect(() => {
     let cancelled = false;
@@ -485,37 +489,21 @@ function VideoThumb({
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, reloadToken]);
 
   useEffect(() => {
     if (!wantsLive) {
-      setUrl((prev) => {
-        if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
-        return null;
-      });
+      setUrl(null);
       setHasFrame(false);
       unloadVideoEl(videoRef.current);
       return;
     }
     let cancelled = false;
-    let objectUrl: string | null = null;
     setHasFrame(false);
     void withVideoSlot(async () => {
       try {
+        // Always stream via entropy:// — blob prefetch was blanking large gallery clips.
         const fileUrl = await getFileUrl(path);
-        if (cancelled || isMediaReleasing(path)) return;
-        // Prefer a blob URL so Chromium releases the disk handle before playback.
-        // Large files keep the stream URL (Range) to avoid loading into RAM.
-        const bytes = await window.entropy.fs.stat(path).then((e) => e.size).catch(() => 0);
-        if (bytes > 0 && bytes <= 48 * 1024 * 1024) {
-          const res = await fetch(fileUrl);
-          if (!res.ok) throw new Error("preview fetch failed");
-          const blob = await res.blob();
-          if (cancelled || isMediaReleasing(path)) return;
-          objectUrl = URL.createObjectURL(blob);
-          setUrl(objectUrl);
-          return;
-        }
         if (!cancelled && !isMediaReleasing(path)) setUrl(fileUrl);
       } catch {
         if (!cancelled) setFailed(true);
@@ -524,9 +512,8 @@ function VideoThumb({
     return () => {
       cancelled = true;
       unloadVideoEl(videoRef.current);
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [path, wantsLive]);
+  }, [path, wantsLive, reloadToken]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -583,7 +570,7 @@ function VideoThumb({
     },
   } as const;
 
-  if (failed) {
+  if (failed && !poster) {
     return (
       <div {...shellProps} className="flex h-full w-full items-center justify-center bg-ink-2">
         <FileText
@@ -597,7 +584,7 @@ function VideoThumb({
     );
   }
 
-  // Keep the poster/face under the video until a frame is ready — never flash an empty box.
+  // Keep the poster under the video until a frame is ready — never flash an empty box.
   return (
     <div {...shellProps}>
       {poster ? (
@@ -618,6 +605,7 @@ function VideoThumb({
       ) : null}
       {url && wantsLive ? (
         <video
+          key={`${url}:${reloadToken}`}
           ref={bindVideoRef}
           src={url}
           poster={poster ?? undefined}
