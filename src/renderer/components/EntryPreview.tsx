@@ -435,16 +435,19 @@ function VideoThumb({
   objectFit?: string;
   autoplay?: boolean;
 }) {
-  const { ref, inView } = useInView<HTMLDivElement>("80px", { sticky: false });
+  // Sticky for inspector autoplay so hover / layout thrash cannot blank the preview.
+  const { ref, inView } = useInView<HTMLDivElement>("80px", { sticky: autoplay });
   const [url, setUrl] = useState<string | null>(null);
   const [poster, setPoster] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [hasFrame, setHasFrame] = useState(false);
   const [releasing, setReleasing] = useState(() => isMediaReleasing(path));
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Inspector contain mode plays the clip; gallery still waits for hover.
-  const wantsLive = size === "lg" && inView && !releasing && (autoplay || hovered);
+  // Inspector (autoplay): always live. Gallery: play only while hovered in view.
+  const wantsLive =
+    size === "lg" && !releasing && (autoplay || (inView && hovered));
 
   const bindVideoRef = (el: HTMLVideoElement | null): void => {
     // React clears refs before effect cleanups — unload here so Windows can trash the file.
@@ -460,6 +463,7 @@ function VideoThumb({
       if (next) {
         unloadVideoEl(videoRef.current);
         setUrl(null);
+        setHasFrame(false);
         setHovered(false);
       }
       setReleasing(next);
@@ -489,19 +493,21 @@ function VideoThumb({
         if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
         return null;
       });
+      setHasFrame(false);
       unloadVideoEl(videoRef.current);
       return;
     }
     let cancelled = false;
     let objectUrl: string | null = null;
+    setHasFrame(false);
     void withVideoSlot(async () => {
       try {
         const fileUrl = await getFileUrl(path);
         if (cancelled || isMediaReleasing(path)) return;
         // Prefer a blob URL so Chromium releases the disk handle before playback.
         // Large files keep the stream URL (Range) to avoid loading into RAM.
-        const size = await window.entropy.fs.stat(path).then((e) => e.size).catch(() => 0);
-        if (size > 0 && size <= 48 * 1024 * 1024) {
+        const bytes = await window.entropy.fs.stat(path).then((e) => e.size).catch(() => 0);
+        if (bytes > 0 && bytes <= 48 * 1024 * 1024) {
           const res = await fetch(fileUrl);
           if (!res.ok) throw new Error("preview fetch failed");
           const blob = await res.blob();
@@ -551,6 +557,7 @@ function VideoThumb({
     }
 
     function onLoaded(): void {
+      setHasFrame(true);
       void playClip();
     }
 
@@ -571,7 +578,9 @@ function VideoThumb({
     onPointerEnter: () => {
       if (!isMediaReleasing(path)) setHovered(true);
     },
-    onPointerLeave: () => setHovered(false),
+    onPointerLeave: () => {
+      if (!autoplay) setHovered(false);
+    },
   } as const;
 
   if (failed) {
@@ -588,38 +597,42 @@ function VideoThumb({
     );
   }
 
-  if (!url || !wantsLive) {
-    return (
-      <div {...shellProps}>
-        {poster ? (
-          <img
-            src={poster}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-            className={cn("h-full w-full", objectFit)}
-          />
-        ) : (
-          <QuietFace />
-        )}
-      </div>
-    );
-  }
-
+  // Keep the poster/face under the video until a frame is ready — never flash an empty box.
   return (
     <div {...shellProps}>
-      <video
-        ref={bindVideoRef}
-        src={url}
-        poster={poster ?? undefined}
-        muted
-        playsInline
-        loop={autoplay}
-        preload="metadata"
-        draggable={false}
-        className={cn("h-full w-full", objectFit)}
-      />
+      {poster ? (
+        <img
+          src={poster}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className={cn(
+            "absolute inset-0 h-full w-full",
+            objectFit,
+            hasFrame && wantsLive ? "opacity-0" : "opacity-100",
+          )}
+        />
+      ) : !hasFrame ? (
+        <div className="absolute inset-0 bg-ink-2" />
+      ) : null}
+      {url && wantsLive ? (
+        <video
+          ref={bindVideoRef}
+          src={url}
+          poster={poster ?? undefined}
+          muted
+          playsInline
+          loop={autoplay}
+          preload="metadata"
+          draggable={false}
+          className={cn(
+            "relative h-full w-full",
+            objectFit,
+            hasFrame ? "opacity-100" : "opacity-0",
+          )}
+        />
+      ) : null}
     </div>
   );
 }
