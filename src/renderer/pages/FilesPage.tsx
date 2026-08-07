@@ -483,11 +483,16 @@ export function FilesPage({
     }
 
     let cancelled = false;
+    // Drop prior hits immediately so a new query shows the searching state,
+    // including when you are still inside a folder from the last open.
     setSearchLoading(true);
+    setRemoteSearchEntries([]);
+    setSearchHitMeta(new Map());
     const handle = window.setTimeout(() => {
       void (async () => {
         try {
-          const inventoryRoot = scanRoot || workspace.currentFolder;
+          const inventoryRoot =
+            scanRoot || workspace.inventoryScanRoot || workspace.currentFolder;
           const marked = await window.entropy.workspace.listMarked().catch(() => []);
           const workspaceRoots = new Map<string, string>();
           workspaceRoots.set(workspace.path, workspace.name);
@@ -571,6 +576,8 @@ export function FilesPage({
     isSearching,
     trimmedSearch,
     scanRoot,
+    workspace.inventoryScanRoot,
+    workspace.currentFolder,
     workspace.path,
     workspace.name,
   ]);
@@ -622,16 +629,9 @@ export function FilesPage({
   }, [largeFileEntries, sortAsc, sortKey]);
 
   const searchVisible = useMemo(() => {
-    const byPath = new Map<string, FileEntry>();
-    for (const entry of folderVisible) {
-      byPath.set(entry.path.replace(/\\/g, "/").toLowerCase(), entry);
-    }
-    for (const entry of remoteSearchEntries) {
-      const key = entry.path.replace(/\\/g, "/").toLowerCase();
-      if (!byPath.has(key)) byPath.set(key, entry);
-    }
-    const merged = [...byPath.values()];
-    return merged.sort((a, b) => {
+    // Global inventory hits only — never blend the open folder's local name filter,
+    // or a nested folder from the last open feels like the whole search scope.
+    return [...remoteSearchEntries].sort((a, b) => {
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
       let cmp = 0;
       if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
@@ -640,7 +640,7 @@ export function FilesPage({
       if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
       return sortAsc ? cmp : -cmp;
     });
-  }, [folderVisible, remoteSearchEntries, sortAsc, sortKey]);
+  }, [remoteSearchEntries, sortAsc, sortKey]);
 
   const galleryVisible = useMemo(() => {
     // Gallery is only a display mode for the same Folders rows (browse or search).
@@ -658,7 +658,7 @@ export function FilesPage({
     perspective === "large-files"
       ? largeFilesLoading
       : isSearching
-        ? loading && folderVisible.length === 0
+        ? searchLoading
         : loading;
 
   function clearLibrarySearch(): void {
@@ -1026,7 +1026,7 @@ export function FilesPage({
     ) : null;
 
   function renderFileTable(rows: FileEntry[], emptyTitle: string, emptyBody: string) {
-    const showLoading = listLoading || (isSearching && searchLoading && rows.length === 0);
+    const showLoading = listLoading;
     const showEmpty = !showLoading && rows.length === 0;
 
     return (
@@ -1158,8 +1158,7 @@ export function FilesPage({
   }
 
   function renderGallery() {
-    const showLoading =
-      listLoading || (isSearching && searchLoading && galleryVisible.length === 0);
+    const showLoading = listLoading;
     const showEmpty = !showLoading && galleryVisible.length === 0;
 
     return (
