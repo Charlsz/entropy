@@ -147,9 +147,12 @@ export const EntryPreview = memo(function EntryPreview({
 
   const kind = mediaKind(entry.extension);
   if (kind === "image" || kind === "video" || kind === "pdf") {
+    // size=lg (File Intelligence) must not wait on IntersectionObserver — CSS zoom
+    // on the shell breaks IO and left inspector previews permanently blank.
+    const showMedia = size === "lg" || inView;
     return (
       <div ref={ref} className={shell}>
-        {inView ? (
+        {showMedia ? (
           kind === "image" ? (
             <ImageThumb path={entry.path} alt={entry.name} objectFit={objectFit} />
           ) : kind === "video" ? (
