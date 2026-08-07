@@ -4,6 +4,7 @@ import {
   Database,
   FilePen,
   FolderOpen,
+  GalleryThumbnails,
   Package,
   Settings,
   X,
@@ -53,7 +54,7 @@ export function AppSidebar({
   onSearchFocus,
   duplicateCount,
 }: AppSidebarProps) {
-  const { workspace, visitSection, updateSettings } = useWorkspace();
+  const { workspace, visitSection, updateSettings, goToFolder } = useWorkspace();
   const section = workspace.currentSection;
   const perspective = workspace.settings.libraryPerspective;
   const settingsLargeFilesBytes = workspace.settings.largeFilesApproxBytes;
@@ -96,13 +97,18 @@ export function AppSidebar({
   }
 
   function goLibrary(next?: LibraryPerspective): void {
-    // Perspective navigation leaves search so Folders/Large Files/etc. show themselves.
+    // Perspective navigation leaves search so Folders/Gallery/etc. show themselves.
     onSearchQueryChange("");
     updateSettings({
       intelligenceView: null,
       ...(next ? { libraryPerspective: next } : {}),
     });
     visitSection("inventory");
+    if (next === "gallery") {
+      void window.entropy.fs.getHomePath().then((home) => {
+        goToFolder(home);
+      });
+    }
   }
 
   function handleSearchChange(event: React.ChangeEvent<HTMLInputElement>): void {
@@ -218,6 +224,7 @@ export function AppSidebar({
         {(
           [
             ["folders", FolderOpen],
+            ["gallery", GalleryThumbnails],
             ["large-files", Package],
             ["duplicates", Copy],
           ] as const
@@ -226,17 +233,8 @@ export function AppSidebar({
             key={id}
             icon={icon}
             label={PERSPECTIVE_LABELS[id]}
-            active={
-              libraryActive &&
-              (id === "folders"
-                ? perspective === "folders" || perspective === "gallery"
-                : perspective === id)
-            }
-            onClick={() =>
-              goLibrary(
-                id === "folders" && perspective === "gallery" ? "gallery" : id,
-              )
-            }
+            active={libraryActive && perspective === id}
+            onClick={() => goLibrary(id)}
             meta={
               id === "large-files"
                 ? largeFilesBytes != null && largeFilesBytes > 0

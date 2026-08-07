@@ -15,11 +15,6 @@ export const LIBRARY_PERSPECTIVES: LibraryPerspective[] = [
   "duplicates",
 ];
 
-/** Perspectives listed in the app sidebar (Gallery lives under Folders). */
-export const SIDEBAR_LIBRARY_PERSPECTIVES: Array<
-  Exclude<LibraryPerspective, "gallery">
-> = ["folders", "large-files", "duplicates"];
-
 export const PERSPECTIVE_LABELS: Record<LibraryPerspective, string> = {
   folders: "Folders",
   gallery: "Gallery",
