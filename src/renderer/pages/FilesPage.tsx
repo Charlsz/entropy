@@ -29,6 +29,7 @@ import {
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
 import { TrashUndoBar } from "../components/TrashUndoBar";
+import { CornerToast } from "../components/CornerToast";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
@@ -146,6 +147,7 @@ export function FilesPage({
   const [undoTrash, setUndoTrash] = useState<{ paths: string[]; name: string; size: number } | null>(
     null,
   );
+  const [clipboardToast, setClipboardToast] = useState<string | null>(null);
   const [undoBusy, setUndoBusy] = useState(false);
   const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -187,6 +189,12 @@ export function FilesPage({
     // Clear retired Intelligence stubs from older sessions.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once when remnant is present
   }, [intelligenceView]);
+
+  useEffect(() => {
+    if (!clipboardToast) return;
+    const timer = window.setTimeout(() => setClipboardToast(null), 2800);
+    return () => window.clearTimeout(timer);
+  }, [clipboardToast]);
 
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
@@ -851,6 +859,7 @@ export function FilesPage({
             try {
               await navigator.clipboard.writeText(markdown);
               setError(null);
+              setClipboardToast("Reference copied to clipboard");
             } catch {
               setError("Could not copy reference to the clipboard.");
             }
@@ -1261,6 +1270,11 @@ export function FilesPage({
           onUndo={() => void undoTrashAction()}
           onDismiss={() => void dismissTrashUndo()}
         />
+      ) : null}
+      {showChrome && clipboardToast && !undoTrash ? (
+        <CornerToast onDismiss={() => setClipboardToast(null)}>
+          <p className="font-medium">{clipboardToast}</p>
+        </CornerToast>
       ) : null}
       <ConfirmDialog
         open={pendingDelete !== null}
