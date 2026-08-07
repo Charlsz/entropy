@@ -43,7 +43,7 @@ const api: EntropyApi = {
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
     setChromeTheme: (theme) => ipcRenderer.invoke("window:setChromeTheme", theme),
-    // Win/Linux draw Entropy caption buttons; macOS keeps traffic lights.
+    // Win/Linux: custom Entropy window controls. macOS keeps traffic lights.
     needsCustomControls: process.platform !== "darwin",
   },
   duplicates: {

@@ -136,14 +136,14 @@
     padding-top: env(titlebar-area-height, 36px);
   }
 
+  /* Space for custom Entropy window controls (3 × 36px). */
   .entropy-titlebar-end {
     padding-inline-end: 0.5rem;
   }
 
   [data-platform="win32"] .entropy-titlebar-end,
   [data-platform="linux"] .entropy-titlebar-end {
-    /* Clear fixed caption cluster (optional treemap + min/max/close) with breathing room. */
-    padding-inline-end: 10.5rem;
+    padding-inline-end: 108px;
   }
 
   * {

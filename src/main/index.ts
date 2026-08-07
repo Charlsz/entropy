@@ -103,10 +103,10 @@ async function createWindow(): Promise<BrowserWindow> {
     show: true,
     backgroundColor: chrome.backgroundColor,
     ...(icon ? { icon } : {}),
-    // Frameless content; Win/Linux use Entropy WindowControls (no native titleBarOverlay).
+    // Frameless chrome — Win/Linux use custom window controls in the renderer.
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     ...(process.platform === "darwin"
-      ? { trafficLightPosition: { x: 14, y: 16 } }
+      ? { trafficLightPosition: { x: 14, y: 14 } }
       : {}),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
@@ -362,31 +362,22 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("window:minimize", (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
-    if (!win || win.isDestroyed()) return;
-    win.minimize();
+    BrowserWindow.fromWebContents(event.sender)?.minimize();
   });
   ipcMain.handle("window:maximize", (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
-    if (!win || win.isDestroyed()) return;
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
     if (win.isMaximized()) win.unmaximize();
     else win.maximize();
   });
   ipcMain.handle("window:close", (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
-    if (!win || win.isDestroyed()) return;
-    win.close();
+    BrowserWindow.fromWebContents(event.sender)?.close();
   });
   ipcMain.handle("window:isMaximized", (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
-    return win && !win.isDestroyed() ? win.isMaximized() : false;
+    return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
   });
-  ipcMain.handle("window:setChromeTheme", (event, theme: "light" | "dark") => {
-    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
-    if (!win || win.isDestroyed()) return;
-    const chrome = chromeColors(theme === "light" ? "light" : "dark");
-    // Background only — caption buttons are custom renderer chrome now.
-    win.setBackgroundColor(chrome.backgroundColor);
+  ipcMain.handle("window:setChromeTheme", (_event, _theme: "light" | "dark") => {
+    // Custom renderer controls — no native title-bar overlay to recolor.
   });
 
   ipcMain.on("app:flushed", () => {
