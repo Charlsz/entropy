@@ -33,6 +33,7 @@ import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
+import { ChromeTitlebarStart } from "../components/ChromeTitlebar";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
 import { StorageTreemap } from "../components/StorageTreemap";
@@ -972,9 +973,12 @@ export function FilesPage({
     </div>
   );
 
-  const pathChrome = (
-    <InventoryBreadcrumb end={sortControl} reserveMapToggle={showTreemapToggle} />
-  );
+  const pathChrome =
+    workspace.currentSection === "inventory" && perspective !== "duplicates" ? (
+      <ChromeTitlebarStart>
+        <InventoryBreadcrumb end={sortControl} />
+      </ChromeTitlebarStart>
+    ) : null;
 
   function renderFileTable(rows: FileEntry[], emptyTitle: string, emptyBody: string) {
     return (

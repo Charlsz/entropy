@@ -551,20 +551,18 @@ export function NotebookPage({
 
   const context =
     contextUseful || previewEntry ? (
-      <div className="entropy-titlebar-pad flex h-full min-h-0 flex-col">
-        <NoteContextPanel
-          notePath={activePath}
-          previewEntry={previewEntry}
-          liveContent={liveContent}
-          onOpenNote={openNote}
-          onReference={(entry) => void referenceEntry(entry)}
-          onClearPreview={() => setPreviewEntry(null)}
-          onRewriteHref={(from, to) => {
-            editorRef.current?.rewriteHref(from, to);
-            setContextEpoch((value) => value + 1);
-          }}
-        />
-      </div>
+      <NoteContextPanel
+        notePath={activePath}
+        previewEntry={previewEntry}
+        liveContent={liveContent}
+        onOpenNote={openNote}
+        onReference={(entry) => void referenceEntry(entry)}
+        onClearPreview={() => setPreviewEntry(null)}
+        onRewriteHref={(from, to) => {
+          editorRef.current?.rewriteHref(from, to);
+          setContextEpoch((value) => value + 1);
+        }}
+      />
     ) : null;
 
   return (
@@ -578,10 +576,7 @@ export function NotebookPage({
             className="flex h-full min-h-0 w-full flex-col"
             style={{ backgroundColor: figma.surface, borderRight: `1px solid ${figma.border}` }}
           >
-            <div
-              className="flex items-center gap-1.5 px-4 pb-2"
-              style={{ paddingTop: window.entropy.platform === "darwin" ? 36 : 8 }}
-            >
+            <div className="flex items-center gap-1.5 px-4 py-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button

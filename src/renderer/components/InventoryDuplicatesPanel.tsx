@@ -23,6 +23,8 @@ import { ScrollArea } from "./ui/scroll-area";
 import { ConfirmDialog, DeletePreviewLists } from "./ConfirmDialog";
 import { TrashUndoBar } from "./TrashUndoBar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { ChromeTitlebarStart } from "./ChromeTitlebar";
+import { useWorkspace } from "../state/useWorkspace";
 import { osRevealLabel, osTrashName, hostPlatform } from "../lib/platform";
 import { withMediaReleased } from "../lib/mediaRelease";
 import { cn } from "../lib/utils";
@@ -73,6 +75,8 @@ interface PendingDelete {
  * Inventory duplicates mode: choose scope → live log + streaming groups → simple trash delete.
  */
 export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicatesPanelProps) {
+  const { workspace } = useWorkspace();
+  const titlebarActive = workspace.currentSection === "inventory";
   const [scope, setScope] = useState<DuplicateScanScopeId>(DEFAULT_DUPLICATE_SCAN_SCOPE);
   const [phase, setPhase] = useState<Phase>("choose");
   const [activeScope, setActiveScope] = useState<DuplicateScanScopeId | null>(null);
@@ -230,67 +234,71 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       className="entropy-duplicates flex h-full min-h-0 flex-col bg-background"
       aria-label="Duplicate files"
     >
-      <div className="entropy-titlebar-end drag-region flex h-9 shrink-0 items-center gap-2 border-b border-border px-4">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="no-drag h-7 w-7 shrink-0"
-          aria-label="Back to folder"
-          onClick={() => {
-            if (running) void window.entropy.duplicates.cancel();
-            onBack();
-          }}
-        >
-          <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
-        </Button>
-        <div className="no-drag flex min-w-0 flex-1 items-center gap-2">
-          <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-          <p className="shrink-0 truncate text-[13px] font-medium text-foreground">
-            Exact duplicates
-          </p>
-          <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={rootPath}>
-            {rootPath}
-          </span>
+      {titlebarActive ? (
+      <ChromeTitlebarStart>
+        <div className="flex h-9 min-w-0 flex-1 items-center gap-2 px-4">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            aria-label="Back to folder"
+            onClick={() => {
+              if (running) void window.entropy.duplicates.cancel();
+              onBack();
+            }}
+          >
+            <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
+          </Button>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+            <p className="shrink-0 truncate text-[13px] font-medium text-foreground">
+              Exact duplicates
+            </p>
+            <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={rootPath}>
+              {rootPath}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center">
+            {running ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+                onClick={stopScan}
+              >
+                <Square className="h-3 w-3" strokeWidth={1.75} />
+                Stop
+              </Button>
+            ) : phase === "done" ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    aria-label="Change scope"
+                    onClick={() => {
+                      setResult(null);
+                      setLiveGroups([]);
+                      setProgress(null);
+                      setError(null);
+                      setLogLines([]);
+                      setPhase("choose");
+                    }}
+                  >
+                    <Filter className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Change scope</TooltipContent>
+              </Tooltip>
+            ) : null}
+          </div>
         </div>
-        <div className="no-drag flex shrink-0 items-center">
-          {running ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 shrink-0 gap-1.5 px-2 text-xs"
-              onClick={stopScan}
-            >
-              <Square className="h-3 w-3" strokeWidth={1.75} />
-              Stop
-            </Button>
-          ) : phase === "done" ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  aria-label="Change scope"
-                  onClick={() => {
-                    setResult(null);
-                    setLiveGroups([]);
-                    setProgress(null);
-                    setError(null);
-                    setLogLines([]);
-                    setPhase("choose");
-                  }}
-                >
-                  <Filter className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Change scope</TooltipContent>
-            </Tooltip>
-          ) : null}
-        </div>
-      </div>
+      </ChromeTitlebarStart>
+      ) : null}
 
       {phase === "choose" ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10 sm:px-6">

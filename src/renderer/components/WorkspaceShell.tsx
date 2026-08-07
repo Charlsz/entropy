@@ -3,6 +3,10 @@ import { AppSidebar } from "./AppSidebar";
 import { ContentArea } from "./ContentArea";
 import { WindowControls } from "./WindowControls";
 import { TreemapIcon } from "./StorageTreemap";
+import {
+  ChromeTitlebarProvider,
+  useChromeTitlebarStart,
+} from "./ChromeTitlebar";
 import { useWorkspace } from "../state/useWorkspace";
 import { figma } from "../lib/figmaTokens";
 import { WorkspaceSelector } from "./WorkspaceSelector";
@@ -14,6 +18,23 @@ import { cn } from "../lib/utils";
  * Search lives in the sidebar input and drives Folders filtering (no popup palette).
  */
 export function WorkspaceShell({
+  needsNotebookWorkspace,
+  onPickWorkspace,
+}: {
+  needsNotebookWorkspace: boolean;
+  onPickWorkspace: (path: string) => void;
+}) {
+  return (
+    <ChromeTitlebarProvider>
+      <WorkspaceShellFrame
+        needsNotebookWorkspace={needsNotebookWorkspace}
+        onPickWorkspace={onPickWorkspace}
+      />
+    </ChromeTitlebarProvider>
+  );
+}
+
+function WorkspaceShellFrame({
   needsNotebookWorkspace,
   onPickWorkspace,
 }: {
@@ -33,6 +54,7 @@ export function WorkspaceShell({
     visitSection,
     updateSettings,
   } = useWorkspace();
+  const titleStart = useChromeTitlebarStart();
   const [searchQuery, setSearchQuery] = useState("");
   const [duplicateCount, setDuplicateCount] = useState<number | null>(null);
   const needsCustomControls = Boolean(window.entropy.window?.needsCustomControls);
@@ -139,8 +161,18 @@ export function WorkspaceShell({
       />
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-9 items-center justify-end">
-          <div className="pointer-events-auto no-drag flex items-center gap-0.5 pr-1">
+        {/*
+          One real caption strip: parent is drag, interactive children are no-drag.
+          Absolute overlays + sibling drag regions break click/hit-testing on Electron.
+        */}
+        <header
+          className="drag-region flex h-9 shrink-0 items-center border-b"
+          style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
+        >
+          <div className="no-drag flex min-w-0 flex-1 items-center overflow-hidden">
+            {titleStart}
+          </div>
+          <div className="no-drag flex shrink-0 items-center gap-0.5 pr-1">
             {showTreemapToggle ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -166,19 +198,9 @@ export function WorkspaceShell({
             ) : null}
             {needsCustomControls ? <WindowControls /> : null}
           </div>
-        </div>
-        {!needsCustomControls ? (
-          <div className="drag-region absolute inset-x-0 top-0 z-40 h-9" aria-hidden />
-        ) : null}
+        </header>
 
-        <div
-          className={
-            workspace.currentSection === "notebook" ||
-            workspace.currentSection === "inventory"
-              ? "flex min-h-0 min-w-0 flex-1 flex-col"
-              : "entropy-titlebar-pad flex min-h-0 min-w-0 flex-1 flex-col"
-          }
-        >
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <ContentArea
             section={workspace.currentSection}
             pendingNote={pendingNote}
