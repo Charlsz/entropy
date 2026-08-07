@@ -21,7 +21,7 @@ import {
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { ConfirmDialog, DeletePreviewLists } from "./ConfirmDialog";
-import { TrashUndoBar } from "./TrashUndoBar";
+import { useAppToasts } from "./ToastProvider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { ChromeTitlebarStart } from "./ChromeTitlebar";
 import { useWorkspace } from "../state/useWorkspace";
@@ -88,11 +88,14 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [undoBatch, setUndoBatch] = useState<{ paths: string[]; reclaimBytes: number } | null>(
-    null,
-  );
-  const [undoBusy, setUndoBusy] = useState(false);
   const logEndRef = useRef<HTMLDivElement | null>(null);
+  const { pushToast } = useAppToasts();
+  const refreshUiRef = useRef<() => void>(() => undefined);
+  refreshUiRef.current = () => {
+    setPhase("choose");
+    setResult(null);
+    setLiveGroups([]);
+  };
 
   useEffect(() => {
     return window.entropy.duplicates.onProgress((next) => {
@@ -174,14 +177,29 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     }
     const batchReclaim = pendingDelete.reclaimBytes;
     try {
-      if (undoBatch) {
-        await window.entropy.fs.finalizeTrash(undoBatch.paths);
-        setUndoBatch(null);
-      }
       for (const filePath of batch) {
         await withMediaReleased(filePath, () => window.entropy.fs.remove(filePath));
       }
-      setUndoBatch({ paths: batch, reclaimBytes: batchReclaim });
+      const trash = osTrashName();
+      const count = batch.length;
+      pushToast({
+        title: count === 1 ? `Moved to ${trash}` : `${count.toLocaleString()} moved to ${trash}`,
+        detail: formatBytes(batchReclaim),
+        actionLabel: "Undo",
+        showOpenTrash: true,
+        onAction: async () => {
+          const outcome = await window.entropy.fs.undoRemove(batch);
+          if (outcome.failed.length > 0 && outcome.restored === 0) {
+            throw new Error(
+              `Couldn't restore the files. They may already be gone from ${trash}.`,
+            );
+          }
+          refreshUiRef.current();
+        },
+        onDismiss: () => {
+          void window.entropy.fs.finalizeTrash(batch).catch(() => undefined);
+        },
+      });
       const removed = new Set(batch);
       setLiveGroups((prev) => pruneGroups(prev, removed));
       setResult((prev) => {
@@ -199,34 +217,6 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       setDeleting(false);
       setPendingDelete(null);
     }
-  }
-
-  async function undoCleanup(): Promise<void> {
-    if (!undoBatch) return;
-    setUndoBusy(true);
-    setError(null);
-    try {
-      const outcome = await window.entropy.fs.undoRemove(undoBatch.paths);
-      if (outcome.failed.length > 0 && outcome.restored === 0) {
-        setError(`Couldn't restore the files. They may already be gone from ${osTrashName()}.`);
-      } else {
-        setUndoBatch(null);
-        setPhase("choose");
-        setResult(null);
-        setLiveGroups([]);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Undo failed");
-    } finally {
-      setUndoBusy(false);
-    }
-  }
-
-  async function dismissUndoBatch(): Promise<void> {
-    if (!undoBatch) return;
-    const paths = undoBatch.paths;
-    setUndoBatch(null);
-    await window.entropy.fs.finalizeTrash(paths).catch(() => undefined);
   }
 
   return (
@@ -441,15 +431,6 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
           </div>
 
           <div className="flex shrink-0 flex-col border-t border-border">
-            {undoBatch ? (
-              <TrashUndoBar
-                fileCount={undoBatch.paths.length}
-                reclaimLabel={formatBytes(undoBatch.reclaimBytes)}
-                busy={undoBusy}
-                onUndo={() => void undoCleanup()}
-                onDismiss={() => void dismissUndoBatch()}
-              />
-            ) : null}
             <div className="px-4 py-2 text-sm text-muted-foreground">
               <div className="entropy-duplicates-stage min-w-0 truncate">
                 {result

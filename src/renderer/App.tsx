@@ -8,6 +8,7 @@ import { fromSessionSettings, toSessionSettings } from "./state/sessionSettings"
 import type { WorkspaceSettings } from "./state/workspace";
 import { DEFAULT_SETTINGS } from "./state/workspace";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { ToastProvider } from "./components/ToastProvider";
 import { samePath } from "./lib/platform";
 import { figma } from "./lib/figmaTokens";
 
@@ -206,5 +207,5 @@ export function App() {
     );
   }
 
-  return <TooltipProvider delayDuration={400}>{content}</TooltipProvider>;
+  return <TooltipProvider delayDuration={400}><ToastProvider>{content}</ToastProvider></TooltipProvider>;
 }

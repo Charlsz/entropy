@@ -1,13 +1,18 @@
 import { shell, type WebContents } from "electron";
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import type { FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
 import { assertPathMutable, isProtectedOsDirName, isProtectedOsPath } from "../shared/protectedPaths";
 import { releaseFileReaders } from "./protocol";
 import { removeToTrash } from "./trash";
 import { mapPool } from "./asyncPool";
+
+const execFileAsync = promisify(execFile);
 
 const platform = process.platform;
 
@@ -579,6 +584,19 @@ export async function revealInFolder(targetPath: string): Promise<void> {
 
 export async function openExternal(targetPath: string): Promise<void> {
   await shell.openPath(targetPath);
+}
+
+/** Open the OS Recycle Bin / Trash so the user can find recently deleted files. */
+export async function openOsTrash(): Promise<void> {
+  if (process.platform === "win32") {
+    await execFileAsync("explorer.exe", ["shell:RecycleBinFolder"]);
+    return;
+  }
+  if (process.platform === "darwin") {
+    await shell.openPath(path.join(os.homedir(), ".Trash"));
+    return;
+  }
+  await shell.openPath(path.join(os.homedir(), ".local", "share", "Trash", "files"));
 }
 
 const EMBED_FIND_MAX_DEPTH = 14;

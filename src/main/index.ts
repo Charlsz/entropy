@@ -231,6 +231,7 @@ function registerIpc(): void {
   ipcMain.handle("fs:reveal", (_event, targetPath: string) =>
     filesystem.revealInFolder(targetPath),
   );
+  ipcMain.handle("fs:openTrash", () => filesystem.openOsTrash());
   ipcMain.handle("fs:openExternal", (_event, targetPath: string) =>
     filesystem.openExternal(targetPath),
   );

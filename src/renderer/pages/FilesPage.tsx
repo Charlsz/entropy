@@ -28,8 +28,7 @@ import {
 } from "../components/EntryPreview";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
-import { TrashUndoBar } from "../components/TrashUndoBar";
-import { CornerToast } from "../components/CornerToast";
+import { useAppToasts } from "../components/ToastProvider";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
@@ -144,11 +143,6 @@ export function FilesPage({
   const [error, setError] = useState<string | null>(null);
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<FileEntry | null>(null);
-  const [undoTrash, setUndoTrash] = useState<{ paths: string[]; name: string; size: number } | null>(
-    null,
-  );
-  const [clipboardToast, setClipboardToast] = useState<string | null>(null);
-  const [undoBusy, setUndoBusy] = useState(false);
   const [movingEntry, setMovingEntry] = useState<FileEntry | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
@@ -168,6 +162,8 @@ export function FilesPage({
   const [diskEpoch, setDiskEpoch] = useState(0);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const homeBootstrapped = useRef(false);
+  const { pushToast } = useAppToasts();
+  const refreshRef = useRef<() => Promise<void>>(async () => undefined);
 
   const rawPerspective = workspace.settings.libraryPerspective ?? "folders";
   const perspective = normalizePerspective(rawPerspective as string);
@@ -189,12 +185,6 @@ export function FilesPage({
     // Clear retired Intelligence stubs from older sessions.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once when remnant is present
   }, [intelligenceView]);
-
-  useEffect(() => {
-    if (!clipboardToast) return;
-    const timer = window.setTimeout(() => setClipboardToast(null), 2800);
-    return () => window.clearTimeout(timer);
-  }, [clipboardToast]);
 
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
@@ -225,6 +215,7 @@ export function FilesPage({
     await refreshListing({ quiet: true });
     setDiskEpoch((value) => value + 1);
   }, [refreshListing]);
+  refreshRef.current = refresh;
 
   useDirWatch(
     workspace.currentFolder,
@@ -746,11 +737,6 @@ export function FilesPage({
       return;
     }
     try {
-      if (undoTrash) {
-        await window.entropy.fs.finalizeTrash(undoTrash.paths);
-        setUndoTrash(null);
-      }
-
       // Stop gallery hover / inspector playback while the <video> is still mounted,
       // then drop the card and trash. Unmounting first leaves Chromium holding the lock.
       await withMediaReleased(targetPath, async () => {
@@ -771,7 +757,25 @@ export function FilesPage({
         });
         return window.entropy.fs.remove(targetPath);
       });
-      setUndoTrash({ paths: [targetPath], name: entry.name, size: entry.size });
+      const paths = [targetPath];
+      const reclaim = formatBytes(entry.size);
+      const trash = osTrashName();
+      pushToast({
+        title: `Moved to ${trash}`,
+        detail: reclaim,
+        actionLabel: "Undo",
+        showOpenTrash: true,
+        onAction: async () => {
+          const result = await window.entropy.fs.undoRemove(paths);
+          if (result.restored === 0) {
+            throw new Error(`Couldn't restore the file. It may already be gone from ${trash}.`);
+          }
+          await refreshRef.current();
+        },
+        onDismiss: () => {
+          void window.entropy.fs.finalizeTrash(paths).catch(() => undefined);
+        },
+      });
       setError(null);
       const parent = await window.entropy.fs.dirname(targetPath).catch(() => "");
       if (parent) invalidateFolderPreview(parent);
@@ -787,31 +791,6 @@ export function FilesPage({
     if (!entry) return;
     setPendingDelete(null);
     await trashEntry(entry);
-  }
-
-  async function undoTrashAction(): Promise<void> {
-    if (!undoTrash) return;
-    setUndoBusy(true);
-    try {
-      const result = await window.entropy.fs.undoRemove(undoTrash.paths);
-      if (result.restored > 0) {
-        setUndoTrash(null);
-        await refresh();
-      } else {
-        setError(`Couldn't restore the file. It may already be gone from ${osTrashName()}.`);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Undo failed");
-    } finally {
-      setUndoBusy(false);
-    }
-  }
-
-  async function dismissTrashUndo(): Promise<void> {
-    if (!undoTrash) return;
-    const paths = undoTrash.paths;
-    setUndoTrash(null);
-    await window.entropy.fs.finalizeTrash(paths).catch(() => undefined);
   }
 
   async function handleDuplicate(entry: FileEntry): Promise<void> {
@@ -863,7 +842,7 @@ export function FilesPage({
             try {
               await navigator.clipboard.writeText(markdown);
               setError(null);
-              setClipboardToast("Reference copied to clipboard");
+              pushToast({ title: "Reference copied to clipboard" });
             } catch {
               setError("Could not copy reference to the clipboard.");
             }
@@ -1214,8 +1193,6 @@ export function FilesPage({
     );
   }
 
-  const showChrome = perspective !== "duplicates";
-
   return (
     <div className="flex h-full min-h-0 w-full flex-col" aria-label="Library">
       <div className="min-h-0 flex-1">
@@ -1266,20 +1243,6 @@ export function FilesPage({
           />
         )}
       </div>
-      {showChrome && undoTrash ? (
-        <TrashUndoBar
-          fileCount={1}
-          reclaimLabel={formatBytes(undoTrash.size)}
-          busy={undoBusy}
-          onUndo={() => void undoTrashAction()}
-          onDismiss={() => void dismissTrashUndo()}
-        />
-      ) : null}
-      {showChrome && clipboardToast && !undoTrash ? (
-        <CornerToast onDismiss={() => setClipboardToast(null)}>
-          <p className="font-medium">{clipboardToast}</p>
-        </CornerToast>
-      ) : null}
       <ConfirmDialog
         open={pendingDelete !== null}
         title={pendingDelete ? `Move “${pendingDelete.name}”?` : "Move folder?"}

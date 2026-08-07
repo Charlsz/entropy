@@ -96,6 +96,7 @@ const api: EntropyApi = {
       ipcRenderer.invoke("fs:resolveEmbedTarget", target, notePath, workspacePath),
     duplicate: (targetPath) => ipcRenderer.invoke("fs:duplicate", targetPath),
     reveal: (targetPath) => ipcRenderer.invoke("fs:reveal", targetPath),
+    openTrash: () => ipcRenderer.invoke("fs:openTrash"),
     openExternal: (targetPath) => ipcRenderer.invoke("fs:openExternal", targetPath),
     getHomePath: () => ipcRenderer.invoke("fs:getHomePath"),
     getDiskSpace: (targetPath) => ipcRenderer.invoke("fs:getDiskSpace", targetPath),

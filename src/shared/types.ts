@@ -208,6 +208,7 @@ export interface EntropyApi {
     ) => Promise<string | null>;
     duplicate: (targetPath: string) => Promise<string>;
     reveal: (targetPath: string) => Promise<void>;
+    openTrash: () => Promise<void>;
     openExternal: (targetPath: string) => Promise<void>;
     getHomePath: () => Promise<string>;
     getDiskSpace: (targetPath?: string) => Promise<DiskSpaceInfo>;

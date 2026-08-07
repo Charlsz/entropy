@@ -31,7 +31,7 @@ import { formatBytes, formatModifiedLabel } from "../lib/format";
 import { figma } from "../lib/figmaTokens";
 import { osTrashName, samePath } from "../lib/platform";
 import { revealInFolderLabel } from "../../shared/platform";
-import { TrashUndoBar } from "../components/TrashUndoBar";
+import { useAppToasts } from "../components/ToastProvider";
 import { cn } from "../lib/utils";
 
 export function NotebookPage({
@@ -58,12 +58,6 @@ export function NotebookPage({
   const [loading, setLoading] = useState(true);
   const [, setStatusRight] = useState("");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const [undoTrash, setUndoTrash] = useState<{
-    paths: string[];
-    name: string;
-    size: number;
-  } | null>(null);
-  const [undoBusy, setUndoBusy] = useState(false);
   const [movingPath, setMovingPath] = useState<string | null>(null);
   const [contextUseful, setContextUseful] = useState(false);
   const [contextEpoch, setContextEpoch] = useState(0);
@@ -74,6 +68,9 @@ export function NotebookPage({
   const [queuedReference, setQueuedReference] = useState<string | null>(null);
   const [liveContent, setLiveContent] = useState<string | null>(null);
   const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
+  const { pushToast } = useAppToasts();
+  const refreshNotesRef = useRef<(options?: { quiet?: boolean }) => Promise<void>>(async () => undefined);
+  const openNoteRef = useRef<(path: string) => void>(() => undefined);
   activePathRef.current = activePath;
 
   useEffect(() => {
@@ -101,6 +98,8 @@ export function NotebookPage({
       if (!quiet) setLoading(false);
     }
   }, [workspace.path]);
+
+  refreshNotesRef.current = refreshNotes;
 
   useEffect(() => {
     if (workspace.currentSection !== "notebook") return;
@@ -314,6 +313,7 @@ export function NotebookPage({
     openNoteLocal(notePath);
     visitNote(notePath);
   }
+  openNoteRef.current = openNote;
 
   function closeTab(notePath: string): void {
     setOpenPaths((prev) => {
@@ -347,15 +347,27 @@ export function NotebookPage({
       flushSync(() => {
         closeTab(notePath);
       });
-      if (undoTrash) {
-        await window.entropy.fs.finalizeTrash(undoTrash.paths);
-        setUndoTrash(null);
-      }
       await window.entropy.fs.remove(notePath);
-      setUndoTrash({
-        paths: [notePath],
-        name: notePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note",
-        size: info?.size ?? 0,
+      const paths = [notePath];
+      const trash = osTrashName();
+      const size = info?.size ?? 0;
+      pushToast({
+        title: `Moved to ${trash}`,
+        detail: size > 0 ? formatBytes(size) : undefined,
+        actionLabel: "Undo",
+        showOpenTrash: true,
+        onAction: async () => {
+          const result = await window.entropy.fs.undoRemove(paths);
+          if (result.restored === 0) {
+            throw new Error(`Couldn't restore the note. It may already be gone from ${trash}.`);
+          }
+          await refreshNotesRef.current({ quiet: true });
+          const restored = paths[0];
+          if (restored) openNoteRef.current(restored);
+        },
+        onDismiss: () => {
+          void window.entropy.fs.finalizeTrash(paths).catch(() => undefined);
+        },
       });
       setError(null);
       await refreshNotes();
@@ -363,33 +375,6 @@ export function NotebookPage({
       setError(err instanceof Error ? err.message : "Failed to delete note");
       await refreshNotes();
     }
-  }
-
-  async function undoTrashAction(): Promise<void> {
-    if (!undoTrash) return;
-    setUndoBusy(true);
-    try {
-      const result = await window.entropy.fs.undoRemove(undoTrash.paths);
-      if (result.restored > 0) {
-        const restored = undoTrash.paths[0];
-        setUndoTrash(null);
-        await refreshNotes();
-        if (restored) openNote(restored);
-      } else {
-        setError(`Couldn't restore the note. It may already be gone from ${osTrashName()}.`);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Undo failed");
-    } finally {
-      setUndoBusy(false);
-    }
-  }
-
-  async function dismissTrashUndo(): Promise<void> {
-    if (!undoTrash) return;
-    const paths = undoTrash.paths;
-    setUndoTrash(null);
-    await window.entropy.fs.finalizeTrash(paths).catch(() => undefined);
   }
 
   function startRename(note: FileEntry): void {
@@ -762,15 +747,6 @@ export function NotebookPage({
           />
         }
       />
-      {undoTrash ? (
-        <TrashUndoBar
-          fileCount={1}
-          reclaimLabel={undoTrash.size > 0 ? formatBytes(undoTrash.size) : undefined}
-          busy={undoBusy}
-          onUndo={() => void undoTrashAction()}
-          onDismiss={() => void dismissTrashUndo()}
-        />
-      ) : null}
       <ConfirmDialog
         open={pendingDelete !== null}
         title={
