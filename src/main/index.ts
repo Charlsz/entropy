@@ -103,19 +103,10 @@ async function createWindow(): Promise<BrowserWindow> {
     show: true,
     backgroundColor: chrome.backgroundColor,
     ...(icon ? { icon } : {}),
-    // Frameless content chrome; OS draws minimize/maximize/close where supported.
+    // Frameless content; Win/Linux use Entropy WindowControls (no native titleBarOverlay).
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     ...(process.platform === "darwin"
       ? { trafficLightPosition: { x: 14, y: 16 } }
-      : {}),
-    ...(process.platform === "win32" || process.platform === "linux"
-      ? {
-          titleBarOverlay: {
-            color: chrome.overlayColor,
-            symbolColor: chrome.symbolColor,
-            height: 36,
-          },
-        }
       : {}),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
@@ -387,17 +378,10 @@ function registerIpc(): void {
   });
   ipcMain.handle("window:setChromeTheme", (event, theme: "light" | "dark") => {
     const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win || process.platform === "darwin") return;
+    if (!win) return;
     const chrome = chromeColors(theme === "light" ? "light" : "dark");
-    try {
-      win.setTitleBarOverlay({
-        color: chrome.overlayColor,
-        symbolColor: chrome.symbolColor,
-        height: 36,
-      });
-    } catch {
-      // Overlay unsupported on some Linux builds.
-    }
+    // Background only — caption buttons are custom renderer chrome now.
+    win.setBackgroundColor(chrome.backgroundColor);
   });
 
   ipcMain.on("app:flushed", () => {

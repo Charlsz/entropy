@@ -141,19 +141,14 @@ export function WorkspaceShell({
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-9 items-center justify-end">
-          <div
-            className={cn(
-              "pointer-events-auto no-drag flex items-center gap-0.5",
-              needsCustomControls ? "entropy-titlebar-end" : "pr-2",
-            )}
-          >
+          <div className="pointer-events-auto no-drag flex h-9 items-center">
             {showTreemapToggle ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
                     className={cn(
-                      "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-select hover:text-foreground",
+                      "inline-flex h-9 w-9 items-center justify-center text-muted-foreground outline-none transition-colors duration-150 hover:bg-select hover:text-foreground",
                       !treemapCollapsed && "text-foreground",
                     )}
                     aria-label={treemapCollapsed ? "Show storage map" : "Hide storage map"}

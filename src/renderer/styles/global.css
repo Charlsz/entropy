@@ -142,7 +142,8 @@
 
   [data-platform="win32"] .entropy-titlebar-end,
   [data-platform="linux"] .entropy-titlebar-end {
-    padding-inline-end: 138px;
+    /* Clear custom caption cluster (optional treemap + min/max/close). */
+    padding-inline-end: 9.5rem;
   }
 
   * {

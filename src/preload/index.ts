@@ -43,8 +43,8 @@ const api: EntropyApi = {
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
     setChromeTheme: (theme) => ipcRenderer.invoke("window:setChromeTheme", theme),
-    // Electron titleBarOverlay covers Win/Linux; macOS uses traffic lights.
-    needsCustomControls: false,
+    // Win/Linux draw Entropy caption buttons; macOS keeps traffic lights.
+    needsCustomControls: process.platform !== "darwin",
   },
   duplicates: {
     scan: (rootPath, options) =>
