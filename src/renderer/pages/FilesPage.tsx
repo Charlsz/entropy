@@ -402,7 +402,11 @@ export function FilesPage({
 
   // Storage map: show last scan for this folder; rescan only on miss or user Refresh.
   useEffect(() => {
-    if (perspective !== "folders" || treemapCollapsed || !workspace.currentFolder) {
+    if (
+      (perspective !== "folders" && perspective !== "gallery") ||
+      treemapCollapsed ||
+      !workspace.currentFolder
+    ) {
       setTreemapScanning(false);
       return;
     }
