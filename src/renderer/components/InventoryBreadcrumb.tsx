@@ -4,7 +4,10 @@ import { useWorkspace } from "../state/useWorkspace";
 import { figma } from "../lib/figmaTokens";
 import { cn } from "../lib/utils";
 
-/** Library path chrome for the shell title strip (interactive — parent provides drag). */
+/**
+ * Library path chrome for the shell title strip.
+ * Parent header is the drag region — only interactive controls use no-drag.
+ */
 export function InventoryBreadcrumb({
   className,
   end,
@@ -36,7 +39,7 @@ export function InventoryBreadcrumb({
           <>
             <button
               type="button"
-              className="shrink-0 text-[13px]"
+              className="no-drag shrink-0 text-[13px]"
               style={{ color: figma.muted }}
               onClick={() => void goToInventoryCrumb(-1)}
             >
@@ -56,7 +59,7 @@ export function InventoryBreadcrumb({
                   ) : (
                     <button
                       type="button"
-                      className="max-w-[8rem] truncate text-[13px]"
+                      className="no-drag max-w-[8rem] truncate text-[13px]"
                       style={{ color: figma.muted }}
                       onClick={() => void goToInventoryCrumb(index)}
                     >
@@ -69,7 +72,9 @@ export function InventoryBreadcrumb({
           </>
         )}
       </div>
-      {end ? <div className="ml-auto flex shrink-0 items-center gap-1">{end}</div> : null}
+      {end ? (
+        <div className="no-drag ml-auto flex shrink-0 items-center gap-1">{end}</div>
+      ) : null}
     </nav>
   );
 }

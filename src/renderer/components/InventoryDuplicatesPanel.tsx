@@ -241,7 +241,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7 shrink-0"
+            className="no-drag h-7 w-7 shrink-0"
             aria-label="Back to folder"
             onClick={() => {
               if (running) void window.entropy.duplicates.cancel();
@@ -259,7 +259,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
               {rootPath}
             </span>
           </div>
-          <div className="flex shrink-0 items-center">
+          <div className="no-drag flex shrink-0 items-center">
             {running ? (
               <Button
                 type="button"
