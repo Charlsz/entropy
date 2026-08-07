@@ -1,10 +1,9 @@
-import { app, nativeImage, net, protocol } from "electron";
+import { app, nativeImage, protocol } from "electron";
 import { createHash } from "node:crypto";
 import { createReadStream, type ReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { pathToFileURL } from "node:url";
 
 export const FILE_PROTOCOL = "entropy";
 
@@ -178,8 +177,8 @@ export function toEntropyThumbUrl(filePath: string): string {
  * Serve local files with short-lived Node reads (not Chromium net.fetch(file://)).
  * file:// fetches leave Windows share locks that block Recycle Bin until the app quits.
  *
- * Exception: video/audio/PDF need Chromium's Range pipeline for video/audio/PDF elements.
- * DOM unload + releaseFileReaders before trash clears those handles.
+ * Video/audio/PDF always use Range-capable streams (tracked so releaseFileReaders can
+ * destroy them before trash). Small images use a one-shot readFile.
  */
 async function serveFile(filePath: string, request: Request): Promise<Response> {
   const stat = await fs.stat(filePath);
@@ -191,28 +190,9 @@ async function serveFile(filePath: string, request: Request): Promise<Response> 
   const isAv =
     type.startsWith("video/") || type.startsWith("audio/") || type === "application/pdf";
 
-  // Media/PDF: prefer Chromium file:// fetch so Range seeks work in <video>/PDF.
-  if (isAv) {
-    const headers = new Headers();
-    const range = request.headers.get("Range") ?? request.headers.get("range");
-    if (range) headers.set("Range", range);
-    const response = await net.fetch(pathToFileURL(filePath).href, { headers });
-    if (!response.ok && response.status !== 206) {
-      return new Response("Not found", { status: 404 });
-    }
-    const outHeaders = new Headers(response.headers);
-    outHeaders.set("Content-Type", type);
-    outHeaders.set("Accept-Ranges", "bytes");
-    outHeaders.set("Cache-Control", "no-store");
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: outHeaders,
-    });
-  }
-
   // Images / small blobs: one-shot read so the FD is gone before the Response settles.
-  if (size <= 32 * 1024 * 1024) {
+  // AV/PDF must stream with Range — never buffered whole into memory.
+  if (!isAv && size <= 32 * 1024 * 1024) {
     const body = await fs.readFile(filePath);
     return new Response(new Uint8Array(body), {
       headers: {
