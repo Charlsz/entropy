@@ -2,6 +2,9 @@
 appId: app.entropy.desktop
 productName: Entropy
 copyright: Copyright © Entropy contributors
+# Ship English only — Chromium packs ~40MB of unused locale packs otherwise.
+electronLanguages:
+  - en-US
 
 directories:
   output: release
@@ -10,6 +13,8 @@ directories:
 files:
   - dist/**/*
   - package.json
+  # Production deps are only @noble/hashes (renderer is Vite-bundled into dist/).
+  # electron-builder packs those automatically; do not pull in node_modules wholesale.
 
 extraResources:
   - from: Entropy.png
