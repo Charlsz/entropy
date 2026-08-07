@@ -923,15 +923,17 @@ export function FilesPage({
 
   const showTreemap = (perspective === "folders" || perspective === "gallery") && !treemapCollapsed;
   const foldersSurface = perspective === "folders" || perspective === "gallery";
+  const chromeIconClass =
+    "h-7 w-7 shrink-0 bg-transparent text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground";
 
   const sortControl = (
-    <div className="flex items-center gap-1">
-      <span className="text-[11px] text-muted-foreground">Sort by: {sortLabel}</span>
+    <div className="flex items-center gap-0.5">
+      <span className="mr-1 text-[11px] text-muted-foreground">Sort by: {sortLabel}</span>
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="h-7 w-7 text-muted-foreground"
+        className={chromeIconClass}
         aria-label="Change sort"
         onClick={cycleSort}
       >
@@ -944,10 +946,7 @@ export function FilesPage({
               type="button"
               variant="ghost"
               size="icon"
-              className={cn(
-                "h-7 w-7 text-muted-foreground",
-                perspective === "gallery" && "text-foreground",
-              )}
+              className={cn(chromeIconClass, perspective === "gallery" && "text-foreground")}
               aria-label={perspective === "gallery" ? "Show list" : "Show gallery"}
               aria-pressed={perspective === "gallery"}
               onClick={() =>
@@ -972,7 +971,7 @@ export function FilesPage({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground"
+              className={chromeIconClass}
               aria-label="Refresh large files"
               disabled={largeFilesLoading}
               onClick={refreshLargeFiles}

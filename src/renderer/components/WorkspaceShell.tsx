@@ -177,7 +177,7 @@ function WorkspaceShellFrame({
                   <button
                     type="button"
                     className={cn(
-                      "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-select hover:text-foreground",
+                      "inline-flex h-8 w-8 items-center justify-center bg-transparent text-muted-foreground outline-none hover:bg-transparent hover:text-foreground",
                       !treemapCollapsed && "text-foreground",
                     )}
                     aria-label={treemapCollapsed ? "Show storage map" : "Hide storage map"}
