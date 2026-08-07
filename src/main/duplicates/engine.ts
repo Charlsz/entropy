@@ -8,7 +8,7 @@ import { isUnsafeReclaimPath } from "../../shared/protectedPaths";
 import { DuplicateHashCache } from "./cache";
 import { chooseHashWorkers } from "./concurrency";
 import { fullHash, mapPool, partialHash } from "./hasher";
-import { groupBySize, collapseHardLinks, scanFiles } from "./scanner";
+import { groupBySize, collapseHardLinks, scanFiles, DEFAULT_MAX_SCAN_FILES } from "./scanner";
 import {
   PARTIAL_CHUNK,
   toFileEntry,
@@ -22,6 +22,8 @@ export type ProgressCallback = (progress: DuplicateScanProgress) => void;
 
 const PROGRESS_MIN_INTERVAL_MS = 80;
 const LOG_MIN_INTERVAL_MS = 40;
+/** Cap files that proceed to hashing after size-grouping (largest first). */
+const MAX_HASH_CANDIDATES = 80_000;
 
 function etaFromCounts(done: number, total: number, phaseStarted: number): number | null {
   if (total <= 0) return null;
@@ -137,9 +139,10 @@ export async function findExactDuplicates(
   const cache = new DuplicateHashCache(rootPath);
   await cache.load();
 
-  const { files, errors: scanErrors } = await scanFiles(rootPath, {
+  const { files, errors: scanErrors, truncated: listingTruncated } = await scanFiles(rootPath, {
     signal,
     extensions,
+    maxFiles: DEFAULT_MAX_SCAN_FILES,
     onFile: (file, seen) => {
       if (seen <= 8 || seen % 5 === 0) {
         report({
@@ -156,9 +159,20 @@ export async function findExactDuplicates(
     },
   });
   errors.push(...scanErrors);
+  let truncated = listingTruncated;
 
   if (signal?.aborted) {
-    return emptyResult(started, errors, files.length);
+    return emptyResult(started, errors, files.length, truncated);
+  }
+
+  if (truncated) {
+    report({
+      phase: "scanning",
+      progress: 0.2,
+      message: `Scan capped at ${DEFAULT_MAX_SCAN_FILES.toLocaleString()} files`,
+      filesSeen: files.length,
+      logLine: `Reached the ${DEFAULT_MAX_SCAN_FILES.toLocaleString()}-file safety cap — continuing with this sample`,
+    }, true);
   }
 
   report({
@@ -170,8 +184,23 @@ export async function findExactDuplicates(
   });
 
   const bySize = groupBySize(collapseHardLinks(files));
-  const sizeCandidates: ScannedFile[] = [];
+  let sizeCandidates: ScannedFile[] = [];
   for (const list of bySize.values()) sizeCandidates.push(...list);
+
+  if (sizeCandidates.length > MAX_HASH_CANDIDATES) {
+    sizeCandidates.sort((a, b) => b.size - a.size);
+    sizeCandidates = sizeCandidates.slice(0, MAX_HASH_CANDIDATES);
+    truncated = true;
+    report({
+      phase: "size",
+      progress: 0.24,
+      message: `Hashing largest ${MAX_HASH_CANDIDATES.toLocaleString()} of size-matched files…`,
+      filesSeen: files.length,
+      candidateFiles: sizeCandidates.length,
+      logLine: `Too many size matches — focusing on the ${MAX_HASH_CANDIDATES.toLocaleString()} largest candidates`,
+    }, true);
+  }
+
   const workers = chooseHashWorkers(sizeCandidates);
 
   const partialStarted = Date.now();
@@ -248,7 +277,7 @@ export async function findExactDuplicates(
 
   if (signal?.aborted) {
     await cache.save();
-    return emptyResult(started, errors, files.length);
+    return emptyResult(started, errors, files.length, truncated);
   }
 
   const partialCandidates: ScannedFile[] = [];
@@ -373,24 +402,32 @@ export async function findExactDuplicates(
       errors,
       filesScanned: files.length,
       durationMs: Date.now() - started,
+      truncated,
     };
   }
+
+  const doneMessage =
+    groups.length === 0
+      ? truncated
+        ? "No exact duplicates in the capped sample"
+        : "No exact duplicates found"
+      : `Found ${groups.length.toLocaleString()} duplicate group${groups.length === 1 ? "" : "s"}`;
 
   report(
     {
       phase: "done",
       progress: 1,
-      message:
-        groups.length === 0
-          ? "No exact duplicates found"
-          : `Found ${groups.length.toLocaleString()} duplicate group${groups.length === 1 ? "" : "s"}`,
+      message: doneMessage,
       filesSeen: files.length,
       candidateFiles: partialCandidates.length,
       groupsFound,
       errors: errors.length,
       etaMs: 0,
-      logLine:
-        groups.length === 0
+      logLine: truncated
+        ? groups.length === 0
+          ? "Done — capped sample, no exact duplicates"
+          : `Done — ${groups.length.toLocaleString()} groups (scan was capped for memory)`
+        : groups.length === 0
           ? "Done — no exact duplicates"
           : `Done — ${groups.length.toLocaleString()} groups`,
     },
@@ -402,6 +439,7 @@ export async function findExactDuplicates(
     errors,
     filesScanned: files.length,
     durationMs: Date.now() - started,
+    truncated,
   };
 }
 
@@ -409,11 +447,13 @@ function emptyResult(
   started: number,
   errors: Array<{ path: string; error: string }>,
   filesScanned: number,
+  truncated = false,
 ): DuplicateScanResult {
   return {
     groups: [],
     errors,
     filesScanned,
     durationMs: Date.now() - started,
+    truncated,
   };
 }

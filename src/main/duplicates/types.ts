@@ -65,6 +65,8 @@ export interface DuplicateScanResult {
   errors: Array<{ path: string; error: string }>;
   filesScanned: number;
   durationMs: number;
+  /** True when the scan stopped early because the file-metadata cap was hit. */
+  truncated: boolean;
 }
 
 export function toFileEntry(file: ScannedFile): FileEntry {

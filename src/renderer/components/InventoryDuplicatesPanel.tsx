@@ -434,7 +434,9 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
             <div className="px-4 py-2 text-sm text-muted-foreground">
               <div className="entropy-duplicates-stage min-w-0 truncate">
                 {result
-                  ? `${result.filesScanned.toLocaleString()} files · ${formatDuration(result.durationMs)}`
+                  ? `${result.filesScanned.toLocaleString()} files · ${formatDuration(result.durationMs)}${
+                      result.truncated ? " · capped sample" : ""
+                    }`
                   : progress
                     ? `${progress.filesSeen.toLocaleString()} seen`
                     : rootPath}

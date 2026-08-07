@@ -121,6 +121,8 @@ export interface DuplicateScanResult {
   errors: Array<{ path: string; error: string }>;
   filesScanned: number;
   durationMs: number;
+  /** True when listing stopped early at the memory-safe file cap. */
+  truncated?: boolean;
 }
 
 import type { DuplicateScanScopeId } from "./duplicateScopes";
