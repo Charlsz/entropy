@@ -746,27 +746,31 @@ export function FilesPage({
       return;
     }
     try {
-      // Commit unmount of this card's video before Windows tries Recycle Bin.
-      flushSync(() => {
-        if (selected && samePath(selected.path, targetPath)) setSelected(null);
-        setEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
-        setLargeFileEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
-        setRemoteSearchEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
-        setSizeByPath((prev) => {
-          const key = Object.keys(prev).find((item) => samePath(item, targetPath));
-          if (!key) return prev;
-          const next = { ...prev };
-          delete next[key];
-          return next;
-        });
-      });
-
       if (undoTrash) {
         await window.entropy.fs.finalizeTrash(undoTrash.paths);
         setUndoTrash(null);
       }
 
-      await withMediaReleased(targetPath, () => window.entropy.fs.remove(targetPath));
+      // Stop gallery hover / inspector playback while the <video> is still mounted,
+      // then drop the card and trash. Unmounting first leaves Chromium holding the lock.
+      await withMediaReleased(targetPath, async () => {
+        flushSync(() => {
+          if (selected && samePath(selected.path, targetPath)) setSelected(null);
+          setEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
+          setLargeFileEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
+          setRemoteSearchEntries((prev) =>
+            prev.filter((item) => !samePath(item.path, targetPath)),
+          );
+          setSizeByPath((prev) => {
+            const key = Object.keys(prev).find((item) => samePath(item, targetPath));
+            if (!key) return prev;
+            const next = { ...prev };
+            delete next[key];
+            return next;
+          });
+        });
+        return window.entropy.fs.remove(targetPath);
+      });
       setUndoTrash({ paths: [targetPath], name: entry.name, size: entry.size });
       setError(null);
       const parent = await window.entropy.fs.dirname(targetPath).catch(() => "");

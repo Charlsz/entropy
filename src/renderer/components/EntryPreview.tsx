@@ -413,8 +413,14 @@ function unloadVideoEl(video: HTMLVideoElement | null): void {
   } catch {
     // Ignore.
   }
+  try {
+    while (video.firstChild) video.removeChild(video.firstChild);
+  } catch {
+    // Ignore.
+  }
   video.removeAttribute("src");
   video.src = "";
+  video.removeAttribute("poster");
   video.load();
 }
 
@@ -435,14 +441,28 @@ function VideoThumb({
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [releasing, setReleasing] = useState(() => isMediaReleasing(path));
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Inspector contain mode plays the clip; gallery still waits for hover.
   const wantsLive = size === "lg" && inView && !releasing && (autoplay || hovered);
 
+  const bindVideoRef = (el: HTMLVideoElement | null): void => {
+    // React clears refs before effect cleanups — unload here so Windows can trash the file.
+    if (videoRef.current && videoRef.current !== el) {
+      unloadVideoEl(videoRef.current);
+    }
+    videoRef.current = el;
+  };
+
   useEffect(() => {
     return subscribeMediaRelease(() => {
-      setReleasing(isMediaReleasing(path));
+      const next = isMediaReleasing(path);
+      if (next) {
+        unloadVideoEl(videoRef.current);
+        setUrl(null);
+        setHovered(false);
+      }
+      setReleasing(next);
     });
   }, [path]);
 
@@ -485,10 +505,6 @@ function VideoThumb({
   }, [path, wantsLive]);
 
   useEffect(() => {
-    if (releasing) unloadVideoEl(videoRef.current);
-  }, [releasing]);
-
-  useEffect(() => {
     const video = videoRef.current;
     if (!video || !url || !wantsLive) return;
 
@@ -502,11 +518,11 @@ function VideoThumb({
 
     async function playClip(): Promise<void> {
       const el = videoRef.current;
-      if (!el || cancelled) return;
+      if (!el || cancelled || isMediaReleasing(path)) return;
       try {
         el.currentTime = 0;
         await el.play();
-        if (cancelled || autoplay) return;
+        if (cancelled || autoplay || isMediaReleasing(path)) return;
         clearTimer();
         timer = window.setTimeout(() => {
           if (!cancelled) void playClip();
@@ -529,12 +545,14 @@ function VideoThumb({
       video.removeEventListener("loadeddata", onLoaded);
       unloadVideoEl(video);
     };
-  }, [url, wantsLive, autoplay]);
+  }, [url, wantsLive, autoplay, path]);
 
   const shellProps = {
     ref,
     className: "relative h-full w-full overflow-hidden bg-ink-2",
-    onPointerEnter: () => setHovered(true),
+    onPointerEnter: () => {
+      if (!isMediaReleasing(path)) setHovered(true);
+    },
     onPointerLeave: () => setHovered(false),
   } as const;
 
@@ -574,7 +592,7 @@ function VideoThumb({
   return (
     <div {...shellProps}>
       <video
-        ref={videoRef}
+        ref={bindVideoRef}
         src={url}
         poster={poster ?? undefined}
         muted

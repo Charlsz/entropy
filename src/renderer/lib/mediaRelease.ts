@@ -36,9 +36,12 @@ function urlMatchesPath(src: string, filePath: string): boolean {
   const token = encodePathToken(filePath);
   if (src.includes(token)) return true;
   const normalized = filePath.replace(/\\/g, "/");
-  return (
-    src.includes(encodeURIComponent(filePath)) || src.includes(encodeURIComponent(normalized))
-  );
+  const base = filePath.split(/[/\\]/).pop() ?? "";
+  if (src.includes(encodeURIComponent(filePath)) || src.includes(encodeURIComponent(normalized))) {
+    return true;
+  }
+  // Basename hint for odd Chromium currentSrc forms.
+  return Boolean(base) && src.toLowerCase().includes(base.toLowerCase());
 }
 
 function mediaMatchesPath(el: HTMLMediaElement, filePath: string): boolean {
@@ -48,18 +51,40 @@ function mediaMatchesPath(el: HTMLMediaElement, filePath: string): boolean {
   return candidates.some((src) => urlMatchesPath(src, filePath));
 }
 
-function unloadMediaElement(el: HTMLMediaElement): void {
+export function unloadMediaElement(el: HTMLMediaElement | null | undefined): void {
+  if (!el) return;
   try {
     el.pause();
   } catch {
     // Ignore pause failures on unmounted media.
   }
   try {
+    while (el.firstChild) el.removeChild(el.firstChild);
     el.removeAttribute("src");
     el.src = "";
+    el.removeAttribute("poster");
     el.load();
   } catch {
     // Ignore teardown races during unmount.
+  }
+}
+
+/** Stop every media element — gallery hover can leave a ghost lock if the card unmounts mid-play. */
+export function unloadAllDomMedia(): void {
+  for (const node of document.querySelectorAll("video, audio")) {
+    unloadMediaElement(node as HTMLMediaElement);
+  }
+  for (const node of document.querySelectorAll("iframe")) {
+    const el = node as HTMLIFrameElement;
+    const src = el.getAttribute("src") || el.src || "";
+    if (!src || src === "about:blank") continue;
+    if (src.startsWith("entropy://") || src.includes("entropy://")) {
+      try {
+        el.src = "about:blank";
+      } catch {
+        // Ignore.
+      }
+    }
   }
 }
 
@@ -116,25 +141,41 @@ function isBusyTrashError(err: unknown): boolean {
 }
 
 /**
+ * Mark path releasing, notify subscribers (they must pause sync), and strip DOM media.
+ * Call while the gallery/inspector card is still mounted whenever possible.
+ */
+export function stopMediaForPath(filePath: string): void {
+  releasing.add(filePath);
+  notify();
+  unloadDomMedia(filePath);
+  // Hovered gallery videos may not match the token if already tearing down — stop all playheads.
+  unloadAllDomMedia();
+}
+
+export function clearMediaRelease(filePath: string): void {
+  releasing.delete(filePath);
+  notify();
+}
+
+/**
  * Unload Chromium media for a path so Windows can move the file to Recycle Bin.
- * Gallery / inspector video previews otherwise leave the file locked
- * (shell.trashItem / rename → "file is still in use").
+ * Prefer calling this before removing the card from the React tree so the video
+ * element still exists for a clean pause/src clear.
  */
 export async function withMediaReleased<T>(
   filePath: string,
   task: () => Promise<T>,
 ): Promise<T> {
-  releasing.add(filePath);
-  notify();
+  stopMediaForPath(filePath);
   try {
     let lastError: unknown;
     for (let attempt = 0; attempt < 6; attempt += 1) {
-      unloadDomMedia(filePath);
+      stopMediaForPath(filePath);
       await doubleRaf();
-      // Chromium keeps Range mappings briefly after src clear — wait longer each try.
-      await sleep(280 + attempt * 220);
+      await sleep(320 + attempt * 240);
       unloadDomMedia(filePath);
-      await sleep(80);
+      unloadAllDomMedia();
+      await sleep(100);
       try {
         return await task();
       } catch (err) {
@@ -144,7 +185,6 @@ export async function withMediaReleased<T>(
     }
     throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "Trash failed"));
   } finally {
-    releasing.delete(filePath);
-    notify();
+    clearMediaRelease(filePath);
   }
 }

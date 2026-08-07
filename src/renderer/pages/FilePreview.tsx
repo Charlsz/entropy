@@ -54,7 +54,9 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
 
   useEffect(() => {
     return subscribeMediaRelease(() => {
-      setReleasing(isMediaReleasing(file.path));
+      const next = isMediaReleasing(file.path);
+      if (next) setUrl(null);
+      setReleasing(next);
     });
   }, [file.path]);
 
@@ -212,8 +214,14 @@ function unloadVideo(video: HTMLVideoElement | null): void {
   } catch {
     // Ignore.
   }
+  try {
+    while (video.firstChild) video.removeChild(video.firstChild);
+  } catch {
+    // Ignore.
+  }
   video.removeAttribute("src");
   video.src = "";
+  video.removeAttribute("poster");
   video.load();
 }
 
@@ -226,7 +234,14 @@ function VideoPlayer({
   poster: string | null;
   compact: boolean;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const bindVideoRef = (el: HTMLVideoElement | null): void => {
+    if (videoRef.current && videoRef.current !== el) {
+      unloadVideo(videoRef.current);
+    }
+    videoRef.current = el;
+  };
 
   useEffect(() => {
     return () => unloadVideo(videoRef.current);
@@ -279,7 +294,7 @@ function VideoPlayer({
 
   return (
     <video
-      ref={videoRef}
+      ref={bindVideoRef}
       src={url}
       poster={poster ?? undefined}
       muted={compact}
