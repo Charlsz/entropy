@@ -17,7 +17,6 @@ import type {
 } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { Button } from "../components/ui/button";
-import { ScrollArea } from "../components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { type ItemAction } from "../components/ItemActionsMenu";
 import { ItemContextMenu } from "../components/ItemContextMenu";
@@ -38,6 +37,7 @@ import { ChromeTitlebarStart } from "../components/ChromeTitlebar";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
 import { StorageTreemap } from "../components/StorageTreemap";
+import { VirtualGalleryGrid, VirtualTableBody } from "../components/VirtualLibraryViews";
 import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { isMediaEntry, isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
@@ -158,10 +158,8 @@ export function FilesPage({
   const [treemapScanning, setTreemapScanning] = useState(false);
   /** Bumps only when the user presses Refresh on the storage map. */
   const [treemapScanId, setTreemapScanId] = useState(0);
-  const [renderedCount, setRenderedCount] = useState(60);
   /** Bumps when the open folder changes on disk so sizes stay current. */
   const [diskEpoch, setDiskEpoch] = useState(0);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const homeBootstrapped = useRef(false);
   const { pushToast } = useAppToasts();
   const refreshRef = useRef<() => Promise<void>>(async () => undefined);
@@ -300,7 +298,6 @@ export function FilesPage({
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory") return;
-    setRenderedCount(60);
     setSelected(null);
     void refreshListing();
   }, [refreshListing, workspace.currentSection]);
@@ -645,29 +642,6 @@ export function FilesPage({
         ? loading && folderVisible.length === 0
         : loading;
 
-  const rendered = useMemo(
-    () => galleryVisible.slice(0, renderedCount),
-    [galleryVisible, renderedCount],
-  );
-
-  useEffect(() => {
-    setRenderedCount(60);
-  }, [workspace.currentFolder, perspective]);
-
-  useEffect(() => {
-    const node = loadMoreRef.current;
-    if (!node || listLoading || rendered.length >= galleryVisible.length) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        setRenderedCount((count) => Math.min(count + 60, galleryVisible.length));
-      },
-      { root: null, rootMargin: "320px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [galleryVisible.length, rendered.length, listLoading]);
-
   async function openEntry(entry: FileEntry): Promise<void> {
     if (isSearching) {
       const hit = searchHitMeta.get(entry.path.replace(/\\/g, "/").toLowerCase());
@@ -1003,6 +977,9 @@ export function FilesPage({
     ) : null;
 
   function renderFileTable(rows: FileEntry[], emptyTitle: string, emptyBody: string) {
+    const showLoading = listLoading || (isSearching && searchLoading && rows.length === 0);
+    const showEmpty = !showLoading && rows.length === 0;
+
     return (
       <>
         <div
@@ -1014,123 +991,126 @@ export function FilesPage({
           <span className="w-20 shrink-0 text-right">Size</span>
           <span className="w-[140px] shrink-0 text-right">Last Modified</span>
         </div>
-        <ScrollArea className="min-h-0 flex-1" type="hover">
-          <div>
-            {error ? (
-              <p className="px-6 py-3 text-[13px]" style={{ color: figma.muted }}>
-                {error}
-              </p>
-            ) : null}
 
-            {listLoading || (isSearching && searchLoading && rows.length === 0) ? (
-              <div className="flex flex-col gap-0 px-6 py-2" aria-busy="true" aria-label="Loading">
-                {Array.from({ length: perspective === "large-files" ? 12 : 8 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-4 border-b py-2.5"
-                    style={{ borderColor: figma.border }}
-                  >
-                    <Skeleton className="h-4 w-[220px] shrink-0 rounded-sm" />
-                    <Skeleton className="h-4 min-w-0 flex-1 rounded-sm" />
-                    <Skeleton className="h-4 w-16 shrink-0 rounded-sm" />
-                    <Skeleton className="h-4 w-[120px] shrink-0 rounded-sm" />
-                  </div>
-                ))}
+        {error ? (
+          <p className="shrink-0 px-6 py-3 text-[13px]" style={{ color: figma.muted }}>
+            {error}
+          </p>
+        ) : null}
+
+        {showLoading ? (
+          <div
+            className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto px-6 py-2"
+            aria-busy="true"
+            aria-label="Loading"
+          >
+            {Array.from({ length: perspective === "large-files" ? 12 : 8 }).map((_, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-4 border-b py-2.5"
+                style={{ borderColor: figma.border }}
+              >
+                <Skeleton className="h-4 w-[220px] shrink-0 rounded-sm" />
+                <Skeleton className="h-4 min-w-0 flex-1 rounded-sm" />
+                <Skeleton className="h-4 w-16 shrink-0 rounded-sm" />
+                <Skeleton className="h-4 w-[120px] shrink-0 rounded-sm" />
               </div>
-            ) : null}
-
-            {!listLoading && !(isSearching && searchLoading && rows.length === 0) && rows.length === 0 ? (
-              <Empty className="py-16">
-                <EmptyTitle>{emptyTitle}</EmptyTitle>
-                <EmptyDescription>{emptyBody}</EmptyDescription>
-              </Empty>
-            ) : null}
-
-            {!listLoading && rows.length > 0
-              ? rows.map((entry) => {
-                  const parentPath = parentFolderPath(entry.path);
-                  const pathLabel = formatUserPath(parentPath, homePath);
-                  const sizePending =
-                    entry.isDirectory && sizeByPath[entry.path] === undefined;
-                  const selectedRow = selected?.path === entry.path;
-                  return (
-                    <ItemContextMenu
-                      key={entry.path}
-                      label={entry.name}
-                      actions={fileActions(entry)}
-                      dismissKey={`${workspace.currentSection}:${perspective}`}
-                    >
-                      <div
-                        draggable
-                        role="button"
-                        tabIndex={0}
-                        className={cn(
-                          "relative flex cursor-pointer items-center gap-4 border-b px-6 py-2 text-[13px]",
-                          entry.isDirectory && dragOverPath === entry.path && "opacity-70",
-                        )}
-                        style={{
-                          borderColor: figma.border,
-                          backgroundColor: selectedRow ? figma.select : "transparent",
-                          color: figma.ink,
-                        }}
-                        onClick={() => {
-                          if (isSearching) {
-                            void openEntry(entry);
-                            return;
-                          }
-                          if (entry.isDirectory) setSelected(null);
-                          else setSelected(entry);
-                        }}
-                        onDoubleClick={() => void openEntry(entry)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") void openEntry(entry);
-                        }}
-                        onDragStart={(event) => onDragStart(event, entry)}
-                        onDragOver={
-                          entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
-                        }
-                        onDrop={
-                          entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
-                        }
-                      >
-                        <div className="flex w-[260px] min-w-0 shrink-0 items-center gap-2.5">
-                          <EntryTypeIcon entry={entry} />
-                          <span
-                            className={cn(
-                              "truncate",
-                              selectedRow ? "font-medium" : "font-normal",
-                            )}
-                            title={entry.name}
-                          >
-                            {entry.name}
-                          </span>
-                        </div>
-                        <span
-                          className="min-w-0 flex-1 truncate text-[12px] tracking-tight"
-                          style={{ color: figma.muted }}
-                          title={pathLabel}
-                        >
-                          {pathLabel}
-                        </span>
-                        <span
-                          className="w-20 shrink-0 text-right font-mono text-[12px]"
-                          style={{ color: figma.muted }}
-                        >
-                          {sizePending ? "…" : formatBytes(entry.size)}
-                        </span>
-                        <span
-                          className="w-[140px] shrink-0 text-right text-[12px]"
-                          style={{ color: figma.muted }}
-                        >
-                          {formatModifiedLabel(entry.modifiedAt)}
-                        </span>
-                      </div>
-                    </ItemContextMenu>
-                  );
-                })
-              : null}
+            ))}
           </div>
-        </ScrollArea>
+        ) : null}
+
+        {showEmpty ? (
+          <Empty className="min-h-0 flex-1 py-16">
+            <EmptyTitle>{emptyTitle}</EmptyTitle>
+            <EmptyDescription>{emptyBody}</EmptyDescription>
+          </Empty>
+        ) : null}
+
+        {!showLoading && rows.length > 0 ? (
+          <VirtualTableBody count={rows.length}>
+            {(index) => {
+              const entry = rows[index]!;
+              const parentPath = parentFolderPath(entry.path);
+              const pathLabel = formatUserPath(parentPath, homePath);
+              const sizePending =
+                entry.isDirectory && sizeByPath[entry.path] === undefined;
+              const selectedRow = selected?.path === entry.path;
+              return (
+                <ItemContextMenu
+                  label={entry.name}
+                  actions={fileActions(entry)}
+                  dismissKey={`${workspace.currentSection}:${perspective}`}
+                >
+                  <div
+                    draggable
+                    role="button"
+                    tabIndex={0}
+                    className={cn(
+                      "relative flex h-full cursor-pointer items-center gap-4 border-b px-6 text-[13px]",
+                      entry.isDirectory && dragOverPath === entry.path && "opacity-70",
+                    )}
+                    style={{
+                      borderColor: figma.border,
+                      backgroundColor: selectedRow ? figma.select : "transparent",
+                      color: figma.ink,
+                    }}
+                    onClick={() => {
+                      if (isSearching) {
+                        void openEntry(entry);
+                        return;
+                      }
+                      if (entry.isDirectory) setSelected(null);
+                      else setSelected(entry);
+                    }}
+                    onDoubleClick={() => void openEntry(entry)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void openEntry(entry);
+                    }}
+                    onDragStart={(event) => onDragStart(event, entry)}
+                    onDragOver={
+                      entry.isDirectory ? (event) => onDragOver(event, entry.path) : undefined
+                    }
+                    onDrop={
+                      entry.isDirectory ? (event) => void onDrop(event, entry.path) : undefined
+                    }
+                  >
+                    <div className="flex w-[260px] min-w-0 shrink-0 items-center gap-2.5">
+                      <EntryTypeIcon entry={entry} />
+                      <span
+                        className={cn(
+                          "truncate",
+                          selectedRow ? "font-medium" : "font-normal",
+                        )}
+                        title={entry.name}
+                      >
+                        {entry.name}
+                      </span>
+                    </div>
+                    <span
+                      className="min-w-0 flex-1 truncate text-[12px] tracking-tight"
+                      style={{ color: figma.muted }}
+                      title={pathLabel}
+                    >
+                      {pathLabel}
+                    </span>
+                    <span
+                      className="w-20 shrink-0 text-right font-mono text-[12px]"
+                      style={{ color: figma.muted }}
+                    >
+                      {sizePending ? "…" : formatBytes(entry.size)}
+                    </span>
+                    <span
+                      className="w-[140px] shrink-0 text-right text-[12px]"
+                      style={{ color: figma.muted }}
+                    >
+                      {formatModifiedLabel(entry.modifiedAt)}
+                    </span>
+                  </div>
+                </ItemContextMenu>
+              );
+            }}
+          </VirtualTableBody>
+        ) : null}
       </>
     );
   }
@@ -1139,58 +1119,55 @@ export function FilesPage({
     return (
       <>
         {pathChrome}
-        <ScrollArea className="min-h-0 flex-1" type="hover">
-          <div className="px-6 py-4 pb-6">
-            {error ? <p className="mb-3 text-sm text-muted-foreground">{error}</p> : null}
+        {error ? (
+          <p className="shrink-0 px-6 pt-3 text-sm text-muted-foreground">{error}</p>
+        ) : null}
 
-            {listLoading ? (
-              <div className="entropy-gallery">
-                <div className="entropy-gallery-grid">
-                  {Array.from({ length: 12 }).map((_, index) => (
-                    <Skeleton key={index} className="aspect-[4/5] w-full rounded-lg" />
-                  ))}
-                </div>
+        {listLoading ? (
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+            <div className="entropy-gallery">
+              <div className="entropy-gallery-grid">
+                {Array.from({ length: 12 }).map((_, index) => (
+                  <Skeleton key={index} className="aspect-[4/5] w-full rounded-lg" />
+                ))}
               </div>
-            ) : null}
-
-            {!listLoading && galleryVisible.length === 0 ? (
-              <Empty className="py-16">
-                <EmptyTitle>Nothing to preview</EmptyTitle>
-                <EmptyDescription>
-                  Folders and media in this location will show here with previews.
-                </EmptyDescription>
-              </Empty>
-            ) : null}
-
-            {!listLoading && galleryVisible.length > 0 ? (
-              <div className="entropy-gallery">
-                <div className="entropy-gallery-grid">
-                  {rendered.map((entry) => (
-                    <FileGridCard
-                      key={entry.path}
-                      entry={entry}
-                      homePath={homePath}
-                      selected={selected?.path === entry.path}
-                      dropTarget={false}
-                      sizePending={false}
-                      onSelect={() => {
-                        if (!entry.isDirectory) setSelected(entry);
-                        else setSelected(null);
-                      }}
-                      onOpen={() => void openEntry(entry)}
-                      onDragStart={(event) => onDragStart(event, entry)}
-                      actions={fileActions(entry)}
-                      dismissKey={`${workspace.currentSection}:${perspective}`}
-                    />
-                  ))}
-                  {rendered.length < galleryVisible.length ? (
-                    <div ref={loadMoreRef} className="col-span-full h-8 w-full" aria-hidden />
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
+            </div>
           </div>
-        </ScrollArea>
+        ) : null}
+
+        {!listLoading && galleryVisible.length === 0 ? (
+          <Empty className="min-h-0 flex-1 py-16">
+            <EmptyTitle>Nothing to preview</EmptyTitle>
+            <EmptyDescription>
+              Folders and media in this location will show here with previews.
+            </EmptyDescription>
+          </Empty>
+        ) : null}
+
+        {!listLoading && galleryVisible.length > 0 ? (
+          <VirtualGalleryGrid count={galleryVisible.length}>
+            {(index) => {
+              const entry = galleryVisible[index]!;
+              return (
+                <FileGridCard
+                  entry={entry}
+                  homePath={homePath}
+                  selected={selected?.path === entry.path}
+                  dropTarget={false}
+                  sizePending={false}
+                  onSelect={() => {
+                    if (!entry.isDirectory) setSelected(entry);
+                    else setSelected(null);
+                  }}
+                  onOpen={() => void openEntry(entry)}
+                  onDragStart={(event) => onDragStart(event, entry)}
+                  actions={fileActions(entry)}
+                  dismissKey={`${workspace.currentSection}:${perspective}`}
+                />
+              );
+            }}
+          </VirtualGalleryGrid>
+        ) : null}
       </>
     );
   }
