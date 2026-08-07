@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { Minus, Square, X } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { hostIsMac } from "../lib/platform";
 import { cn } from "../lib/utils";
 
-/** Ultra-minimal Win/Linux window chrome — no button surfaces or hover washes. */
+/** Ultra-minimal Win/Linux window chrome — icon-only, no tooltips or hover washes. */
 export function WindowControls() {
   const [maximized, setMaximized] = useState(false);
   const isMac = hostIsMac();
@@ -32,60 +31,40 @@ export function WindowControls() {
 
   return (
     <div className="no-drag flex h-9 items-center" role="group" aria-label="Window">
-      <ChromeButton
-        label="Minimize"
+      <button
+        type="button"
+        aria-label="Minimize"
         onClick={() => void window.entropy.window.minimize()}
+        className={chromeBtnClass}
       >
         <Minus className="size-3.5" strokeWidth={1.5} />
-      </ChromeButton>
-      <ChromeButton
-        label={maximized ? "Restore" : "Maximize"}
+      </button>
+      <button
+        type="button"
+        aria-label={maximized ? "Restore" : "Maximize"}
         onClick={() => {
           void window.entropy.window.maximize().then(async () => {
             setMaximized(await window.entropy.window.isMaximized());
           });
         }}
+        className={chromeBtnClass}
       >
         <Square className="size-3" strokeWidth={1.5} />
-      </ChromeButton>
-      <ChromeButton
-        label="Close"
+      </button>
+      <button
+        type="button"
+        aria-label="Close"
         onClick={() => void window.entropy.window.close()}
+        className={chromeBtnClass}
       >
         <X className="size-3.5" strokeWidth={1.5} />
-      </ChromeButton>
+      </button>
     </div>
   );
 }
 
-function ChromeButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          onClick={onClick}
-          className={cn(
-            "inline-flex h-9 w-9 items-center justify-center text-muted-foreground outline-none",
-            "hover:text-foreground focus-visible:text-foreground",
-            "bg-transparent shadow-none ring-0",
-          )}
-        >
-          {children}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={6}>
-        {label}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
+const chromeBtnClass = cn(
+  "inline-flex h-9 w-9 items-center justify-center text-muted-foreground outline-none",
+  "hover:text-foreground focus-visible:text-foreground",
+  "bg-transparent shadow-none ring-0",
+);

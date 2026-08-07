@@ -136,20 +136,20 @@
     padding-top: env(titlebar-area-height, 36px);
   }
 
-  /* Space for custom Entropy window controls (3 × 36px). */
+  /* Reserve the shell overlay: 3×36px controls + gap so sort/chrome never collide. */
   .entropy-titlebar-end {
     padding-inline-end: 0.5rem;
   }
 
   [data-platform="win32"] .entropy-titlebar-end,
   [data-platform="linux"] .entropy-titlebar-end {
-    padding-inline-end: 108px;
+    padding-inline-end: 124px;
   }
 
   /* Folders: storage-map toggle sits left of window controls. */
   [data-platform="win32"] .entropy-titlebar-end--map,
   [data-platform="linux"] .entropy-titlebar-end--map {
-    padding-inline-end: 148px;
+    padding-inline-end: 168px;
   }
 
   * {

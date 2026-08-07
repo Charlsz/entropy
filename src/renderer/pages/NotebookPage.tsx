@@ -685,7 +685,11 @@ export function NotebookPage({
                             />
                           </div>
                         ) : (
-                          <ItemContextMenu label={title} actions={noteActions(note)}>
+                          <ItemContextMenu
+                            label={title}
+                            actions={noteActions(note)}
+                            dismissKey={workspace.currentSection}
+                          >
                             <div
                               className="group flex min-w-0 items-start"
                               style={{

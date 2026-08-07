@@ -140,12 +140,7 @@ export function WorkspaceShell({
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-9 items-center justify-end">
-          <div
-            className={cn(
-              "pointer-events-auto no-drag flex items-center gap-0.5",
-              needsCustomControls ? "entropy-titlebar-end" : "pr-2",
-            )}
-          >
+          <div className="pointer-events-auto no-drag flex items-center gap-0.5 pr-1">
             {showTreemapToggle ? (
               <Tooltip>
                 <TooltipTrigger asChild>

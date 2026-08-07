@@ -77,17 +77,17 @@ ContextMenuSubTrigger.displayName = ContextMenuPrimitive.SubTrigger.displayName;
 export const ContextMenuSubContent = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubContent>
->(({ className, ...props }, ref) => (
-  <ContextMenuPrimitive.Portal>
-    <ContextMenuPrimitive.SubContent
-      ref={ref}
-      className={cn(
-        "z-50 min-w-[7.5rem] overflow-hidden rounded-[6px] border border-border bg-card p-0.5 text-foreground shadow-sm entropy-menu",
-        className,
-      )}
-      {...props}
-    />
-  </ContextMenuPrimitive.Portal>
+>(({ className, sideOffset = 6, ...props }, ref) => (
+  // No nested Portal — portaling SubContent separately causes it to overlap the parent menu.
+  <ContextMenuPrimitive.SubContent
+    ref={ref}
+    sideOffset={sideOffset}
+    className={cn(
+      "z-50 min-w-[7.5rem] overflow-hidden rounded-[6px] border border-border bg-card p-0.5 text-foreground shadow-sm entropy-menu",
+      className,
+    )}
+    {...props}
+  />
 ));
 ContextMenuSubContent.displayName = ContextMenuPrimitive.SubContent.displayName;
 

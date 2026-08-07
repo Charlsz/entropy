@@ -1032,6 +1032,7 @@ export function FilesPage({
                       key={entry.path}
                       label={entry.name}
                       actions={fileActions(entry)}
+                      dismissKey={`${workspace.currentSection}:${perspective}`}
                     >
                       <div
                         draggable
@@ -1153,6 +1154,7 @@ export function FilesPage({
                       onOpen={() => void openEntry(entry)}
                       onDragStart={(event) => onDragStart(event, entry)}
                       actions={fileActions(entry)}
+                      dismissKey={`${workspace.currentSection}:${perspective}`}
                     />
                   ))}
                   {rendered.length < galleryVisible.length ? (
@@ -1293,6 +1295,7 @@ const FileGridCard = memo(
     onDragOver,
     onDrop,
     actions,
+    dismissKey,
   }: {
     entry: FileEntry;
     homePath: string | null;
@@ -1305,6 +1308,7 @@ const FileGridCard = memo(
     onDragOver?: (event: DragEvent) => void;
     onDrop?: (event: DragEvent) => void;
     actions: ItemAction[];
+    dismissKey?: string;
   }) {
     const count = useFolderCount(entry.path, entry.isDirectory);
     const isPreviewable = isPreviewableEntry(entry);
@@ -1333,7 +1337,7 @@ const FileGridCard = memo(
     }, [entry.isDirectory, entry.path, isPreviewable]);
 
     return (
-      <ItemContextMenu label={entry.name} actions={actions}>
+      <ItemContextMenu label={entry.name} actions={actions} dismissKey={dismissKey}>
         <div
           draggable
           className={cn(
