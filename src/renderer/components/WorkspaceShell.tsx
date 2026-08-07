@@ -5,7 +5,7 @@ import { WindowControls } from "./WindowControls";
 import { TreemapIcon } from "./StorageTreemap";
 import {
   ChromeTitlebarProvider,
-  useChromeTitlebarStart,
+  ChromeTitlebarSlot,
 } from "./ChromeTitlebar";
 import { useWorkspace } from "../state/useWorkspace";
 import { figma } from "../lib/figmaTokens";
@@ -54,7 +54,6 @@ function WorkspaceShellFrame({
     visitSection,
     updateSettings,
   } = useWorkspace();
-  const titleStart = useChromeTitlebarStart();
   const [searchQuery, setSearchQuery] = useState("");
   const [duplicateCount, setDuplicateCount] = useState<number | null>(null);
   const needsCustomControls = Boolean(window.entropy.window?.needsCustomControls);
@@ -169,9 +168,7 @@ function WorkspaceShellFrame({
           className="drag-region flex h-9 shrink-0 items-center border-b"
           style={{ backgroundColor: figma.canvas, borderColor: figma.border }}
         >
-          <div className="no-drag flex min-w-0 flex-1 items-center overflow-hidden">
-            {titleStart}
-          </div>
+          <ChromeTitlebarSlot className="no-drag flex min-w-0 flex-1 items-center overflow-hidden" />
           <div className="no-drag flex shrink-0 items-center gap-0.5 pr-1">
             {showTreemapToggle ? (
               <Tooltip>
