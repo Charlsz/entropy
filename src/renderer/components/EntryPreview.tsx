@@ -438,8 +438,9 @@ function VideoThumb({
   objectFit?: string;
   autoplay?: boolean;
 }) {
-  // Sticky for inspector autoplay so layout thrash cannot blank the preview.
-  const { ref, inView } = useInView<HTMLDivElement>("80px", { sticky: autoplay || size !== "lg" });
+  // Gallery/inspector use size=lg and must not depend on IO — CSS zoom blanks it.
+  const { ref, inView } = useInView<HTMLDivElement>("80px", { sticky: true });
+  const visible = size === "lg" || inView;
   const [url, setUrl] = useState<string | null>(null);
   const [poster, setPoster] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -449,9 +450,9 @@ function VideoThumb({
   const [reloadToken, setReloadToken] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Inspector (autoplay): always live. Gallery lg: play only while hovered.
-  const wantsLive =
-    size === "lg" && !releasing && (autoplay || (inView && hovered));
+  // Show a face whenever visible. Play only for gallery hover / inspector autoplay.
+  const showFace = visible && !releasing;
+  const playing = showFace && size === "lg" && (autoplay || hovered);
 
   const bindVideoRef = (el: HTMLVideoElement | null): void => {
     if (videoRef.current && videoRef.current !== el) {
@@ -469,7 +470,6 @@ function VideoThumb({
         setHasFrame(false);
         setHovered(false);
       } else if (releasing) {
-        // This path finished a delete pass — remount poster/video if needed.
         setReloadToken((value) => value + 1);
         setFailed(false);
       }
@@ -478,36 +478,20 @@ function VideoThumb({
   }, [path, releasing]);
 
   useEffect(() => {
+    if (!showFace) return;
     let cancelled = false;
     setFailed(false);
     setPoster(null);
-    void withVideoSlot(async () => {
-      try {
-        const thumb = await getThumbUrl(path).catch(() => null);
-        if (!cancelled) setPoster(thumb);
-      } catch {
-        // Poster optional.
-      }
-    }, () => cancelled);
-    return () => {
-      cancelled = true;
-    };
-  }, [path, reloadToken]);
-
-  useEffect(() => {
-    if (!wantsLive) {
-      setUrl(null);
-      setHasFrame(false);
-      unloadVideoEl(videoRef.current);
-      return;
-    }
-    let cancelled = false;
     setHasFrame(false);
     void withVideoSlot(async () => {
       try {
-        // Always stream via entropy:// — blob prefetch was blanking large gallery clips.
-        const fileUrl = await getFileUrl(path);
-        if (!cancelled && !isMediaReleasing(path)) setUrl(fileUrl);
+        const [thumb, fileUrl] = await Promise.all([
+          getThumbUrl(path).catch(() => null),
+          getFileUrl(path),
+        ]);
+        if (cancelled || isMediaReleasing(path)) return;
+        if (thumb) setPoster(thumb);
+        setUrl(fileUrl);
       } catch {
         if (!cancelled) setFailed(true);
       }
@@ -515,12 +499,15 @@ function VideoThumb({
     return () => {
       cancelled = true;
       unloadVideoEl(videoRef.current);
+      setUrl(null);
+      setHasFrame(false);
     };
-  }, [path, wantsLive, reloadToken]);
+  }, [path, showFace, reloadToken]);
 
   useEffect(() => {
+    if (!playing || !url) return;
     const video = videoRef.current;
-    if (!video || !url || !wantsLive) return;
+    if (!video) return;
 
     let timer = 0;
     let cancelled = false;
@@ -542,38 +529,34 @@ function VideoThumb({
           if (!cancelled) void playClip();
         }, VIDEO_CLIP_SECONDS * 1000);
       } catch {
-        // Keep poster frame when autoplay is blocked.
+        // Keep still frame when autoplay is blocked.
       }
     }
 
-    function onLoaded(): void {
-      setHasFrame(true);
-      void playClip();
-    }
-
-    video.addEventListener("loadeddata", onLoaded);
-    if (video.readyState >= 2) onLoaded();
-
+    void playClip();
     return () => {
       cancelled = true;
       clearTimer();
-      video.removeEventListener("loadeddata", onLoaded);
-      unloadVideoEl(video);
+      try {
+        video.pause();
+      } catch {
+        // Ignore.
+      }
     };
-  }, [url, wantsLive, autoplay, path]);
+  }, [playing, url, autoplay, path]);
 
   const shellProps = {
     ref,
     className: "relative h-full w-full overflow-hidden bg-ink-2",
     onPointerEnter: () => {
-      if (!isMediaReleasing(path)) setHovered(true);
+      if (!isMediaReleasing(path) && size === "lg") setHovered(true);
     },
     onPointerLeave: () => {
       if (!autoplay) setHovered(false);
     },
   } as const;
 
-  if (failed && !poster) {
+  if (failed && !poster && !url) {
     return (
       <div {...shellProps} className="flex h-full w-full items-center justify-center bg-ink-2">
         <FileText
@@ -587,7 +570,6 @@ function VideoThumb({
     );
   }
 
-  // Keep the poster under the video until a frame is ready — never flash an empty box.
   return (
     <div {...shellProps}>
       {poster ? (
@@ -600,13 +582,14 @@ function VideoThumb({
           className={cn(
             "absolute inset-0 h-full w-full",
             objectFit,
-            hasFrame && wantsLive ? "opacity-0" : "opacity-100",
+            hasFrame ? "opacity-0" : "opacity-100",
           )}
+          onError={() => setPoster(null)}
         />
       ) : !hasFrame ? (
         <div className="absolute inset-0 bg-ink-2" />
       ) : null}
-      {url && wantsLive ? (
+      {url && showFace ? (
         <video
           key={`${url}:${reloadToken}`}
           ref={bindVideoRef}
@@ -617,6 +600,24 @@ function VideoThumb({
           loop={autoplay}
           preload="metadata"
           draggable={false}
+          onLoadedMetadata={(event) => {
+            const el = event.currentTarget;
+            const paint = (): void => setHasFrame(true);
+            try {
+              if (el.currentTime < 0.05) {
+                el.addEventListener("seeked", paint, { once: true });
+                el.currentTime = 0.05;
+              } else {
+                paint();
+              }
+            } catch {
+              paint();
+            }
+          }}
+          onLoadedData={() => setHasFrame(true)}
+          onError={() => {
+            if (!poster) setFailed(true);
+          }}
           className={cn(
             "relative h-full w-full",
             objectFit,
