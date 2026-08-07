@@ -9,7 +9,10 @@ import {
 } from "./ChromeTitlebar";
 import { useWorkspace } from "../state/useWorkspace";
 import { figma } from "../lib/figmaTokens";
-import { requestTreemapPanelToggle } from "../lib/treemapPanelBus";
+import {
+  onTreemapChromeActive,
+  requestTreemapPanelToggle,
+} from "../lib/treemapPanelBus";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "../lib/utils";
@@ -140,10 +143,12 @@ function WorkspaceShellFrame({
   const densityZoom =
     density === "comfortable" ? 1.08 : density === "compact" ? 0.92 : 1;
 
-  const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed ?? true;
+  const [treemapChromeActive, setTreemapChromeActive] = useState(false);
   const showTreemapToggle =
     workspace.currentSection === "inventory" &&
     (perspective === "folders" || perspective === "gallery");
+
+  useEffect(() => onTreemapChromeActive(setTreemapChromeActive), []);
 
   return (
     <div
@@ -180,17 +185,17 @@ function WorkspaceShellFrame({
                     type="button"
                     className={cn(
                       "inline-flex h-8 w-8 items-center justify-center bg-transparent text-muted-foreground outline-none hover:bg-transparent hover:text-foreground",
-                      !treemapCollapsed && "text-foreground",
+                      treemapChromeActive && "text-foreground",
                     )}
-                    aria-label={treemapCollapsed ? "Show storage map" : "Hide storage map"}
-                    aria-pressed={!treemapCollapsed}
+                    aria-label={treemapChromeActive ? "Hide storage map" : "Show storage map"}
+                    aria-pressed={treemapChromeActive}
                     onClick={() => requestTreemapPanelToggle()}
                   >
                     <TreemapIcon className="h-4 w-4" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={8}>
-                  {treemapCollapsed ? "Show storage map" : "Hide storage map"}
+                  {treemapChromeActive ? "Hide storage map" : "Show storage map"}
                 </TooltipContent>
               </Tooltip>
             ) : null}

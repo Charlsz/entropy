@@ -43,7 +43,7 @@ import { isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
 import { formatBytes, formatModifiedLabel, formatUserPath } from "../lib/format";
 import { fileReferenceClipboardMarkdown } from "../lib/markdownBlocks";
-import { onTreemapPanelToggle } from "../lib/treemapPanelBus";
+import { onTreemapPanelToggle, setTreemapChromeActive } from "../lib/treemapPanelBus";
 import {
   getLargeFilesCache,
   invalidateLargeFilesCache,
@@ -915,6 +915,14 @@ export function FilesPage({
           : "Type";
 
   const showTreemap = (perspective === "folders" || perspective === "gallery") && !treemapCollapsed;
+  const fileIntelOpen = Boolean(selected && !selected.isDirectory);
+  const treemapPanelVisible = showTreemap && !fileIntelOpen;
+
+  useEffect(() => {
+    setTreemapChromeActive(treemapPanelVisible);
+    return () => setTreemapChromeActive(false);
+  }, [treemapPanelVisible]);
+
   const foldersSurface = perspective === "folders" || perspective === "gallery";
   const chromeIconClass =
     "h-7 w-7 shrink-0 bg-transparent text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground";
