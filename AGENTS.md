@@ -31,7 +31,7 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 - **Color palette (Figma Entropy):** `#131413` ink · `#FAFAF9` surface · `#FFFFFF` canvas · `#E7E6E3` border · `#6B6D69` muted · `#EEF2F8` select · `#6A7BA2` accent. No status reds/purples. Dark theme remaps via CSS variables.
 - **Typography:** One UI font — **Geist** (or Inter only if Geist is unavailable). Geist Mono for paths/sizes/hints. No display/decorative font pairing.
 - **Notebook:** Writing is primary. Shared app sidebar → Local Notes list → editor. **Do not add a Linked / extra side panel.** Optional right context **hides when empty**. Support inline media while editing.
-- **Library** (code: `inventory`): Shared app sidebar with perspectives — Folders (table), Gallery, Large Files, Duplicates. Starts at Home; does not auto-scan every drive. File Intelligence inspector shows when a file is selected.
+- **Library** (code: `inventory`): Shared app sidebar with perspectives — Folders (List/Gallery), Large Files, Duplicates. Starts at Home; does not auto-scan every drive. File Intelligence inspector shows when a file is selected.
 - **Layout:** Shared **App sidebar** (240px) across surfaces. Content panels are **resizable**, sizes **remembered**, inspector **collapses when empty**. Use horizontal space; avoid wasted chrome.
 - **Sidebar uses icons + text**; icon-only chrome elsewhere when the action is obvious.
 - **Lucide only** for icons — outlined, consistent stroke.
@@ -45,8 +45,8 @@ Do not implement UI or product behavior from memory of Obsidian, Refern, Notion,
 |---|---|---|
 | App sidebar | Figma Entropy | Workspace switch, Library perspectives, Intelligence stubs, storage |
 | Notebook | Obsidian + Figma | Markdown meaning; notes list; references to real paths; inline media |
-| Library Folders | Figma table | Path breadcrumb + file rows (name/path/size/modified) |
-| Library Gallery | Refern / Figma | Media card grid for the current perspective |
+| Library Folders | Figma table | Path breadcrumb + file rows; List | Gallery toggle in chrome |
+| Library Gallery | Refern / Figma | Media card grid — a Folders view mode, not a separate nav item |
 | File Intelligence | Figma inspector | Connections, preview; hide when nothing selected |
 | Caption bar | Electron | Drag region + settings + window controls only |
 
