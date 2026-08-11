@@ -1040,13 +1040,15 @@
   transition: none !important;
 }
 
-.entropy-quiet-row:hover {
+/* Hover must not erase the active/select wash. */
+.entropy-quiet-row:hover:not([data-selected="true"]) {
   background: transparent !important;
   color: var(--color-ink);
 }
 
-.entropy-format-toolbar select.entropy-quiet-control:hover {
-  color: var(--color-ink) !important;
+.entropy-quiet-row[data-selected="true"]:hover {
+  background: var(--color-select) !important;
+  color: var(--color-ink);
 }
 
 .entropy-editor-shell .entropy-notes-chrome button,

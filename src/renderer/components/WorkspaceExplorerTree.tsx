@@ -262,6 +262,7 @@ function TreeChildren({
           <button
             key={entry.path}
             type="button"
+            data-selected={active ? "true" : undefined}
             className="entropy-quiet-row flex w-full min-w-0 items-center gap-1.5 py-1.5 pr-3 text-left text-[13px]"
             style={{
               paddingLeft: 8 + depth * 12 + 28,
@@ -302,6 +303,7 @@ function TreeFolderRow({
   return (
     <div
       className="entropy-quiet-row flex w-full min-w-0 items-center gap-0.5 py-1 pr-2"
+      data-selected={selected ? "true" : undefined}
       style={{
         paddingLeft: 4 + depth * 12,
         backgroundColor: selected ? figma.select : "transparent",

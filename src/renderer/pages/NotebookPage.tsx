@@ -328,6 +328,7 @@ export function NotebookPage({
 
   function openNoteLocal(notePath: string): void {
     // One note at a time — the workspace tree is the switcher (no tab strip).
+    setPreviewEntry(null);
     setOpenPaths([notePath]);
     setActivePath(notePath);
     setCreateFolderPath(parentDirOfNote(notePath, workspace.path));
@@ -729,7 +730,7 @@ export function NotebookPage({
             <WorkspaceExplorerTree
               rootPath={workspace.path}
               rootLabel={workspace.name}
-              activeFilePath={activePath}
+              activeFilePath={previewEntry?.path ?? activePath}
               createFolderPath={createFolderPath}
               diskEpoch={diskEpoch}
               onOpenFolder={setCreateFolderPath}
