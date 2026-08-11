@@ -5,15 +5,12 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Empty, EmptyDescription, EmptyTitle } from "./ui/empty";
 import { Skeleton } from "./ui/skeleton";
 import { figma } from "../lib/figmaTokens";
-import { cn } from "../lib/utils";
 
 interface WorkspaceSelectorProps {
   onSelect: (workspacePath: string) => void;
-  /** Compact card for Notebook workspace gate (Figma shell overlay). */
-  embedded?: boolean;
 }
 
-export function WorkspaceSelector({ onSelect, embedded = false }: WorkspaceSelectorProps) {
+export function WorkspaceSelector({ onSelect }: WorkspaceSelectorProps) {
   const [recent, setRecent] = useState<RecentWorkspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -71,11 +68,8 @@ export function WorkspaceSelector({ onSelect, embedded = false }: WorkspaceSelec
 
   return (
     <div
-      className={cn(
-        "flex min-h-0 flex-1 items-center justify-center px-4 py-6",
-        !embedded && "h-full",
-      )}
-      style={{ backgroundColor: embedded ? "transparent" : figma.surface }}
+      className="flex h-full min-h-0 flex-1 items-center justify-center px-4 py-6"
+      style={{ backgroundColor: figma.surface }}
     >
       <div
         className="w-full max-w-md space-y-6 rounded-[8px] border p-8"
@@ -93,12 +87,11 @@ export function WorkspaceSelector({ onSelect, embedded = false }: WorkspaceSelec
             </span>
           </div>
           <h1 className="text-[22px] font-semibold tracking-tight" style={{ color: figma.ink }}>
-            {embedded ? "Choose a notes workspace" : "Choose a workspace"}
+            Choose a workspace
           </h1>
           <p className="mx-auto max-w-sm text-[13px] leading-relaxed" style={{ color: figma.muted }}>
-            {embedded
-              ? "Notebook stores Markdown in a folder you pick. Library still browses your computer without importing files."
-              : "A folder on your computer for notes. Library browses your real files in place — Entropy never imports them."}
+            A folder on your computer for notes. Library browses your real files in place — Entropy
+            never imports them.
           </p>
         </div>
 

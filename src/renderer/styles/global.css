@@ -425,13 +425,6 @@
   }
 }
 
-.entropy-media-card {
-  overflow: hidden;
-  border-radius: 12px;
-  background: var(--ink-2);
-}
-
-/* Gallery: tiles share space fluidly as the panel grows/shrinks. */
 /* Clip Chromium PDF viewer chrome (scrollbar) — hash flags alone are unreliable. */
 .entropy-pdf-face {
   overflow: hidden;
@@ -484,52 +477,6 @@
   }
 }
 
-.entropy-gallery-card {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.5rem;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 14rem;
-}
-
-.entropy-gallery-face {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  overflow: hidden;
-}
-
-.entropy-gallery-face--icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.entropy-gallery-face--icon svg {
-  width: 42%;
-  height: 42%;
-  max-width: 3.5rem;
-  max-height: 3.5rem;
-}
-
-.entropy-gallery-label {
-  min-width: 0;
-  font-size: 0.8125rem;
-  line-height: 1.3;
-  color: var(--foreground);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.entropy-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  row-gap: 0.5rem;
-}
-
 /* Shared 8px-grid chrome strip: note list, editor tabs, inspector header. */
 .entropy-chrome-bar {
   display: flex;
@@ -538,25 +485,6 @@
   min-height: 3.5rem;
   padding-inline: 1rem;
   padding-block: 0.75rem;
-}
-
-.entropy-toolbar-trail {
-  flex: 1 1 10rem;
-  min-width: 0;
-}
-
-/* Readable column for list/detail modes — gallery stays full-bleed.
-   Scales up on wide containers so maximized windows don’t look empty. */
-.entropy-readable {
-  width: 100%;
-  max-width: 48rem;
-  margin-inline: auto;
-}
-
-.entropy-readable-wide {
-  width: 100%;
-  max-width: 72rem;
-  margin-inline: auto;
 }
 
 .entropy-duplicates {
@@ -572,20 +500,12 @@
 }
 
 @container duplicates (min-width: 52rem) {
-  .entropy-readable {
-    max-width: 64rem;
-  }
-
   .entropy-duplicates-stage {
     max-width: 88rem;
   }
 }
 
 @container duplicates (min-width: 72rem) {
-  .entropy-readable {
-    max-width: 80rem;
-  }
-
   .entropy-duplicates-stage {
     max-width: 96rem;
   }
@@ -607,51 +527,28 @@
   }
 }
 
-/* Inventory chrome adapts to the Content column, not the whole window. */
-.entropy-inventory-chrome {
-  container-type: inline-size;
-  container-name: inventory-chrome;
-}
-
-/* Notebook note list — same toolbar language as Inventory, Obsidian writing focus. */
-.entropy-notes-sidebar {
-  container-type: inline-size;
-  container-name: notes-sidebar;
-}
-
 .entropy-notes-chrome {
   container-type: inline-size;
   container-name: notes-chrome;
+  overflow: hidden;
 }
 
-@container notes-sidebar (max-width: 14rem) {
-  .entropy-notes-chrome .entropy-new-note-label {
+.entropy-format-toolbar {
+  scrollbar-width: none;
+}
+
+.entropy-format-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+@container notes-chrome (max-width: 34rem) {
+  .entropy-format-toolbar [data-toolbar-priority="low"] {
     display: none;
   }
 }
 
-@container notes-sidebar (max-width: 16rem) {
-  .entropy-notes-sidebar .entropy-chrome-bar {
-    padding-inline: 0.5rem;
-  }
-
-  .entropy-notes-list {
-    padding-inline: 0.5rem;
-  }
-
-  .entropy-notes-list button {
-    padding-inline: 0.5rem;
-  }
-}
-
-@container notes-sidebar (max-width: 12rem) {
-  .entropy-notes-sidebar .entropy-chrome-bar {
-    flex-wrap: wrap;
-    min-height: 0;
-    row-gap: 0.5rem;
-  }
-
-  .entropy-notes-list .entropy-note-actions {
+@container notes-chrome (max-width: 28rem) {
+  .entropy-format-toolbar [data-toolbar-group="heading"] {
     display: none;
   }
 }
@@ -669,10 +566,6 @@
   .entropy-context-body {
     padding: 0.75rem;
   }
-
-  .entropy-context-subtitle {
-    display: none;
-  }
 }
 
 @container note-context (max-width: 12rem) {
@@ -682,21 +575,6 @@
 
   .entropy-context-body h3 {
     letter-spacing: 0.04em;
-  }
-}
-
-@container inventory-chrome (max-width: 28rem) {
-  .entropy-sort-trigger {
-    width: 6.25rem;
-  }
-
-  .entropy-duplicates-btn {
-    width: 2rem;
-    padding-inline: 0;
-  }
-
-  .entropy-duplicates-label {
-    display: none;
   }
 }
 
@@ -830,28 +708,6 @@
   }
 }
 
-.entropy-context-bar {
-  container-type: inline-size;
-  container-name: context-bar;
-}
-
-@container context-bar (min-width: 36rem) {
-  .entropy-context-meta {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-@container context-bar (max-width: 24rem) {
-  .entropy-context-action {
-    width: 1.75rem;
-    padding-inline: 0;
-  }
-
-  .entropy-context-action-label {
-    display: none;
-  }
-}
-
 .entropy-editor-shell {
   container-type: inline-size;
   container-name: editor;
@@ -887,23 +743,6 @@
   .entropy-prose-pad {
     padding-inline: 3rem;
     padding-block: 3rem;
-  }
-}
-
-.entropy-list-table {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 8.5rem) 4.5rem 4rem 1.75rem;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-@container gallery (max-width: 28rem) {
-  .entropy-list-table {
-    grid-template-columns: minmax(0, 1fr) 4.5rem 1.75rem;
-  }
-
-  .entropy-list-hide-narrow {
-    display: none;
   }
 }
 
@@ -1041,10 +880,6 @@
   color: var(--color-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
-}
-
-.entropy-bubble-menu {
-  z-index: 20;
 }
 
 /* Quiet Notebook chrome — no blue hover wash, no motion */

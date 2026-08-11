@@ -8,13 +8,6 @@ export type LibraryPerspective =
 /** Optional Intelligence destinations (may be coming-soon stubs). */
 export type IntelligenceView = "relationships" | "copilot";
 
-export const LIBRARY_PERSPECTIVES: LibraryPerspective[] = [
-  "folders",
-  "gallery",
-  "large-files",
-  "duplicates",
-];
-
 export const PERSPECTIVE_LABELS: Record<LibraryPerspective, string> = {
   folders: "Folders",
   gallery: "Gallery",
