@@ -419,9 +419,14 @@ export function NotebookPage({
     filePath: string,
     perspective: "folders" | "gallery",
   ): Promise<void> {
-    const dir = await window.entropy.fs.dirname(filePath);
     updateSettings({ libraryPerspective: perspective, intelligenceView: null });
-    openFolder(dir);
+    try {
+      const dir = await window.entropy.fs.dirname(filePath);
+      openFolder(dir);
+    } catch {
+      // Fall back to switching Library even if dirname fails.
+      openFolder(workspace.path);
+    }
   }
 
   async function confirmDelete(): Promise<void> {
@@ -514,7 +519,7 @@ export function NotebookPage({
 
   function fileActions(entry: FileEntry): ItemAction[] {
     const isMarkdown = entry.extension.toLowerCase() === ".md";
-    const revealLabel = revealInFolderLabel(window.entropy.platform);
+    const revealShort = revealInFolderLabel(window.entropy.platform).replace(/^Show in\s+/i, "");
     const actions: ItemAction[] = [
       { label: "Rename", onSelect: () => startRename(entry) },
     ];
@@ -527,14 +532,22 @@ export function NotebookPage({
     actions.push(
       { label: "Copy path", onSelect: () => void copyPath(entry.path) },
       {
-        label: "Show in Folders",
-        onSelect: () => void showInLibrary(entry.path, "folders"),
+        label: "Show in",
+        children: [
+          {
+            label: "Folders",
+            onSelect: () => void showInLibrary(entry.path, "folders"),
+          },
+          {
+            label: "Gallery",
+            onSelect: () => void showInLibrary(entry.path, "gallery"),
+          },
+          {
+            label: revealShort,
+            onSelect: () => void revealPath(entry.path),
+          },
+        ],
       },
-      {
-        label: "Show in Gallery",
-        onSelect: () => void showInLibrary(entry.path, "gallery"),
-      },
-      { label: revealLabel, onSelect: () => void revealPath(entry.path) },
       { label: "Move to…", onSelect: () => setMovingPath(entry.path) },
       {
         label: "Delete",

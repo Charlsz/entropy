@@ -11,9 +11,8 @@ import {
 import type { FileEntry } from "../../shared/types";
 import type { ItemAction } from "./ItemActionsMenu";
 import { ItemContextMenu } from "./ItemContextMenu";
-import { ScrollArea } from "./ui/scroll-area";
 import { figma } from "../lib/figmaTokens";
-import { samePath } from "../lib/platform";
+import { isUnderPath, samePath } from "../lib/platform";
 import { cn } from "../lib/utils";
 
 interface WorkspaceExplorerTreeProps {
@@ -34,24 +33,25 @@ interface WorkspaceExplorerTreeProps {
 }
 
 function fileIcon(entry: FileEntry) {
+  const iconClass = "size-[14px] shrink-0 overflow-hidden";
   if (entry.isDirectory) {
-    return <Folder className="size-[14px] shrink-0" style={{ color: figma.muted }} strokeWidth={1.75} />;
+    return <Folder className={iconClass} style={{ color: figma.muted }} strokeWidth={1.75} />;
   }
   const ext = entry.extension.toLowerCase();
   if (ext === ".md") {
-    return <FileText className="size-[14px] shrink-0" style={{ color: figma.muted }} strokeWidth={1.75} />;
+    return <FileText className={iconClass} style={{ color: figma.muted }} strokeWidth={1.75} />;
   }
   if ([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".bmp"].includes(ext)) {
-    return <Image className="size-[14px] shrink-0" style={{ color: figma.muted }} strokeWidth={1.75} />;
+    return <Image className={iconClass} style={{ color: figma.muted }} strokeWidth={1.75} />;
   }
   if (
     [".ts", ".tsx", ".js", ".jsx", ".py", ".rs", ".go", ".java", ".c", ".cpp", ".css", ".json"].includes(
       ext,
     )
   ) {
-    return <FileCode2 className="size-[14px] shrink-0" style={{ color: figma.muted }} strokeWidth={1.75} />;
+    return <FileCode2 className={iconClass} style={{ color: figma.muted }} strokeWidth={1.75} />;
   }
-  return <File className="size-[14px] shrink-0" style={{ color: figma.muted }} strokeWidth={1.75} />;
+  return <File className={iconClass} style={{ color: figma.muted }} strokeWidth={1.75} />;
 }
 
 export function WorkspaceExplorerTree({
@@ -112,33 +112,42 @@ export function WorkspaceExplorerTree({
   // Expand ancestors when an active file is under the workspace.
   useEffect(() => {
     if (!activeFilePath || !rootPath) return;
-    const rootNorm = rootPath.replace(/[/\\]+$/, "");
-    const fileNorm = activeFilePath.replace(/[/\\]+$/, "");
-    const rootKey = rootNorm.replace(/\\/g, "/").toLowerCase();
-    const fileKey = fileNorm.replace(/\\/g, "/").toLowerCase();
-    if (!fileKey.startsWith(rootKey)) return;
+    if (!isUnderPath(activeFilePath, rootPath)) return;
 
-    const sep = activeFilePath.includes("\\") ? "\\" : "/";
-    const relative = fileNorm.slice(rootNorm.length).replace(/^[/\\]+/, "");
-    const parts = relative.split(/[/\\]/).filter(Boolean);
-    if (parts.length <= 1) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const relative = await window.entropy.fs.relative(rootPath, activeFilePath);
+        if (cancelled || !relative || relative.startsWith("..")) return;
+        const parts = relative.replace(/\\/g, "/").split("/").filter(Boolean);
+        if (parts.length <= 1) return;
 
-    const folders: string[] = [];
-    let cursor = rootNorm;
-    for (let i = 0; i < parts.length - 1; i += 1) {
-      cursor = `${cursor}${sep}${parts[i]}`;
-      folders.push(cursor);
-    }
+        const sep = rootPath.includes("\\") || activeFilePath.includes("\\") ? "\\" : "/";
+        const rootNorm = rootPath.replace(/[/\\]+$/, "");
+        const folders: string[] = [];
+        let cursor = rootNorm;
+        for (let i = 0; i < parts.length - 1; i += 1) {
+          cursor = `${cursor}${sep}${parts[i]}`;
+          folders.push(cursor);
+        }
 
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.add(rootPath);
-      for (const folder of folders) next.add(folder);
-      return next;
-    });
-    for (const folder of folders) {
-      void loadChildren(folder);
-    }
+        setExpanded((prev) => {
+          const next = new Set(prev);
+          next.add(rootPath);
+          for (const folder of folders) next.add(folder);
+          return next;
+        });
+        for (const folder of folders) {
+          void loadChildren(folder);
+        }
+      } catch {
+        // Ignore transient path resolution failures.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeFilePath, rootPath, loadChildren]);
 
   function toggleFolder(folderPath: string): void {
@@ -164,8 +173,11 @@ export function WorkspaceExplorerTree({
   }
 
   return (
-    <ScrollArea className="min-h-0 flex-1" type="hover">
-      <div className="px-1 py-1.5 pb-6" aria-label="Workspace files">
+    <div
+      className="entropy-workspace-tree min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+      aria-label="Workspace files"
+    >
+      <div className="px-1 py-1.5 pb-6">
         <TreeFolderRow
           name={rootLabel}
           path={rootPath}
@@ -198,7 +210,7 @@ export function WorkspaceExplorerTree({
           />
         ) : null}
       </div>
-    </ScrollArea>
+    </div>
   );
 }
 
@@ -412,7 +424,7 @@ function TreeFolderRow({
         style={{ color: figma.ink }}
         onClick={onActivate}
       >
-        <Folder className="size-[14px] shrink-0" style={{ color: figma.muted }} strokeWidth={1.75} />
+        <Folder className="size-[14px] shrink-0 overflow-hidden" style={{ color: figma.muted }} strokeWidth={1.75} />
         <span className={cn("truncate", selected && "font-medium")}>{name}</span>
         {loading ? (
           <span className="ml-auto shrink-0 text-[10px]" style={{ color: figma.muted }}>

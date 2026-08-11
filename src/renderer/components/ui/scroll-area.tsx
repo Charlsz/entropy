@@ -16,7 +16,8 @@ export const ScrollArea = React.forwardRef<
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />
-    <ScrollAreaPrimitive.Corner />
+    {/* Hide Radix corner square — it flashes a light speck in narrow panels. */}
+    <ScrollAreaPrimitive.Corner className="bg-transparent opacity-0" />
   </ScrollAreaPrimitive.Root>
 ));
 ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName;

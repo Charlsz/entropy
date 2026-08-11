@@ -796,6 +796,18 @@
   color: var(--foreground) !important;
 }
 
+/* Notes workspace tree — calm glyphs, no scroll-corner speckles. */
+.entropy-workspace-tree {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.entropy-workspace-tree svg {
+  display: block;
+  overflow: hidden;
+  shape-rendering: geometricPrecision;
+}
+
 @keyframes entropy-skeleton-shimmer {
   100% {
     transform: translateX(100%);
