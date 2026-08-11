@@ -3,6 +3,9 @@ import { useEditorState } from "@tiptap/react";
 import type { ReactNode } from "react";
 import {
   Bold,
+  Heading1,
+  Heading2,
+  Heading3,
   Italic,
   List,
   ListOrdered,
@@ -74,15 +77,6 @@ export function NoteFormatToolbar({
     );
   }
 
-  const headingValue =
-    state?.heading === 1
-      ? "h1"
-      : state?.heading === 2
-        ? "h2"
-        : state?.heading === 3
-          ? "h3"
-          : "p";
-
   return (
     <div
       className={cn(
@@ -109,26 +103,30 @@ export function NoteFormatToolbar({
 
       <ToolbarDivider />
 
-      <select
-        className="entropy-quiet-control h-7 rounded-md border-0 bg-transparent px-1.5 text-[12px] outline-none"
-        style={{ color: figma.muted }}
-        aria-label="Heading level"
+      <FormatButton
+        label="Heading 1"
+        active={state?.heading === 1}
         disabled={disabled}
-        value={headingValue}
-        onChange={(event) => {
-          const next = event.target.value;
-          const chain = active.chain().focus();
-          if (next === "p") chain.setParagraph().run();
-          else if (next === "h1") chain.toggleHeading({ level: 1 }).run();
-          else if (next === "h2") chain.toggleHeading({ level: 2 }).run();
-          else if (next === "h3") chain.toggleHeading({ level: 3 }).run();
-        }}
+        onClick={() => active.chain().focus().toggleHeading({ level: 1 }).run()}
       >
-        <option value="p">Paragraph</option>
-        <option value="h1">Heading 1</option>
-        <option value="h2">Heading 2</option>
-        <option value="h3">Heading 3</option>
-      </select>
+        <Heading1 className="size-3.5" strokeWidth={1.75} />
+      </FormatButton>
+      <FormatButton
+        label="Heading 2"
+        active={state?.heading === 2}
+        disabled={disabled}
+        onClick={() => active.chain().focus().toggleHeading({ level: 2 }).run()}
+      >
+        <Heading2 className="size-3.5" strokeWidth={1.75} />
+      </FormatButton>
+      <FormatButton
+        label="Heading 3"
+        active={state?.heading === 3}
+        disabled={disabled}
+        onClick={() => active.chain().focus().toggleHeading({ level: 3 }).run()}
+      >
+        <Heading3 className="size-3.5" strokeWidth={1.75} />
+      </FormatButton>
 
       <ToolbarDivider />
 
