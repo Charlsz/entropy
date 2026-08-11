@@ -9,6 +9,8 @@ import {
   Image,
 } from "lucide-react";
 import type { FileEntry } from "../../shared/types";
+import type { ItemAction } from "./ItemActionsMenu";
+import { ItemContextMenu } from "./ItemContextMenu";
 import { ScrollArea } from "./ui/scroll-area";
 import { figma } from "../lib/figmaTokens";
 import { samePath } from "../lib/platform";
@@ -20,6 +22,13 @@ interface WorkspaceExplorerTreeProps {
   activeFilePath: string | null;
   createFolderPath: string;
   diskEpoch: number;
+  dismissKey?: string | number | null;
+  getFileActions: (entry: FileEntry) => ItemAction[];
+  renamingPath?: string | null;
+  renameValue?: string;
+  onRenameValueChange?: (value: string) => void;
+  onCommitRename?: (path: string) => void;
+  onCancelRename?: () => void;
   onOpenFolder: (folderPath: string) => void;
   onOpenFile: (entry: FileEntry) => void;
 }
@@ -51,6 +60,13 @@ export function WorkspaceExplorerTree({
   activeFilePath,
   createFolderPath,
   diskEpoch,
+  dismissKey,
+  getFileActions,
+  renamingPath = null,
+  renameValue = "",
+  onRenameValueChange,
+  onCommitRename,
+  onCancelRename,
   onOpenFolder,
   onOpenFile,
 }: WorkspaceExplorerTreeProps) {
@@ -169,6 +185,13 @@ export function WorkspaceExplorerTree({
             loadingPaths={loadingPaths}
             activeFilePath={activeFilePath}
             createFolderPath={createFolderPath}
+            dismissKey={dismissKey}
+            getFileActions={getFileActions}
+            renamingPath={renamingPath}
+            renameValue={renameValue}
+            onRenameValueChange={onRenameValueChange}
+            onCommitRename={onCommitRename}
+            onCancelRename={onCancelRename}
             onToggle={toggleFolder}
             onOpenFolder={activateFolder}
             onOpenFile={onOpenFile}
@@ -187,6 +210,13 @@ function TreeChildren({
   loadingPaths,
   activeFilePath,
   createFolderPath,
+  dismissKey,
+  getFileActions,
+  renamingPath,
+  renameValue,
+  onRenameValueChange,
+  onCommitRename,
+  onCancelRename,
   onToggle,
   onOpenFolder,
   onOpenFile,
@@ -198,6 +228,13 @@ function TreeChildren({
   loadingPaths: Set<string>;
   activeFilePath: string | null;
   createFolderPath: string;
+  dismissKey?: string | number | null;
+  getFileActions: (entry: FileEntry) => ItemAction[];
+  renamingPath: string | null;
+  renameValue: string;
+  onRenameValueChange?: (value: string) => void;
+  onCommitRename?: (path: string) => void;
+  onCancelRename?: () => void;
   onToggle: (path: string) => void;
   onOpenFolder: (path: string) => void;
   onOpenFile: (entry: FileEntry) => void;
@@ -248,6 +285,13 @@ function TreeChildren({
                   loadingPaths={loadingPaths}
                   activeFilePath={activeFilePath}
                   createFolderPath={createFolderPath}
+                  dismissKey={dismissKey}
+                  getFileActions={getFileActions}
+                  renamingPath={renamingPath}
+                  renameValue={renameValue}
+                  onRenameValueChange={onRenameValueChange}
+                  onCommitRename={onCommitRename}
+                  onCancelRename={onCancelRename}
                   onToggle={onToggle}
                   onOpenFolder={onOpenFolder}
                   onOpenFile={onOpenFile}
@@ -258,23 +302,62 @@ function TreeChildren({
         }
 
         const active = activeFilePath != null && samePath(activeFilePath, entry.path);
+        const isRenaming = renamingPath != null && samePath(renamingPath, entry.path);
+        const padLeft = 8 + depth * 12 + 28;
+
+        if (isRenaming) {
+          return (
+            <div
+              key={entry.path}
+              className="flex w-full min-w-0 items-center gap-1.5 py-1 pr-3"
+              style={{ paddingLeft: padLeft }}
+            >
+              {fileIcon(entry)}
+              <input
+                className="min-w-0 flex-1 rounded-sm border border-border bg-background px-1.5 py-0.5 text-[13px] text-foreground outline-none"
+                value={renameValue}
+                autoFocus
+                aria-label={`Rename ${entry.name}`}
+                onChange={(event) => onRenameValueChange?.(event.target.value)}
+                onBlur={() => onCommitRename?.(entry.path)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    onCommitRename?.(entry.path);
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    onCancelRename?.();
+                  }
+                }}
+              />
+            </div>
+          );
+        }
+
         return (
-          <button
+          <ItemContextMenu
             key={entry.path}
-            type="button"
-            data-selected={active ? "true" : undefined}
-            className="entropy-quiet-row flex w-full min-w-0 items-center gap-1.5 py-1.5 pr-3 text-left text-[13px]"
-            style={{
-              paddingLeft: 8 + depth * 12 + 28,
-              backgroundColor: active ? figma.select : "transparent",
-              color: figma.ink,
-            }}
-            title={entry.path}
-            onClick={() => onOpenFile(entry)}
+            label={entry.name}
+            actions={getFileActions(entry)}
+            dismissKey={dismissKey}
           >
-            {fileIcon(entry)}
-            <span className={cn("truncate", active && "font-medium")}>{entry.name}</span>
-          </button>
+            <button
+              type="button"
+              data-selected={active ? "true" : undefined}
+              className="entropy-quiet-row flex w-full min-w-0 items-center gap-1.5 py-1.5 pr-3 text-left text-[13px]"
+              style={{
+                paddingLeft: padLeft,
+                backgroundColor: active ? figma.select : "transparent",
+                color: figma.ink,
+              }}
+              title={entry.path}
+              onClick={() => onOpenFile(entry)}
+            >
+              {fileIcon(entry)}
+              <span className={cn("truncate", active && "font-medium")}>{entry.name}</span>
+            </button>
+          </ItemContextMenu>
         );
       })}
     </>

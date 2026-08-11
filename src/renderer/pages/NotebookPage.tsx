@@ -19,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/toolti
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { NoteContextPanel } from "../components/NoteContextPanel";
 import { WorkspaceExplorerTree } from "../components/WorkspaceExplorerTree";
-import { copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
+import { copyPath, moveEntryToFolder, revealPath, type ItemAction } from "../lib/itemActions";
 import { noteContextIsUseful } from "../lib/noteContext";
 import { parentDirOfNote } from "../lib/noteFolderTree";
 import { useDirWatch } from "../hooks/useDirWatch";
@@ -57,6 +57,8 @@ export function NotebookPage({
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [pendingForgetWorkspace, setPendingForgetWorkspace] = useState(false);
   const [movingPath, setMovingPath] = useState<string | null>(null);
+  const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [contextUseful, setContextUseful] = useState(false);
   const [contextEpoch, setContextEpoch] = useState(0);
   const [diskEpoch, setDiskEpoch] = useState(0);
@@ -368,22 +370,73 @@ export function NotebookPage({
     }
   }
 
-  function requestDelete(notePath: string): void {
-    setPendingDelete(notePath);
+  function requestDelete(filePath: string): void {
+    setPendingDelete(filePath);
+  }
+
+  function startRename(entry: FileEntry): void {
+    setRenamingPath(entry.path);
+    setRenameValue(
+      entry.extension.toLowerCase() === ".md"
+        ? entry.name.replace(/\.md$/i, "")
+        : entry.name,
+    );
+  }
+
+  async function commitRename(filePath: string): Promise<void> {
+    const trimmed = renameValue.trim();
+    setRenamingPath(null);
+    if (!trimmed) return;
+
+    try {
+      const info = await window.entropy.fs.stat(filePath).catch(() => null);
+      const isMarkdown = (info?.extension ?? ".md").toLowerCase() === ".md";
+      const nextName = isMarkdown ? trimmed.replace(/\.md$/i, "") : trimmed;
+      if (!nextName) return;
+
+      const dir = await window.entropy.fs.dirname(filePath);
+      const targetName = isMarkdown ? `${nextName}.md` : nextName;
+      const target = await window.entropy.fs.join(dir, targetName);
+      if (samePath(target, filePath)) return;
+      if (await window.entropy.fs.exists(target)) {
+        throw new Error("An item with that name already exists.");
+      }
+
+      await window.entropy.fs.rename(filePath, target);
+      setOpenPaths((prev) => prev.map((path) => (path === filePath ? target : path)));
+      if (activePath === filePath) setActivePath(target);
+      if (previewEntry?.path === filePath) {
+        setPreviewEntry(await window.entropy.fs.stat(target));
+      }
+      bumpDisk();
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to rename");
+    }
+  }
+
+  async function showInLibrary(
+    filePath: string,
+    perspective: "folders" | "gallery",
+  ): Promise<void> {
+    const dir = await window.entropy.fs.dirname(filePath);
+    updateSettings({ libraryPerspective: perspective, intelligenceView: null });
+    openFolder(dir);
   }
 
   async function confirmDelete(): Promise<void> {
-    const notePath = pendingDelete;
-    if (!notePath) return;
+    const filePath = pendingDelete;
+    if (!filePath) return;
     setPendingDelete(null);
     try {
-      const info = await window.entropy.fs.stat(notePath).catch(() => null);
+      const info = await window.entropy.fs.stat(filePath).catch(() => null);
       // Close the tab before remove so disk-sync never readText's a gone path.
       flushSync(() => {
-        closeTab(notePath);
+        closeTab(filePath);
+        if (previewEntry?.path === filePath) setPreviewEntry(null);
       });
-      await window.entropy.fs.remove(notePath);
-      const paths = [notePath];
+      await window.entropy.fs.remove(filePath);
+      const paths = [filePath];
       const trash = osTrashName();
       const size = info?.size ?? 0;
       pushToast({
@@ -394,11 +447,13 @@ export function NotebookPage({
         onAction: async () => {
           const result = await window.entropy.fs.undoRemove(paths);
           if (result.restored === 0) {
-            throw new Error(`Couldn't restore the note. It may already be gone from ${trash}.`);
+            throw new Error(`Couldn't restore the file. It may already be gone from ${trash}.`);
           }
           bumpDisk();
           const restored = paths[0];
-          if (restored) openNoteRef.current(restored);
+          if (restored && (info?.extension ?? "").toLowerCase() === ".md") {
+            openNoteRef.current(restored);
+          }
         },
         onDismiss: () => {
           void window.entropy.fs.finalizeTrash(paths).catch(() => undefined);
@@ -407,7 +462,7 @@ export function NotebookPage({
       setError(null);
       bumpDisk();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete note");
+      setError(err instanceof Error ? err.message : "Failed to delete");
       bumpDisk();
     }
   }
@@ -457,48 +512,74 @@ export function NotebookPage({
     }
   }
 
-  function noteActions(note: { path: string }): Array<{
+  function fileActions(entry: FileEntry): ItemAction[] {
+    const isMarkdown = entry.extension.toLowerCase() === ".md";
+    const revealLabel = revealInFolderLabel(window.entropy.platform);
+    const actions: ItemAction[] = [
+      { label: "Rename", onSelect: () => startRename(entry) },
+    ];
+    if (!isMarkdown && activePath) {
+      actions.push({
+        label: "Reference",
+        onSelect: () => void referenceEntry(entry),
+      });
+    }
+    actions.push(
+      { label: "Copy path", onSelect: () => void copyPath(entry.path) },
+      {
+        label: "Show in",
+        children: [
+          {
+            label: "Folders",
+            onSelect: () => void showInLibrary(entry.path, "folders"),
+          },
+          {
+            label: "Gallery",
+            onSelect: () => void showInLibrary(entry.path, "gallery"),
+          },
+        ],
+      },
+      { label: revealLabel, onSelect: () => void revealPath(entry.path) },
+      { label: "Move to…", onSelect: () => setMovingPath(entry.path) },
+      {
+        label: "Delete",
+        destructive: true,
+        onSelect: () => requestDelete(entry.path),
+      },
+    );
+    return actions;
+  }
+
+  function noteChromeActions(notePath: string): Array<{
     label: string;
     onSelect: () => void;
     destructive?: boolean;
     separatorBefore?: boolean;
   }> {
-    const osRevealLabel = revealInFolderLabel(window.entropy.platform).replace(/^Show in\s+/i, "");
+    const revealLabel = revealInFolderLabel(window.entropy.platform);
     return [
-      { label: "Copy path", onSelect: () => void copyPath(note.path) },
+      { label: "Copy path", onSelect: () => void copyPath(notePath) },
       {
         label: "Show in Folders",
-        onSelect: () => {
-          void (async () => {
-            const dir = await window.entropy.fs.dirname(note.path);
-            updateSettings({ libraryPerspective: "folders", intelligenceView: null });
-            openFolder(dir);
-          })();
-        },
+        onSelect: () => void showInLibrary(notePath, "folders"),
       },
       {
         label: "Show in Gallery",
-        onSelect: () => {
-          void (async () => {
-            const dir = await window.entropy.fs.dirname(note.path);
-            updateSettings({ libraryPerspective: "gallery", intelligenceView: null });
-            openFolder(dir);
-          })();
-        },
+        onSelect: () => void showInLibrary(notePath, "gallery"),
       },
       {
-        label: `Show in ${osRevealLabel}`,
-        onSelect: () => void revealPath(note.path),
+        label: revealLabel,
+        onSelect: () => void revealPath(notePath),
       },
       {
         label: "Move to…",
         separatorBefore: true,
-        onSelect: () => setMovingPath(note.path),
+        onSelect: () => setMovingPath(notePath),
       },
       {
         label: "Delete",
         destructive: true,
-        onSelect: () => requestDelete(note.path),
+        onSelect: () => requestDelete(notePath),
       },
     ];
   }
@@ -576,7 +657,7 @@ export function NotebookPage({
   const activeNoteName = activePath
     ? (activePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "note")
     : null;
-  const activeNoteActions = activePath ? noteActions({ path: activePath }) : [];
+  const activeNoteActions = activePath ? noteChromeActions(activePath) : [];
 
   const context =
     contextUseful || previewEntry ? (
@@ -733,6 +814,13 @@ export function NotebookPage({
               activeFilePath={previewEntry?.path ?? activePath}
               createFolderPath={createFolderPath}
               diskEpoch={diskEpoch}
+              dismissKey={workspace.currentSection}
+              getFileActions={fileActions}
+              renamingPath={renamingPath}
+              renameValue={renameValue}
+              onRenameValueChange={setRenameValue}
+              onCommitRename={(path) => void commitRename(path)}
+              onCancelRename={() => setRenamingPath(null)}
               onOpenFolder={setCreateFolderPath}
               onOpenFile={handleTreeOpenFile}
             />
