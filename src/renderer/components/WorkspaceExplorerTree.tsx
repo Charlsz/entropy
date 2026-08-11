@@ -364,6 +364,8 @@ function TreeChildren({
                 color: figma.ink,
               }}
               title={entry.path}
+              // Keep focus in the editor — focusing the row flashes a ring / selection wash.
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => onOpenFile(entry)}
             >
               {fileIcon(entry)}
@@ -410,6 +412,7 @@ function TreeFolderRow({
         className="flex size-5 shrink-0 items-center justify-center text-muted-foreground"
         aria-label={expanded ? `Collapse ${name}` : `Expand ${name}`}
         aria-expanded={expanded}
+        onMouseDown={(event) => event.preventDefault()}
         onClick={onToggle}
       >
         {expanded ? (
@@ -422,6 +425,7 @@ function TreeFolderRow({
         type="button"
         className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px]"
         style={{ color: figma.ink }}
+        onMouseDown={(event) => event.preventDefault()}
         onClick={onActivate}
       >
         <Folder className="size-[14px] shrink-0 overflow-hidden" style={{ color: figma.muted }} strokeWidth={1.75} />

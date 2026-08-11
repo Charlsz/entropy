@@ -68,6 +68,40 @@ function countWords(text: string): number {
   return trimmed.split(/\s+/).length;
 }
 
+function mergeOpenTabs(prev: EditorTab[], openPaths: string[]): EditorTab[] {
+  const MAX_SOFT_CACHE = 12;
+  const openSet = new Set(openPaths);
+  const byPath = new Map(prev.map((tab) => [tab.path, tab]));
+
+  for (const filePath of openPaths) {
+    if (byPath.has(filePath)) continue;
+    byPath.set(filePath, {
+      path: filePath,
+      title: filePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled",
+      content: "",
+      savedContent: "",
+      mtimeMs: null,
+      loading: true,
+      missing: false,
+      conflict: false,
+    });
+  }
+
+  const openTabs = openPaths
+    .map((path) => byPath.get(path))
+    .filter((tab): tab is EditorTab => Boolean(tab));
+
+  const cached = prev
+    .filter((tab) => !openSet.has(tab.path) && !tab.loading)
+    .slice(-MAX_SOFT_CACHE);
+
+  const next = [...openTabs];
+  for (const tab of cached) {
+    if (!next.some((item) => item.path === tab.path)) next.push(tab);
+  }
+  return next;
+}
+
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
   function MarkdownEditor(
     {
@@ -83,7 +117,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     ref,
   ) {
   const { workspace } = useWorkspace();
-  const [tabs, setTabs] = useState<EditorTab[]>([]);
+  const openKey = openPaths.join("\0");
+  const [tabs, setTabs] = useState<EditorTab[]>(() => mergeOpenTabs([], openPaths));
+  const [syncedOpenKey, setSyncedOpenKey] = useState(openKey);
+  // Keep tab stubs in sync during render so activePath never paints a missing frame.
+  if (openKey !== syncedOpenKey) {
+    setSyncedOpenKey(openKey);
+    setTabs((prev) => mergeOpenTabs(prev, openPaths));
+  }
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [surface, setSurface] = useState<SurfaceMode>("edit");
   const [split, setSplit] = useState(false);
@@ -99,7 +140,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const tabsRef = useRef(tabs);
   const liveEditorRef = useRef<WysiwygMarkdownEditorHandle>(null);
   const activePathRef = useRef(activePath);
-  const openKey = openPaths.join("\0");
 
   useEffect(() => {
     tabsRef.current = tabs;
@@ -266,41 +306,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   useEffect(() => {
     let cancelled = false;
-
-    setTabs((prev) => {
-      const MAX_SOFT_CACHE = 12;
-      const openSet = new Set(openPaths);
-      const byPath = new Map(prev.map((tab) => [tab.path, tab]));
-
-      for (const filePath of openPaths) {
-        if (byPath.has(filePath)) continue;
-        byPath.set(filePath, {
-          path: filePath,
-          title: filePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled",
-          content: "",
-          savedContent: "",
-          mtimeMs: null,
-          loading: true,
-          missing: false,
-          conflict: false,
-        });
-      }
-
-      const openTabs = openPaths
-        .map((path) => byPath.get(path))
-        .filter((tab): tab is EditorTab => Boolean(tab));
-
-      // Soft-cache closed notes so switching back does not flash empty→content.
-      const cached = prev
-        .filter((tab) => !openSet.has(tab.path) && !tab.loading)
-        .slice(-MAX_SOFT_CACHE);
-
-      const next = [...openTabs];
-      for (const tab of cached) {
-        if (!next.some((item) => item.path === tab.path)) next.push(tab);
-      }
-      return next;
-    });
 
     void (async () => {
       for (const filePath of openPaths) {
@@ -780,9 +785,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         </div>
       ) : null}
 
-      {activeTab?.loading ? (
-        <p className="px-4 py-4 text-sm text-muted-foreground">Loading note…</p>
-      ) : activeTab?.missing ? (
+      {activeTab?.missing ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
           <h1 className="text-lg font-medium">Note unavailable</h1>
           <p className="text-sm text-muted-foreground">
@@ -790,7 +793,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           </p>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            activeTab?.loading && !activeTab.content && "opacity-70",
+          )}
+        >
           <div
             className={cn(
               "min-h-0 flex-1",

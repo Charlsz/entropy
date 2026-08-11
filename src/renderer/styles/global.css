@@ -814,6 +814,16 @@
   shape-rendering: geometricPrecision;
 }
 
+.entropy-workspace-tree button {
+  transition: none !important;
+}
+
+.entropy-workspace-tree button:focus,
+.entropy-workspace-tree button:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 @keyframes entropy-skeleton-shimmer {
   100% {
     transform: translateX(100%);
