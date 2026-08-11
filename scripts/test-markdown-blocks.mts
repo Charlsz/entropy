@@ -9,6 +9,7 @@ import {
   parseParenDestination,
   portableFileMarkdown,
 } from "../src/renderer/lib/markdownBlocks";
+import { listLocalFileReferences } from "../src/renderer/lib/noteContext";
 
 function typesOf(markdown: string): string[] {
   return parseMarkdownBlocks(markdown)
@@ -97,5 +98,18 @@ assert.match(
   portableFileMarkdown("./Personal Space/a.png", ".png", "a.png"),
   /^!\[a\.png\]\(<\.\/Personal Space\/a\.png>\)$/,
 );
+
+const listed = listLocalFileReferences(
+  [
+    "![a.png](./a.png)",
+    "",
+    '<video controls src="./v.mp4"></video>',
+    "",
+    "[doc.pdf](<./Personal Space/doc.pdf>)",
+  ].join("\n"),
+);
+assert.equal(listed.length, 3);
+assert.ok(listed.some((item) => item.href.includes("v.mp4")));
+assert.ok(listed.some((item) => item.href.includes("doc.pdf")));
 
 console.log("markdown-blocks: ok");

@@ -13,19 +13,9 @@ import {
 import { useWorkspace } from "../state/useWorkspace";
 import { rewriteMarkdownHref } from "../lib/linkRepair";
 import { formatMarkdownHref } from "../lib/markdownBlocks";
+import { listLocalFileReferences } from "../lib/noteContext";
 import { revealPath } from "../lib/itemActions";
 import { osRevealLabel } from "../lib/platform";
-
-const LINK_RE = /!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
-const WIKI_EMBED_RE = /!\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]/g;
-
-function normalizeHref(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("<") && trimmed.endsWith(">")) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
 
 /** Prefer the real filename for linked / embedded files. */
 function linkDisplayLabel(link: NoteLink): string {
@@ -426,15 +416,14 @@ async function resolveLinks(
   const found: NoteLink[] = [];
   const seen = new Set<string>();
 
-  async function push(label: string, href: string): Promise<void> {
-    if (/^(https?:|mailto:|data:)/i.test(href)) return;
-    const key = `${label}\0${href}`;
-    if (seen.has(key)) return;
+  for (const ref of listLocalFileReferences(content)) {
+    const key = ref.href.toLowerCase();
+    if (seen.has(key)) continue;
     seen.add(key);
     let missing = true;
     try {
       const absolute = await window.entropy.fs.resolveEmbedTarget(
-        href,
+        ref.href,
         notePath,
         workspacePath,
       );
@@ -442,24 +431,7 @@ async function resolveLinks(
     } catch {
       missing = true;
     }
-    found.push({ label, href, missing });
-  }
-
-  LINK_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = LINK_RE.exec(content)) !== null) {
-    await push(match[1]!, normalizeHref(match[2]!));
-  }
-
-  WIKI_EMBED_RE.lastIndex = 0;
-  while ((match = WIKI_EMBED_RE.exec(content)) !== null) {
-    const href = match[1]!.trim();
-    const alias = match[2]?.trim();
-    const label =
-      alias && !/^\d+(?:x\d+)?$/i.test(alias)
-        ? alias
-        : href.split(/[/\\]/).pop() ?? href;
-    await push(label, href);
+    found.push({ label: ref.label, href: ref.href, missing });
   }
 
   return found;
