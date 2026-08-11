@@ -16,6 +16,8 @@ interface ThreeColumnLayoutProps {
   sidebar?: ReactNode | null;
   main: ReactNode;
   context?: ReactNode | null;
+  /** User hid the notebook inspector (slot kept; panel collapsed). */
+  contextCollapsed?: boolean;
   /** Notebook uses editor layout; inventory uses Content | Treemap. */
   variant?: "notebook" | "inventory";
   /** When false, layout changes are not persisted (inactive keep-alive sections). */
@@ -28,6 +30,7 @@ export function ThreeColumnLayout({
   sidebar = null,
   main,
   context = null,
+  contextCollapsed = false,
   variant = "notebook",
   persistLayout = true,
   className,
@@ -38,7 +41,7 @@ export function ThreeColumnLayout({
   const isInventory = variant === "inventory";
   /** Notebook keeps a zero-width context slot so the notes column does not resize. */
   const keepContextSlot = !isInventory && hasSidebar;
-  const showContext = hasContext;
+  const showContext = hasContext && !contextCollapsed;
   const contextPanelRef = useRef<PanelImperativeHandle>(null);
   const savedLayout = isInventory
     ? workspace.settings.inventoryPanelLayout
@@ -82,21 +85,35 @@ export function ThreeColumnLayout({
     ? `${id}-v4-notebook`
     : `${id}-v4-${hasSidebar ? "side" : "noside"}-${hasContext ? "context" : "main"}`;
 
-  // Before paint. expand() alone restores the *last* size — if the panel never
-  // opened (always 0), it stays invisible; resize to the saved share.
+  const ensureContextVisible = () => {
+    const panel = contextPanelRef.current;
+    if (!panel) return;
+    if (panel.isCollapsed()) panel.expand();
+    const { asPercentage } = panel.getSize();
+    if (asPercentage < 8) {
+      panel.resize(`${savedLayout.context}%`);
+    }
+  };
+
+  // Before paint + after window resize (fullscreen) — expand() alone can restore 0.
   useLayoutEffect(() => {
     if (!keepContextSlot) return;
     const panel = contextPanelRef.current;
     if (!panel) return;
     if (showContext) {
-      if (panel.isCollapsed()) panel.expand();
-      const { asPercentage } = panel.getSize();
-      if (asPercentage < 8) {
-        panel.resize(`${savedLayout.context}%`);
-      }
+      ensureContextVisible();
     } else if (!panel.isCollapsed()) {
       panel.collapse();
     }
+  }, [keepContextSlot, savedLayout.context, showContext]);
+
+  useLayoutEffect(() => {
+    if (!keepContextSlot || !showContext) return;
+    const onResize = () => {
+      ensureContextVisible();
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, [keepContextSlot, savedLayout.context, showContext]);
 
   return (
@@ -110,8 +127,13 @@ export function ThreeColumnLayout({
         if (!persistLayout) return;
         if (keepContextSlot) {
           const sidebar = layout.sidebar ?? savedLayout.sidebar;
+          // Never persist a near-zero context while the inspector is meant to be open
+          // (window resize / fullscreen can report a transient 0%).
+          const reported = layout.context ?? savedLayout.context;
           const contextSize = showContext
-            ? (layout.context ?? savedLayout.context)
+            ? reported >= 8
+              ? reported
+              : savedLayout.context
             : savedLayout.context;
           const main = showContext
             ? (layout.main ?? savedLayout.main)

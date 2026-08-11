@@ -348,6 +348,9 @@ export function NotebookPage({
     }
     setPreviewEntry(entry);
     setContextUseful(true);
+    if (workspace.settings.contextCollapsed) {
+      updateSettings({ contextCollapsed: false });
+    }
   }
 
   function closeTab(notePath: string): void {
@@ -663,8 +666,9 @@ export function NotebookPage({
     : null;
   const activeNoteActions = activePath ? noteChromeActions(activePath) : [];
 
+  const contextAvailable = Boolean(contextUseful || previewEntry);
   const context =
-    contextUseful || previewEntry ? (
+    contextAvailable ? (
       <NoteContextPanel
         notePath={activePath}
         previewEntry={previewEntry}
@@ -685,6 +689,7 @@ export function NotebookPage({
         id="notebook-layout"
         persistLayout={workspace.currentSection === "notebook"}
         context={context}
+        contextCollapsed={workspace.settings.contextCollapsed}
         sidebar={
           <div
             className="flex h-full min-h-0 w-full flex-col"
@@ -837,6 +842,14 @@ export function NotebookPage({
             activePath={activePath}
             diskEpoch={diskEpoch}
             onCloseTab={closeTab}
+            contextPanelAvailable={contextAvailable}
+            contextPanelOpen={contextAvailable && !workspace.settings.contextCollapsed}
+            onToggleContextPanel={() => {
+              if (!contextAvailable) return;
+              updateSettings({
+                contextCollapsed: !workspace.settings.contextCollapsed,
+              });
+            }}
             onNotePathChange={(fromPath, toPath) => {
               setOpenPaths((prev) => prev.map((path) => (path === fromPath ? toPath : path)));
               setActivePath((current) => (current === fromPath ? toPath : current));

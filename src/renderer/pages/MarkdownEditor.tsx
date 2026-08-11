@@ -8,7 +8,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { Columns2, Eye, PenLine } from "lucide-react";
+import { Columns2, Eye, PanelRight, PenLine } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 import type { NoteSearchResult } from "../../shared/types";
 import { registerFlush } from "../state/flushRegistry";
@@ -52,6 +52,10 @@ interface MarkdownEditorProps {
   /** Fires when the active tab's in-memory markdown changes (before disk save). */
   onLiveContentChange?: (content: string | null) => void;
   onOpenLocalPath?: (absolutePath: string) => void;
+  /** Notebook inspector availability + quiet show/hide control (no tooltip). */
+  contextPanelAvailable?: boolean;
+  contextPanelOpen?: boolean;
+  onToggleContextPanel?: () => void;
 }
 
 export interface MarkdownEditorHandle {
@@ -113,6 +117,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       onStatsChange,
       onLiveContentChange,
       onOpenLocalPath,
+      contextPanelAvailable = false,
+      contextPanelOpen = false,
+      onToggleContextPanel,
     },
     ref,
   ) {
@@ -742,6 +749,24 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               Split
             </TooltipContent>
           </Tooltip>
+          {onToggleContextPanel ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-8 w-8 bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground",
+                contextPanelOpen && contextPanelAvailable && "text-foreground",
+                !contextPanelAvailable && "opacity-40",
+              )}
+              aria-label={contextPanelOpen ? "Hide note context" : "Show note context"}
+              aria-pressed={contextPanelOpen && contextPanelAvailable}
+              disabled={!contextPanelAvailable}
+              onClick={() => onToggleContextPanel()}
+            >
+              <PanelRight className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </Button>
+          ) : null}
         </div>
       </div>
 
