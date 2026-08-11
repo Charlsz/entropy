@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ExternalLink, FolderOpen, Link2, Trash2, X } from "lucide-react";
+import { ArrowLeft, FolderOpen, Link2, Trash2, X } from "lucide-react";
 import type { FileEntry, NoteSearchResult } from "../../shared/types";
 import { FilePreview } from "../pages/FilePreview";
 import { EntryPreview } from "./EntryPreview";
@@ -13,6 +13,8 @@ import {
 import { useWorkspace } from "../state/useWorkspace";
 import { rewriteMarkdownHref } from "../lib/linkRepair";
 import { formatMarkdownHref } from "../lib/markdownBlocks";
+import { revealPath } from "../lib/itemActions";
+import { osRevealLabel } from "../lib/platform";
 
 const LINK_RE = /!?\[([^\]]*)\]\((<[^>]+>|[^)\s]+)\)/g;
 const WIKI_EMBED_RE = /!\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]/g;
@@ -130,7 +132,7 @@ export function NoteContextPanel({
   }, [notePath, workspace.path, liveContent]);
 
   const preview = previewEntry ?? linkedFile;
-  const canGoBack = Boolean(preview);
+  const canGoBack = previewHistory.length > 0;
   const broken = links.filter((link) => link.missing);
 
   function dismissPreview(): void {
@@ -206,9 +208,13 @@ export function NoteContextPanel({
   if (!notePath && !previewEntry) return null;
   if (!hasUseful && notePath) return null;
 
+  const headerTitle = preview
+    ? preview.name
+    : (meta?.title ?? notePath?.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note");
+
   return (
     <div className="entropy-note-context flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="entropy-chrome-bar shrink-0 border-b border-border">
+      <div className="entropy-chrome-bar !min-h-9 shrink-0 gap-1 border-b border-border !py-1.5">
         {canGoBack ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -226,36 +232,17 @@ export function NoteContextPanel({
             <TooltipContent>Back</TooltipContent>
           </Tooltip>
         ) : null}
-        <div className="min-w-0 flex-1">
-          <p
-            className="truncate text-sm font-medium leading-none text-foreground"
-            title={
-              preview && !notePath
-                ? preview.name
-                : (meta?.title ?? notePath?.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note")
-            }
-          >
-            {preview && !notePath
-              ? preview.name
-              : (meta?.title ?? notePath?.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Note")}
-          </p>
-          {preview && notePath && preview.name !== meta?.title ? (
-            <p
-              className="entropy-context-subtitle mt-1 truncate text-[11px] leading-none text-muted-foreground"
-              title={preview.name}
-            >
-              {preview.name}
-            </p>
-          ) : null}
-        </div>
-      </div>
-
-      <ScrollArea className="min-h-0 min-w-0 flex-1" type="hover">
-        <div className="min-w-0 space-y-4 p-4 entropy-context-body">
-          {preview ? (
-            <section className="min-w-0 space-y-2">
-              <div className="flex min-w-0 items-center justify-end gap-0.5">
-                {onReference ? (
+        <p
+          className="min-w-0 flex-1 truncate text-[12px] font-medium leading-none text-foreground"
+          title={headerTitle}
+        >
+          {headerTitle}
+        </p>
+        {preview ? (
+          <div className="flex shrink-0 items-center gap-0.5">
+            {onReference ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Button
                     type="button"
                     variant="ghost"
@@ -266,30 +253,48 @@ export function NoteContextPanel({
                   >
                     <Link2 className="h-3.5 w-3.5" strokeWidth={1.75} />
                   </Button>
-                ) : null}
+                </TooltipTrigger>
+                <TooltipContent>Reference in note</TooltipContent>
+              </Tooltip>
+            ) : null}
+            <Tooltip>
+              <TooltipTrigger asChild>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
-                  aria-label="Open externally"
-                  onClick={() => void window.entropy.fs.openExternal(preview.path)}
+                  aria-label={osRevealLabel()}
+                  onClick={() => void revealPath(preview.path)}
                 >
-                  <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} />
                 </Button>
-                {preview ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    aria-label="Clear selection"
-                    onClick={dismissPreview}
-                  >
-                    <X className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  </Button>
-                ) : null}
-              </div>
+              </TooltipTrigger>
+              <TooltipContent>{osRevealLabel()}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  aria-label="Close preview"
+                  onClick={dismissPreview}
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Close</TooltipContent>
+            </Tooltip>
+          </div>
+        ) : null}
+      </div>
+
+      <ScrollArea className="min-h-0 min-w-0 flex-1" type="hover">
+        <div className="min-w-0 space-y-4 p-4 entropy-context-body">
+          {preview ? (
+            <section className="min-w-0 space-y-2">
               <div className="min-w-0 w-full overflow-hidden rounded-lg">
                 {preview.isDirectory ? (
                   <EntryPreview entry={preview} size="lg" className="max-h-40" />
@@ -297,6 +302,12 @@ export function NoteContextPanel({
                   <FilePreview file={preview} compact />
                 )}
               </div>
+              <p
+                className="break-all font-mono text-[11px] leading-snug text-muted-foreground"
+                title={preview.path}
+              >
+                {preview.path}
+              </p>
             </section>
           ) : null}
 
