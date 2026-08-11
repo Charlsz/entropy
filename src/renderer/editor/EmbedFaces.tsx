@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText } from "lucide-react";
-import { embedKind } from "../lib/markdownBlocks";
+import { FileText, FileType2, Film, Image as ImageIcon, Music, Sheet } from "lucide-react";
+import { embedKind, extensionOfHref } from "../lib/markdownBlocks";
 import { figma } from "../lib/figmaTokens";
+import { formatBytes } from "../lib/format";
+import { revealPath } from "../lib/itemActions";
+import { osRevealLabel } from "../lib/platform";
 
 export interface MediaFaceProps {
   alt: string;
@@ -14,7 +17,7 @@ export interface MediaFaceProps {
   onRemove: () => void;
 }
 
-/** Live media face for TipTap embeds (image / video / pdf). Click reveals markdown source. */
+/** Live media face for TipTap embeds (image / video / audio / pdf). Click reveals markdown source. */
 export function MediaFace({
   alt,
   src,
@@ -31,7 +34,6 @@ export function MediaFace({
   const resolvedPath = useRef<string | null>(null);
   const kind = embedKind(src);
 
-  // Keep looking for missing media without waiting for a directory-watch event.
   useEffect(() => {
     if (!missing) return;
     const timer = window.setInterval(() => setMissProbe((value) => value + 1), 1000);
@@ -99,7 +101,6 @@ export function MediaFace({
     };
   }, [notePath, src, workspacePath, diskEpoch, missProbe]);
 
-  // Reset cached path when the markdown target changes.
   useEffect(() => {
     resolvedPath.current = null;
   }, [src, notePath]);
@@ -113,8 +114,7 @@ export function MediaFace({
       aria-label={caption ? `Embedded media: ${caption}` : "Embedded media"}
       onClick={(event) => {
         if (disabled) return;
-        // Allow native video controls without forcing source mode.
-        if ((event.target as HTMLElement).closest("video")) return;
+        if ((event.target as HTMLElement).closest("video, audio, iframe")) return;
         onOpenSource();
       }}
       onKeyDown={(event) => {
@@ -139,10 +139,13 @@ export function MediaFace({
           src={url}
           className="max-h-[420px] w-full rounded-lg object-contain"
           controls
-          muted
           playsInline
           preload="metadata"
         />
+      ) : kind === "audio" ? (
+        <div className="rounded-lg border border-border bg-secondary px-3 py-3">
+          <audio className="w-full" src={url} controls preload="metadata" />
+        </div>
       ) : kind === "pdf" ? (
         <div className="entropy-pdf-face relative h-[min(28rem,50vh)] w-full overflow-hidden rounded-lg bg-ink-2">
           <iframe
@@ -174,43 +177,130 @@ export function MediaFace({
 export function FileRefChip({
   label,
   src,
+  notePath,
+  workspacePath,
+  diskEpoch = 0,
   disabled,
   onOpenSource,
   onRemove,
 }: {
   label: string;
   src: string;
+  notePath?: string | null;
+  workspacePath?: string | null;
+  diskEpoch?: number;
   disabled?: boolean;
   onOpenSource: () => void;
   onRemove: () => void;
 }) {
   const name = label.trim() || src.split(/[/\\]/).pop() || src;
+  const kind = embedKind(src);
+  const ext = extensionOfHref(src);
+  const [meta, setMeta] = useState<{ absolute: string; size: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!notePath || /^(https?:|mailto:)/i.test(src)) {
+        if (!cancelled) setMeta(null);
+        return;
+      }
+      try {
+        const absolute = await window.entropy.fs.resolveEmbedTarget(
+          src,
+          notePath,
+          workspacePath,
+        );
+        if (!absolute) {
+          if (!cancelled) setMeta(null);
+          return;
+        }
+        const info = await window.entropy.fs.stat(absolute);
+        if (!cancelled) setMeta({ absolute, size: info.size });
+      } catch {
+        if (!cancelled) setMeta(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [diskEpoch, notePath, src, workspacePath]);
+
+  const Icon =
+    kind === "pdf"
+      ? FileType2
+      : kind === "image"
+        ? ImageIcon
+        : kind === "video"
+          ? Film
+          : kind === "audio"
+            ? Music
+            : [".xlsx", ".xls", ".csv"].includes(ext)
+              ? Sheet
+              : FileText;
+
+  const typeLabel =
+    kind === "pdf"
+      ? "PDF"
+      : kind === "image"
+        ? "Image"
+        : kind === "video"
+          ? "Video"
+          : kind === "audio"
+            ? "Audio"
+            : ext
+              ? ext.replace(".", "").toUpperCase()
+              : "File";
+
   return (
-    <button
-      type="button"
-      className="entropy-file-ref my-1 inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    <div
+      className="entropy-file-ref my-1 flex w-full max-w-xl items-stretch gap-2 rounded-lg border px-3 py-2.5 outline-none focus-within:ring-1 focus-within:ring-ring"
       style={{
         backgroundColor: figma.surface,
         borderColor: figma.border,
         color: figma.ink,
       }}
-      disabled={disabled}
-      aria-label={`File reference: ${name}`}
       title={src}
-      onClick={() => {
-        if (!disabled) onOpenSource();
-      }}
-      onKeyDown={(event) => {
-        if (disabled) return;
-        if (event.key === "Backspace" || event.key === "Delete") {
-          event.preventDefault();
-          onRemove();
-        }
-      }}
     >
-      <FileText className="size-3 shrink-0" style={{ color: figma.accent }} strokeWidth={1.75} />
-      <span className="truncate font-mono text-[11px] leading-none">{name}</span>
-    </button>
+      <button
+        type="button"
+        className="flex min-w-0 flex-1 items-center gap-2.5 text-left outline-none"
+        disabled={disabled}
+        aria-label={`File reference: ${name}`}
+        onClick={() => {
+          if (!disabled) onOpenSource();
+        }}
+        onKeyDown={(event) => {
+          if (disabled) return;
+          if (event.key === "Backspace" || event.key === "Delete") {
+            event.preventDefault();
+            onRemove();
+          }
+        }}
+      >
+        <Icon className="size-4 shrink-0" style={{ color: figma.accent }} strokeWidth={1.75} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] font-medium leading-tight">{name}</span>
+          <span className="mt-0.5 block truncate font-mono text-[11px] leading-tight text-muted-foreground">
+            {typeLabel}
+            {meta ? ` · ${formatBytes(meta.size)}` : ""}
+          </span>
+        </span>
+      </button>
+      {meta ? (
+        <button
+          type="button"
+          className="shrink-0 self-center rounded-md px-2 py-1 text-[11px] text-muted-foreground outline-none hover:text-foreground"
+          disabled={disabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            void revealPath(meta.absolute);
+          }}
+        >
+          {osRevealLabel().replace(/^Show in\s+/i, "")}
+        </button>
+      ) : null}
+    </div>
   );
 }
 

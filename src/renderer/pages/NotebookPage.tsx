@@ -23,7 +23,7 @@ import { copyPath, moveEntryToFolder, revealPath, type ItemAction } from "../lib
 import { noteContextIsUseful } from "../lib/noteContext";
 import { parentDirOfNote } from "../lib/noteFolderTree";
 import { useDirWatch } from "../hooks/useDirWatch";
-import { isLiveEmbedExt, linkMarkdown, mediaEmbedMarkdown } from "../lib/markdownBlocks";
+import { portableFileMarkdown } from "../lib/markdownBlocks";
 import { formatBytes } from "../lib/format";
 import { figma } from "../lib/figmaTokens";
 import { osTrashName, samePath } from "../lib/platform";
@@ -164,15 +164,13 @@ export function NotebookPage({
   const buildReferenceMarkdown = useCallback(async (notePath: string, entry: FileEntry) => {
     const noteDir = await window.entropy.fs.dirname(notePath);
     const relative = await window.entropy.fs.relative(noteDir, entry.path);
-    const hrefSource =
-      /[:/\\]/.test(relative) && relative.includes(":")
-        ? entry.path
-        : relative || entry.path;
-    const href = hrefSource.replace(/\\/g, "/");
+    // Prefer note-relative; keep absolute when relative still looks drive-rooted.
+    let href = (relative || entry.path).replace(/\\/g, "/");
+    if (/^[a-zA-Z]:/.test(relative) || relative.startsWith("\\\\")) {
+      href = entry.path.replace(/\\/g, "/");
+    }
     const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
-    return isLiveEmbedExt(entry.extension)
-      ? mediaEmbedMarkdown(href, label)
-      : linkMarkdown(label, href);
+    return portableFileMarkdown(href, entry.extension || "", label);
   }, []);
 
   const insertReferenceIntoOpenNote = useCallback(
@@ -349,6 +347,7 @@ export function NotebookPage({
       return;
     }
     setPreviewEntry(entry);
+    setContextUseful(true);
   }
 
   function closeTab(notePath: string): void {
@@ -408,6 +407,7 @@ export function NotebookPage({
       if (previewEntry?.path === filePath) {
         setPreviewEntry(await window.entropy.fs.stat(target));
       }
+      if (samePath(createFolderPath, filePath)) setCreateFolderPath(target);
       bumpDisk();
       setError(null);
     } catch (err) {
@@ -421,7 +421,8 @@ export function NotebookPage({
   ): Promise<void> {
     updateSettings({ libraryPerspective: perspective, intelligenceView: null });
     try {
-      const dir = await window.entropy.fs.dirname(filePath);
+      const info = await window.entropy.fs.stat(filePath).catch(() => null);
+      const dir = info?.isDirectory ? filePath : await window.entropy.fs.dirname(filePath);
       openFolder(dir);
     } catch {
       // Fall back to switching Library even if dirname fails.
@@ -484,13 +485,7 @@ export function NotebookPage({
     }
 
     try {
-      const noteDir = await window.entropy.fs.dirname(activePath);
-      const relative = await window.entropy.fs.relative(noteDir, entry.path);
-      const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
-      const href = relative.replace(/\\/g, "/");
-      const insert = isLiveEmbedExt(entry.extension)
-        ? mediaEmbedMarkdown(href, label)
-        : linkMarkdown(label, href);
+      const insert = await buildReferenceMarkdown(activePath, entry);
       editorRef.current?.insertMarkdown(insert);
       setPreviewEntry(entry);
       setContextEpoch((value) => value + 1);
@@ -523,7 +518,8 @@ export function NotebookPage({
     const actions: ItemAction[] = [
       { label: "Rename", onSelect: () => startRename(entry) },
     ];
-    if (!isMarkdown && activePath) {
+    // Folders are destinations, not embeds — no Reference.
+    if (!entry.isDirectory && !isMarkdown && activePath) {
       actions.push({
         label: "Reference",
         onSelect: () => void referenceEntry(entry),

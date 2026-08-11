@@ -1,5 +1,10 @@
 /** Standalone markdown image embed: ![alt](src) or ![alt](src "title") */
-export const MEDIA_LINE_RE = /^!\[([^\]]*)\]\((<[^>\n]+>|[^)\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\)$/;
+export const MEDIA_LINE_RE =
+  /^!\[([^\]]*)\]\((<[^>\n]+>|[^)\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\)$/;
+
+/** Standalone markdown link: [label](src) or [label](src "title") */
+export const LINK_LINE_RE =
+  /^\[([^\]]+)\]\((<[^>\n]+>|[^)\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\)$/;
 
 /** Obsidian embed on its own line: ![[target]] or ![[target|alias]] */
 export const WIKI_EMBED_LINE_RE = /^!\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]\s*$/;
@@ -7,12 +12,25 @@ export const WIKI_EMBED_LINE_RE = /^!\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]\s*$/;
 /** Obsidian file link on its own line: [[target]] or [[target|alias]] (not an embed). */
 export const WIKI_LINK_LINE_RE = /^\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]\s*$/;
 
+/** Single-line HTML video: <video … src="…"> or with closing tag. */
+export const HTML_VIDEO_LINE_RE =
+  /^<video\b[^>]*\bsrc=["']([^"']+)["'][^>]*>\s*(?:<\/video>)?\s*$/i;
+
+/** Single-line HTML audio. */
+export const HTML_AUDIO_LINE_RE =
+  /^<audio\b[^>]*\bsrc=["']([^"']+)["'][^>]*>\s*(?:<\/audio>)?\s*$/i;
+
+/** Single-line HTML iframe (PDF / generic). */
+export const HTML_IFRAME_LINE_RE =
+  /^<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>\s*(?:<\/iframe>)?\s*$/i;
+
 export type MarkdownBlock =
   | { type: "text"; value: string }
   | { type: "media"; alt: string; src: string; raw: string }
   | { type: "fileRef"; label: string; src: string; raw: string };
 
 const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv", ".m4v", ".avi", ".wmv"]);
+const AUDIO_EXT = new Set([".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac", ".opus"]);
 const IMAGE_EXT = new Set([
   ".png",
   ".jpg",
@@ -37,21 +55,24 @@ export function extensionOfHref(href: string): string {
   return base.slice(dot).toLowerCase();
 }
 
-export type EmbedKind = "image" | "video" | "pdf" | "other";
+export type EmbedKind = "image" | "video" | "audio" | "pdf" | "other";
 
 export function embedKind(href: string): EmbedKind {
   const ext = extensionOfHref(href);
   if (VIDEO_EXT.has(ext)) return "video";
+  if (AUDIO_EXT.has(ext)) return "audio";
   if (IMAGE_EXT.has(ext)) return "image";
   if (PDF_EXT.has(ext)) return "pdf";
   if (/^(https?:|data:)/i.test(href) && !ext) return "image";
   return "other";
 }
 
-/** True when a dropped/linked path should become a live `![]()` / `![[]]` face. */
+/** Image / video / audio / pdf — inserted as a live preview face (not a plain chip). */
 export function isLiveEmbedExt(extension: string): boolean {
-  const ext = extension.toLowerCase();
-  return IMAGE_EXT.has(ext) || VIDEO_EXT.has(ext) || PDF_EXT.has(ext);
+  const ext = extension.toLowerCase().startsWith(".")
+    ? extension.toLowerCase()
+    : `.${extension.toLowerCase()}`;
+  return IMAGE_EXT.has(ext) || VIDEO_EXT.has(ext) || AUDIO_EXT.has(ext) || PDF_EXT.has(ext);
 }
 
 function unwrapSrc(raw: string): string {
@@ -64,6 +85,10 @@ function basenameHint(target: string): string {
   return clean.split("/").pop() || target;
 }
 
+function escapeHtmlAttr(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
 /** Obsidian size aliases like `|300` or `|300x200` are not captions. */
 function wikiAlt(target: string, alias: string | undefined): string {
   const trimmed = alias?.trim();
@@ -72,32 +97,62 @@ function wikiAlt(target: string, alias: string | undefined): string {
   return trimmed;
 }
 
+function isRemoteHref(href: string): boolean {
+  return /^(https?:|mailto:|data:|#)/i.test(href);
+}
+
 function matchFaceLine(
   line: string,
 ):
   | { kind: "media"; alt: string; src: string }
   | { kind: "fileRef"; label: string; src: string }
   | null {
-  const wikiEmbed = WIKI_EMBED_LINE_RE.exec(line.trimEnd());
+  const trimmed = line.trimEnd();
+
+  // Embeds first — `![[…]]` is preview; `[[…]]` is a link/card.
+  const wikiEmbed = WIKI_EMBED_LINE_RE.exec(trimmed);
   if (wikiEmbed) {
     const src = wikiEmbed[1]!.trim();
     return { kind: "media", alt: wikiAlt(src, wikiEmbed[2]), src };
   }
 
-  const wikiLink = WIKI_LINK_LINE_RE.exec(line.trimEnd());
+  const video = HTML_VIDEO_LINE_RE.exec(trimmed);
+  if (video) {
+    const src = video[1]!.trim();
+    return { kind: "media", alt: basenameHint(src), src };
+  }
+
+  const audio = HTML_AUDIO_LINE_RE.exec(trimmed);
+  if (audio) {
+    const src = audio[1]!.trim();
+    return { kind: "media", alt: basenameHint(src), src };
+  }
+
+  const iframe = HTML_IFRAME_LINE_RE.exec(trimmed);
+  if (iframe) {
+    const src = iframe[1]!.trim();
+    return { kind: "media", alt: basenameHint(src), src };
+  }
+
+  const mdImage = MEDIA_LINE_RE.exec(trimmed);
+  if (mdImage) {
+    return { kind: "media", alt: mdImage[1]!, src: unwrapSrc(mdImage[2]!) };
+  }
+
+  const wikiLink = WIKI_LINK_LINE_RE.exec(trimmed);
   if (wikiLink) {
     const src = wikiLink[1]!.trim();
     const label = wikiAlt(src, wikiLink[2]);
-    // Previewable targets still become live media faces even without `!`.
-    if (embedKind(src) !== "other") {
-      return { kind: "media", alt: label, src };
-    }
     return { kind: "fileRef", label, src };
   }
 
-  const md = MEDIA_LINE_RE.exec(line.trimEnd());
-  if (md) {
-    return { kind: "media", alt: md[1]!, src: unwrapSrc(md[2]!) };
+  const mdLink = LINK_LINE_RE.exec(trimmed);
+  if (mdLink) {
+    const label = mdLink[1]!;
+    const src = unwrapSrc(mdLink[2]!);
+    if (isRemoteHref(src)) return null;
+    // Local file links become portable file cards (PDF/docs/etc.).
+    return { kind: "fileRef", label, src };
   }
 
   return null;
@@ -143,7 +198,6 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
   flushText();
 
   if (blocks.length === 0) return [{ type: "text", value: "" }];
-  // Always leave a text caret after a trailing face (Obsidian-style continue writing).
   const last = blocks[blocks.length - 1];
   if (last?.type === "media" || last?.type === "fileRef") {
     blocks.push({ type: "text", value: "" });
@@ -161,7 +215,37 @@ export function formatMarkdownHref(href: string): string {
   return href;
 }
 
-/** Obsidian-style embed (preferred for Entropy inserts — matches vault notes). */
+/**
+ * Preferred portable insert for Notebook Reference / drag-drop.
+ * Images → Markdown; video/audio → HTML; everything else → Markdown link.
+ * Never copies files — only writes a path relative to the note when possible.
+ */
+export function portableFileMarkdown(
+  src: string,
+  extension: string,
+  label?: string,
+): string {
+  const target = src.replace(/\\/g, "/");
+  const name = (label?.trim() || basenameHint(target)).replace(/[[\]\n]/g, "");
+  const ext = extension.toLowerCase().startsWith(".")
+    ? extension.toLowerCase()
+    : `.${extension.toLowerCase()}`;
+  let kind = embedKind(target);
+  if (kind === "other") kind = embedKind(`file${ext}`);
+
+  if (kind === "image") {
+    return `![${name}](${formatMarkdownHref(target)})`;
+  }
+  if (kind === "video") {
+    return `<video controls src="${escapeHtmlAttr(target)}"></video>`;
+  }
+  if (kind === "audio") {
+    return `<audio controls src="${escapeHtmlAttr(target)}"></audio>`;
+  }
+  return linkMarkdown(name, target);
+}
+
+/** Obsidian-style embed — compatibility only; new inserts use {@link portableFileMarkdown}. */
 export function mediaEmbedMarkdown(src: string, alias?: string): string {
   const target = src.replace(/\\/g, "/");
   const base = basenameHint(target);
@@ -186,7 +270,6 @@ export function fileWikiLinkMarkdown(src: string, alias?: string): string {
 
 /**
  * Markdown to copy when referencing a Library file from Folders/Gallery.
- * Previewable media → embed; everything else → wiki file link.
  */
 export function fileReferenceClipboardMarkdown(
   filePath: string,
@@ -194,24 +277,38 @@ export function fileReferenceClipboardMarkdown(
   label?: string,
 ): string {
   const target = filePath.replace(/\\/g, "/");
-  if (isLiveEmbedExt(extension)) {
-    return mediaEmbedMarkdown(target, label);
-  }
-  return fileWikiLinkMarkdown(target, label);
+  return portableFileMarkdown(target, extension, label);
 }
 
 /**
- * Turn Obsidian `![[…]]` lines into standard image markdown so marked can render them.
+ * Expand wiki embeds / normalize known faces for marked-based reading view.
+ * Does not rewrite the note on disk — preview-only.
  */
 export function expandWikiEmbedsForPreview(content: string): string {
   return content
     .split("\n")
     .map((line) => {
-      const wiki = WIKI_EMBED_LINE_RE.exec(line.trimEnd());
+      const trimmed = line.trimEnd();
+      const wiki = WIKI_EMBED_LINE_RE.exec(trimmed);
       if (!wiki) return line;
       const src = wiki[1]!.trim();
       const alt = wikiAlt(src, wiki[2]);
-      return `![${alt}](${formatMarkdownHref(src)})`;
+      const kind = embedKind(src);
+      if (kind === "video") {
+        return `<video controls src="${escapeHtmlAttr(src)}"></video>`;
+      }
+      if (kind === "audio") {
+        return `<audio controls src="${escapeHtmlAttr(src)}"></audio>`;
+      }
+      if (kind === "pdf") {
+        return `<iframe src="${escapeHtmlAttr(src)}" title="${escapeHtmlAttr(alt)}"></iframe>`;
+      }
+      if (kind === "image" || kind === "other") {
+        // Images + unknown: standard Markdown image / link fallback for marked.
+        if (kind === "image") return `![${alt}](${formatMarkdownHref(src)})`;
+        return `[${alt}](${formatMarkdownHref(src)})`;
+      }
+      return line;
     })
     .join("\n");
 }

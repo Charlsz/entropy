@@ -25,7 +25,7 @@ import { NoteCover } from "../components/NoteCover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { cn } from "../lib/utils";
 import { parseNoteFrontmatter } from "../lib/noteMeta";
-import { isLiveEmbedExt, linkMarkdown, mediaEmbedMarkdown } from "../lib/markdownBlocks";
+import { portableFileMarkdown } from "../lib/markdownBlocks";
 import { rewriteMarkdownHref } from "../lib/linkRepair";
 import { useWorkspace } from "../state/useWorkspace";
 
@@ -500,7 +500,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         if (active.closest(".entropy-note-title")) return;
         if (
           active.closest(
-            ".entropy-notes-sidebar input, [data-entropy-search], [role='dialog'] input, [role='dialog'] textarea",
+            "[data-entropy-search], [role='dialog'] input, [role='dialog'] textarea",
           )
         ) {
           return;
@@ -625,10 +625,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const relative = await window.entropy.fs.relative(noteDir, filePath);
     const name = await window.entropy.fs.basename(filePath);
     const info = await window.entropy.fs.stat(filePath);
-    const href = (relative || filePath).replace(/\\/g, "/");
-    const snippet = isLiveEmbedExt(info.extension)
-      ? mediaEmbedMarkdown(href, name)
-      : linkMarkdown(name, href);
+    let href = (relative || filePath).replace(/\\/g, "/");
+    if (/^[a-zA-Z]:/.test(relative) || relative.startsWith("\\\\")) {
+      href = filePath.replace(/\\/g, "/");
+    }
+    const snippet = portableFileMarkdown(href, info.extension || "", name);
     liveEditorRef.current?.insertMarkdown(snippet);
   }
 

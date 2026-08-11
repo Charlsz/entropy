@@ -9,9 +9,17 @@ marked.setOptions({
   breaks: true,
 });
 
+/** Allow only local media HTML — never script/style/arbitrary markup. */
 marked.use({
   renderer: {
-    html() {
+    html({ text }) {
+      const trimmed = text.trim();
+      if (
+        /^<(?:video|audio|iframe)\b[\s\S]*?>/i.test(trimmed) &&
+        !/<\/?(?:script|style|object|embed)\b/i.test(trimmed)
+      ) {
+        return trimmed;
+      }
       return "";
     },
   },

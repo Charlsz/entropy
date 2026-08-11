@@ -653,15 +653,16 @@ async function findFileByName(rootPath: string, fileName: string): Promise<strin
 }
 
 /**
- * Resolve Obsidian `![[target]]` / markdown image targets:
- * absolute path, relative to note, relative to workspace, then basename search in workspace.
+ * Resolve Obsidian `![[target]]` / markdown / HTML media targets.
+ * Preference order: absolute → path relative to the Markdown file → workspace → basename search.
+ * Relative paths are intentionally note-based (filesystem-is-truth), not workspace-root-based.
  */
 export async function resolveEmbedTarget(
   target: string,
   notePath: string,
   workspacePath?: string | null,
 ): Promise<string | null> {
-  const cleaned = target.trim().replace(/^<|>$/g, "");
+  const cleaned = target.trim().replace(/^<|>$/g, "").replace(/\\/g, "/");
   if (!cleaned) return null;
 
   const candidates: string[] = [];

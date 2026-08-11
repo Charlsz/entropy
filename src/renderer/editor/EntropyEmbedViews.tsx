@@ -3,6 +3,7 @@ import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { FileRefChip, MediaFace } from "./EmbedFaces";
+import { useEmbedNoteMeta } from "./embedNoteMeta";
 import { useWorkspace } from "../state/useWorkspace";
 import { parseMarkdownBlocks } from "../lib/markdownBlocks";
 import { markdownToTipTapDoc } from "./markdownDoc";
@@ -105,17 +106,12 @@ export function EntropyMediaView({
   getPos,
   updateAttributes,
 }: NodeViewProps) {
+  const { notePath, diskEpoch } = useEmbedNoteMeta();
   const { workspace } = useWorkspace();
   const [editing, setEditing] = useState(false);
   const src = String(node.attrs.src ?? "");
   const alt = String(node.attrs.alt ?? "");
   const raw = String(node.attrs.raw ?? "") || fallbackMediaRaw(src, alt);
-  const meta = editor.isDestroyed
-    ? undefined
-    : (editor.storage as { entropyNoteMeta?: { notePath?: string | null; diskEpoch?: number } })
-        .entropyNoteMeta;
-  const notePath = meta?.notePath;
-  const diskEpoch = meta?.diskEpoch ?? 0;
   const disabled = editor.isDestroyed || !editor.isEditable;
 
   if (editing && !disabled) {
@@ -180,6 +176,8 @@ export function EntropyFileRefView({
   getPos,
   updateAttributes,
 }: NodeViewProps) {
+  const { notePath, diskEpoch } = useEmbedNoteMeta();
+  const { workspace } = useWorkspace();
   const [editing, setEditing] = useState(false);
   const src = String(node.attrs.src ?? "");
   const label = String(node.attrs.label ?? "");
@@ -219,12 +217,15 @@ export function EntropyFileRefView({
 
   return (
     <NodeViewWrapper
-      className={selected ? "rounded-full ring-2 ring-ring inline-flex" : "inline-flex"}
+      className={selected ? "rounded-lg ring-2 ring-ring" : undefined}
       data-drag-handle
     >
       <FileRefChip
         label={label}
         src={src}
+        notePath={notePath}
+        workspacePath={workspace.path}
+        diskEpoch={diskEpoch}
         disabled={disabled}
         onOpenSource={() => {
           if (!disabled) setEditing(true);

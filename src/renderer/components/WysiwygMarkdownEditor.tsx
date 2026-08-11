@@ -13,7 +13,6 @@ import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "@tiptap/markdown";
-import { Extension } from "@tiptap/core";
 import { cn } from "../lib/utils";
 import { EntropyFileRef, EntropyMedia } from "../editor/entropyEmbedExtensions";
 import {
@@ -21,6 +20,7 @@ import {
   stripMatchingLeadingTitle,
   tipTapDocToMarkdown,
 } from "../editor/markdownDoc";
+import { EmbedNoteMetaProvider } from "../editor/embedNoteMeta";
 import { parseMarkdownBlocks } from "../lib/markdownBlocks";
 
 export interface WysiwygMarkdownEditorHandle {
@@ -44,16 +44,6 @@ interface WysiwygMarkdownEditorProps {
   /** Expose the TipTap editor to the Notebook chrome toolbar. */
   onEditorReady?: (editor: Editor | null) => void;
 }
-
-const EntropyNoteMeta = Extension.create({
-  name: "entropyNoteMeta",
-  addStorage() {
-    return {
-      notePath: null as string | null,
-      diskEpoch: 0,
-    };
-  },
-});
 
 export const WysiwygMarkdownEditor = forwardRef<
   WysiwygMarkdownEditorHandle,
@@ -95,7 +85,6 @@ export const WysiwygMarkdownEditor = forwardRef<
       }),
       EntropyMedia,
       EntropyFileRef,
-      EntropyNoteMeta,
       Markdown,
     ],
     [],
@@ -170,17 +159,6 @@ export const WysiwygMarkdownEditor = forwardRef<
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
-    const storage = editor.storage as {
-      entropyNoteMeta?: { notePath: string | null; diskEpoch: number };
-    };
-    if (storage.entropyNoteMeta) {
-      storage.entropyNoteMeta.notePath = notePath ?? null;
-      storage.entropyNoteMeta.diskEpoch = diskEpoch;
-    }
-  }, [diskEpoch, editor, notePath]);
-
-  useEffect(() => {
-    if (!editor || editor.isDestroyed) return;
     const body = stripMatchingLeadingTitle(value, noteTitle);
     if (body === lastEmitted.current) return;
     const current = tipTapDocToMarkdown(editor.getJSON());
@@ -244,22 +222,24 @@ export const WysiwygMarkdownEditor = forwardRef<
   );
 
   return (
-    <div
-      className={cn("entropy-note-body relative flex min-h-0 w-full flex-1 flex-col", className)}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => {
-        event.preventDefault();
-        const entropyPath = event.dataTransfer.getData("application/x-entropy-path");
-        if (entropyPath) {
-          onDropPath?.(entropyPath);
-          return;
-        }
-        const dropped = event.dataTransfer.files?.[0] as (File & { path?: string }) | undefined;
-        if (dropped?.path) onDropPath?.(dropped.path);
-      }}
-    >
-      {titleSlot}
-      <EditorContent editor={editor} className="entropy-wysiwyg-host min-h-[50vh] w-full flex-1" />
-    </div>
+    <EmbedNoteMetaProvider value={{ notePath: notePath ?? null, diskEpoch }}>
+      <div
+        className={cn("entropy-note-body relative flex min-h-0 w-full flex-1 flex-col", className)}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          const entropyPath = event.dataTransfer.getData("application/x-entropy-path");
+          if (entropyPath) {
+            onDropPath?.(entropyPath);
+            return;
+          }
+          const dropped = event.dataTransfer.files?.[0] as (File & { path?: string }) | undefined;
+          if (dropped?.path) onDropPath?.(dropped.path);
+        }}
+      >
+        {titleSlot}
+        <EditorContent editor={editor} className="entropy-wysiwyg-host min-h-[50vh] w-full flex-1" />
+      </div>
+    </EmbedNoteMetaProvider>
   );
 });
