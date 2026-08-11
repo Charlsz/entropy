@@ -254,7 +254,6 @@ export interface AppSession {
     sidebarCollapsed: boolean;
     contextCollapsed: boolean;
     inventoryTreemapCollapsed?: boolean;
-    inventoryFolderTreeCollapsed?: boolean;
     libraryPerspective?: "folders" | "gallery" | "large-files" | "duplicates";
     intelligenceView?: "relationships" | "copilot" | null;
     uiDensity?: "comfortable" | "default" | "compact";
