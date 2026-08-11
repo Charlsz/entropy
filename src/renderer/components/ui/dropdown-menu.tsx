@@ -39,7 +39,7 @@ export const DropdownMenuItem = React.forwardRef<
       ref={ref}
       className={cn(
         "relative flex cursor-default select-none items-center rounded-[4px] px-2 py-1 text-[12px] text-foreground outline-none",
-        "data-[highlighted]:bg-[color-mix(in_srgb,var(--color-ink)_10%,transparent)] data-[highlighted]:text-foreground",
+        "data-[highlighted]:bg-[color-mix(in_srgb,var(--color-ink)_10%,var(--card))] data-[highlighted]:text-foreground",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         inset && "pl-8",
         className,

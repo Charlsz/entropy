@@ -122,14 +122,14 @@ export function WorkspaceExplorerTree({
         const parts = relative.replace(/\\/g, "/").split("/").filter(Boolean);
         if (parts.length <= 1) return;
 
-        const sep = rootPath.includes("\\") || activeFilePath.includes("\\") ? "\\" : "/";
-        const rootNorm = rootPath.replace(/[/\\]+$/, "");
+        // Use main-process join so keys match listDir paths on every OS.
         const folders: string[] = [];
-        let cursor = rootNorm;
+        let cursor = rootPath;
         for (let i = 0; i < parts.length - 1; i += 1) {
-          cursor = `${cursor}${sep}${parts[i]}`;
+          cursor = await window.entropy.fs.join(cursor, parts[i]!);
           folders.push(cursor);
         }
+        if (cancelled) return;
 
         setExpanded((prev) => {
           const next = new Set(prev);

@@ -3,6 +3,11 @@ import type { TreeNode } from "../../shared/types";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "../lib/utils";
+import { isUnderPath, samePath } from "../lib/platform";
+
+function isExcludedDestination(path: string, excludePath: string): boolean {
+  return samePath(path, excludePath) || isUnderPath(path, excludePath);
+}
 
 interface MoveToDialogProps {
   open: boolean;
@@ -77,7 +82,7 @@ export function MoveToDialog({
           </Button>
           <Button
             type="button"
-            disabled={selected === excludePath || selected.startsWith(`${excludePath}\\`) || selected.startsWith(`${excludePath}/`)}
+            disabled={isExcludedDestination(selected, excludePath)}
             onClick={() => onMove(selected)}
           >
             Move
@@ -104,7 +109,7 @@ function FolderPickTree({
   return (
     <>
       {nodes.map((node) => {
-        if (node.path === excludePath) return null;
+        if (samePath(node.path, excludePath)) return null;
         return (
           <div key={node.path}>
             <FolderPickRow
@@ -146,10 +151,7 @@ function FolderPickRow({
   onSelect: (path: string) => void;
   depth: number;
 }) {
-  const disabled =
-    path === excludePath ||
-    path.startsWith(`${excludePath}\\`) ||
-    path.startsWith(`${excludePath}/`);
+  const disabled = isExcludedDestination(path, excludePath);
 
   return (
     <button
@@ -157,7 +159,7 @@ function FolderPickRow({
       disabled={disabled}
       className={cn(
         "flex w-full truncate rounded-md px-2 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40",
-        selected === path && "bg-accent text-foreground",
+        samePath(selected, path) && "bg-accent text-foreground",
       )}
       style={{ paddingLeft: 8 + depth * 12 }}
       onClick={() => onSelect(path)}

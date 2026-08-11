@@ -5,5 +5,8 @@ export function parentDirOfNote(notePath: string, workspaceRoot: string): string
   const idxBack = normalized.lastIndexOf("\\");
   const idx = Math.max(idxForward, idxBack);
   if (idx <= 0) return workspaceRoot;
-  return normalized.slice(0, idx) || workspaceRoot;
+  const parent = normalized.slice(0, idx);
+  // Windows drive root: "C:\\Note.md" → "C:" must become "C:\\".
+  if (/^[A-Za-z]:$/.test(parent)) return `${parent}\\`;
+  return parent || workspaceRoot;
 }

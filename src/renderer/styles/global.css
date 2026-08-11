@@ -781,18 +781,24 @@
   }
 }
 
-/* Floating menus — pin tokens so first open matches later remounts (Radix → body). */
+/* Floating menus — opaque chrome in dark + light (theme tokens on html). */
 .entropy-menu {
   background-color: var(--card) !important;
   color: var(--foreground) !important;
   border: 1px solid var(--border) !important;
+  opacity: 1 !important;
+  isolation: isolate;
   box-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 8%, transparent);
 }
 
-/* Neutral ink wash — avoid accent/select blue on hover (esp. "Show in" open state). */
-.entropy-menu [data-highlighted],
-.entropy-menu [data-state="open"] {
-  background-color: color-mix(in srgb, var(--color-ink) 10%, transparent) !important;
+/*
+ * Highlight only menu rows — never the panel itself.
+ * SubContent also has data-state=open; applying a transparent wash there
+ * made “Show in” look see-through over the editor.
+ */
+.entropy-menu [role="menuitem"][data-highlighted],
+.entropy-menu [role="menuitem"][data-state="open"] {
+  background-color: color-mix(in srgb, var(--color-ink) 10%, var(--card)) !important;
   color: var(--foreground) !important;
 }
 

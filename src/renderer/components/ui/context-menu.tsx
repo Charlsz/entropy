@@ -40,7 +40,7 @@ export const ContextMenuItem = React.forwardRef<
       ref={ref}
       className={cn(
         "relative flex cursor-default select-none items-center rounded-[4px] px-2 py-1 text-[12px] outline-none",
-        "text-foreground data-[highlighted]:bg-[color-mix(in_srgb,var(--color-ink)_10%,transparent)] data-[highlighted]:text-foreground",
+        "text-foreground data-[highlighted]:bg-[color-mix(in_srgb,var(--color-ink)_10%,var(--card))] data-[highlighted]:text-foreground",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         inset && "pl-8",
         className,
@@ -61,7 +61,7 @@ export const ContextMenuSubTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-default select-none items-center rounded-[4px] px-2 py-1 text-[12px] outline-none",
-      "text-foreground data-[highlighted]:bg-[color-mix(in_srgb,var(--color-ink)_10%,transparent)] data-[highlighted]:text-foreground data-[state=open]:bg-[color-mix(in_srgb,var(--color-ink)_10%,transparent)]",
+      "text-foreground data-[highlighted]:bg-[color-mix(in_srgb,var(--color-ink)_10%,var(--card))] data-[highlighted]:text-foreground data-[state=open]:bg-[color-mix(in_srgb,var(--color-ink)_10%,var(--card))]",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       inset && "pl-8",
       className,
@@ -78,12 +78,13 @@ export const ContextMenuSubContent = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubContent>
 >(({ className, sideOffset = 6, ...props }, ref) => (
-  // No nested Portal — portaling SubContent separately causes it to overlap the parent menu.
+  // Keep SubContent in the parent portal tree so it stays beside “Show in”
+  // instead of stacking over the primary menu.
   <ContextMenuPrimitive.SubContent
     ref={ref}
     sideOffset={sideOffset}
     className={cn(
-      "z-50 min-w-[7.5rem] overflow-hidden rounded-[6px] border border-border bg-card p-0.5 text-foreground shadow-sm entropy-menu",
+      "z-[60] min-w-[7.5rem] overflow-hidden rounded-[6px] border border-border bg-card p-0.5 text-foreground shadow-sm entropy-menu",
       className,
     )}
     {...props}
