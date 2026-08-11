@@ -18,6 +18,8 @@ const api: EntropyApi = {
     clearRecent: () => ipcRenderer.invoke("workspace:clearRecent"),
     removeRecent: (workspacePath: string) =>
       ipcRenderer.invoke("workspace:removeRecent", workspacePath),
+    rename: (workspacePath, newName) =>
+      ipcRenderer.invoke("workspace:rename", workspacePath, newName),
   },
   session: {
     load: () => ipcRenderer.invoke("session:load"),

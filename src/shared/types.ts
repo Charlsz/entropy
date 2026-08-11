@@ -149,6 +149,8 @@ export interface EntropyApi {
     isMarked: (path: string) => Promise<boolean>;
     clearRecent: () => Promise<void>;
     removeRecent: (path: string) => Promise<void>;
+    /** Rename the workspace folder on disk and return the new path. */
+    rename: (path: string, newName: string) => Promise<string>;
   };
   session: {
     load: () => Promise<AppSession>;

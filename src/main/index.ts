@@ -24,6 +24,7 @@ import {
   openWorkspaceDialog,
   rememberWorkspace,
   removeRecentWorkspace,
+  renameWorkspace,
 } from "./workspaces";
 
 const isDev = process.env.ENTROPY_DEV === "1";
@@ -190,6 +191,9 @@ function registerIpc(): void {
   ipcMain.handle("workspace:remember", async (_event, workspacePath: string) => {
     await rememberWorkspace(workspacePath);
   });
+  ipcMain.handle("workspace:rename", async (_event, workspacePath: string, newName: string) =>
+    renameWorkspace(workspacePath, newName),
+  );
 
   ipcMain.handle("session:load", async () => loadSession());
   ipcMain.handle("session:save", async (_event, session: AppSession) => saveSession(session));

@@ -94,6 +94,48 @@ export async function clearRecentWorkspaces(): Promise<void> {
   await writeRecent([]);
 }
 
+export async function renameWorkspace(
+  workspacePath: string,
+  newName: string,
+): Promise<string> {
+  const clean = newName
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+    .replace(/[. ]+$/g, "");
+  if (!clean) {
+    throw new Error("Enter a workspace name.");
+  }
+
+  const normalized = path.normalize(workspacePath);
+  const parent = path.dirname(normalized);
+  const target = path.join(parent, clean);
+
+  if (path.resolve(target) === path.resolve(normalized)) {
+    return normalized;
+  }
+
+  try {
+    await fs.access(target);
+    throw new Error("A folder with that name already exists.");
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    if ((error as Error).message === "A folder with that name already exists.") throw error;
+    if (code && code !== "ENOENT") throw error;
+  }
+
+  await fs.rename(normalized, target);
+
+  const items = await readRecent();
+  const filtered = items.filter((item) => {
+    const resolved = path.resolve(item.path);
+    return resolved !== path.resolve(normalized) && resolved !== path.resolve(target);
+  });
+  filtered.unshift({ path: target, name: clean, openedAt: Date.now() });
+  await writeRecent(filtered.slice(0, MAX_RECENT));
+
+  return target;
+}
+
 async function showDirectoryDialog(
   browserWindow: BrowserWindow | null,
   title: string,

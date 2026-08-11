@@ -54,7 +54,8 @@ export function NotebookPage({
   onPendingReferenceHandled?: () => void;
   onPickWorkspace?: (path: string) => void;
 } = {}) {
-  const { workspace, addRecentFile, visitNote, openFolder, updateSettings } = useWorkspace();
+  const { workspace, addRecentFile, visitNote, openFolder, updateSettings, closeWorkspace } =
+    useWorkspace();
   const [notes, setNotes] = useState<FileEntry[]>([]);
   const [openPaths, setOpenPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
@@ -68,6 +69,7 @@ export function NotebookPage({
   const [loading, setLoading] = useState(true);
   const [, setStatusRight] = useState("");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [pendingForgetWorkspace, setPendingForgetWorkspace] = useState(false);
   const [movingPath, setMovingPath] = useState<string | null>(null);
   const [contextUseful, setContextUseful] = useState(false);
   const [contextEpoch, setContextEpoch] = useState(0);
@@ -92,6 +94,45 @@ export function NotebookPage({
       cancelled = true;
     };
   }, [workspace.path]);
+
+  async function handleOpenWorkspace(): Promise<void> {
+    try {
+      const selected = await window.entropy.workspace.open();
+      if (selected) onPickWorkspace?.(selected);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to open workspace");
+    }
+  }
+
+  async function handleCreateWorkspace(): Promise<void> {
+    try {
+      const created = await window.entropy.workspace.create();
+      if (created) onPickWorkspace?.(created);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create workspace");
+    }
+  }
+
+  async function handleRenameWorkspace(): Promise<void> {
+    const nextName = window.prompt("Rename workspace", workspace.name)?.trim();
+    if (!nextName || nextName === workspace.name) return;
+    try {
+      const renamed = await window.entropy.workspace.rename(workspace.path, nextName);
+      onPickWorkspace?.(renamed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to rename workspace");
+    }
+  }
+
+  async function confirmForgetWorkspace(): Promise<void> {
+    setPendingForgetWorkspace(false);
+    try {
+      await window.entropy.workspace.removeRecent(workspace.path);
+      closeWorkspace();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove workspace");
+    }
+  }
 
   useEffect(() => {
     setCreateFolderPath(workspace.path);
@@ -636,7 +677,7 @@ export function NotebookPage({
                     />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-[12rem]">
+                <DropdownMenuContent align="start" className="min-w-[14rem]">
                   {recentWorkspaces.map((item) => {
                     const active = samePath(item.path, workspace.path);
                     return (
@@ -652,14 +693,25 @@ export function NotebookPage({
                   {recentWorkspaces.length > 0 ? <DropdownMenuSeparator /> : null}
                   <DropdownMenuItem
                     disabled={!onPickWorkspace}
-                    onSelect={() => {
-                      void (async () => {
-                        const selected = await window.entropy.workspace.open();
-                        if (selected) onPickWorkspace?.(selected);
-                      })();
-                    }}
+                    onSelect={() => void handleOpenWorkspace()}
                   >
                     Open workspace…
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!onPickWorkspace}
+                    onSelect={() => void handleCreateWorkspace()}
+                  >
+                    New workspace…
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void handleRenameWorkspace()}>
+                    Rename “{workspace.name}”…
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-muted-foreground"
+                    onSelect={() => setPendingForgetWorkspace(true)}
+                  >
+                    Remove from list
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -796,6 +848,16 @@ export function NotebookPage({
         onConfirm={() => void confirmDelete()}
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null);
+        }}
+      />
+      <ConfirmDialog
+        open={pendingForgetWorkspace}
+        title={`Remove “${workspace.name}” from the list?`}
+        description="Removes this workspace from Entropy’s recent list. Files stay on disk."
+        confirmLabel="Remove"
+        onConfirm={() => void confirmForgetWorkspace()}
+        onOpenChange={(open) => {
+          if (!open) setPendingForgetWorkspace(false);
         }}
       />
       <MoveToDialog
