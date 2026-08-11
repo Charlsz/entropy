@@ -23,10 +23,8 @@ interface ItemContextMenuProps {
 
 function ActionItems({
   actions,
-  onNavigate,
 }: {
   actions: ItemAction[];
-  onNavigate: () => void;
 }) {
   return (
     <>
@@ -36,7 +34,7 @@ function ActionItems({
             <ContextMenuSub key={action.label}>
               <ContextMenuSubTrigger>{action.label}</ContextMenuSubTrigger>
               <ContextMenuSubContent sideOffset={6} alignOffset={-2}>
-                <ActionItems actions={action.children} onNavigate={onNavigate} />
+                <ActionItems actions={action.children} />
               </ContextMenuSubContent>
             </ContextMenuSub>
           );
@@ -51,9 +49,10 @@ function ActionItems({
                 : undefined
             }
             onSelect={() => {
-              // Do not preventDefault — Radix needs the default to close the menu.
-              onNavigate();
-              action.onSelect?.();
+              // Defer until after Radix closes — sync section switches were
+              // killing the first Show in / action click.
+              const run = action.onSelect;
+              window.setTimeout(() => run?.(), 0);
             }}
           >
             {action.label}
@@ -92,9 +91,9 @@ export function ItemContextMenu({
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent aria-label={`${label} actions`}>
-        <ActionItems actions={primary} onNavigate={() => setOpen(false)} />
+        <ActionItems actions={primary} />
         {destructive.length > 0 && primary.length > 0 ? <ContextMenuSeparator /> : null}
-        <ActionItems actions={destructive} onNavigate={() => setOpen(false)} />
+        <ActionItems actions={destructive} />
       </ContextMenuContent>
     </ContextMenu>
   );

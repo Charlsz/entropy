@@ -40,7 +40,7 @@ export const ContextMenuItem = React.forwardRef<
       ref={ref}
       className={cn(
         "relative flex cursor-default select-none items-center rounded-[4px] px-2 py-1 text-[12px] outline-none",
-        "text-foreground data-[highlighted]:bg-select data-[highlighted]:text-foreground",
+        "text-foreground data-[highlighted]:bg-[color-mix(in_srgb,var(--color-ink)_10%,transparent)] data-[highlighted]:text-foreground",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         inset && "pl-8",
         className,
@@ -61,7 +61,7 @@ export const ContextMenuSubTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-default select-none items-center rounded-[4px] px-2 py-1 text-[12px] outline-none",
-      "text-foreground data-[highlighted]:bg-select data-[highlighted]:text-foreground data-[state=open]:bg-select",
+      "text-foreground data-[highlighted]:bg-[color-mix(in_srgb,var(--color-ink)_10%,transparent)] data-[highlighted]:text-foreground data-[state=open]:bg-[color-mix(in_srgb,var(--color-ink)_10%,transparent)]",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       inset && "pl-8",
       className,

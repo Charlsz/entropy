@@ -527,17 +527,12 @@ export function NotebookPage({
     actions.push(
       { label: "Copy path", onSelect: () => void copyPath(entry.path) },
       {
-        label: "Show in",
-        children: [
-          {
-            label: "Folders",
-            onSelect: () => void showInLibrary(entry.path, "folders"),
-          },
-          {
-            label: "Gallery",
-            onSelect: () => void showInLibrary(entry.path, "gallery"),
-          },
-        ],
+        label: "Show in Folders",
+        onSelect: () => void showInLibrary(entry.path, "folders"),
+      },
+      {
+        label: "Show in Gallery",
+        onSelect: () => void showInLibrary(entry.path, "gallery"),
       },
       { label: revealLabel, onSelect: () => void revealPath(entry.path) },
       { label: "Move to…", onSelect: () => setMovingPath(entry.path) },
@@ -814,7 +809,7 @@ export function NotebookPage({
               activeFilePath={previewEntry?.path ?? activePath}
               createFolderPath={createFolderPath}
               diskEpoch={diskEpoch}
-              dismissKey={workspace.currentSection}
+              dismissKey={workspace.path}
               getFileActions={fileActions}
               renamingPath={renamingPath}
               renameValue={renameValue}

@@ -789,9 +789,10 @@
   box-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 8%, transparent);
 }
 
+/* Neutral ink wash — avoid accent/select blue on hover (esp. "Show in" open state). */
 .entropy-menu [data-highlighted],
 .entropy-menu [data-state="open"] {
-  background-color: var(--select) !important;
+  background-color: color-mix(in srgb, var(--color-ink) 10%, transparent) !important;
   color: var(--foreground) !important;
 }
 
