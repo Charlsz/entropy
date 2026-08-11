@@ -1018,3 +1018,45 @@
   z-index: 20;
 }
 
+/* Quiet Notebook chrome — no blue hover wash, no motion */
+.entropy-quiet-control {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  transition: none !important;
+}
+
+.entropy-quiet-control:hover:not(:disabled) {
+  background: transparent !important;
+  color: var(--color-ink) !important;
+}
+
+.entropy-quiet-control:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.entropy-quiet-row {
+  transition: none !important;
+}
+
+.entropy-quiet-row:hover {
+  background: transparent !important;
+  color: var(--color-ink);
+}
+
+.entropy-format-toolbar select.entropy-quiet-control:hover {
+  color: var(--color-ink) !important;
+}
+
+.entropy-editor-shell .entropy-notes-chrome button,
+.entropy-editor-shell .entropy-notes-chrome [role="tab"] {
+  transition: none !important;
+}
+
+.entropy-editor-shell .entropy-notes-chrome button:hover {
+  background: transparent !important;
+  color: var(--color-ink) !important;
+}
+
+

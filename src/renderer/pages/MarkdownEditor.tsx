@@ -653,7 +653,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               <div
                 key={tab.path}
                 className={cn(
-                  "group flex max-w-[14rem] shrink-0 items-center gap-1 border-b-2 px-1.5 text-[13px] transition-colors duration-150",
+                  "group flex max-w-[14rem] shrink-0 items-center gap-1 border-b-2 px-1.5 text-[13px]",
                   active
                     ? "border-foreground text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground",
@@ -670,7 +670,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   <span className="truncate">{tab.title}</span>
                   <span
                     className={cn(
-                      "size-1.5 shrink-0 rounded-full bg-foreground/70 transition-opacity duration-150",
+                      "size-1.5 shrink-0 rounded-full bg-foreground/70",
                       dirty ? "opacity-100" : "opacity-0",
                     )}
                     aria-hidden={!dirty}
@@ -684,7 +684,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 </button>
                 <button
                   type="button"
-                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-select hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                  className="rounded p-0.5 text-muted-foreground opacity-0 hover:bg-transparent hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
                   aria-label={`Close ${tab.title}`}
                   onClick={() => handleClose(tab.path)}
                 >
@@ -702,8 +702,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "h-8 w-8 text-muted-foreground",
-                  !split && surface === "preview" && "bg-ink-2 text-foreground",
+                  "h-8 w-8 bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground",
+                  !split && surface === "preview" && "text-foreground",
                 )}
                 aria-label={surface === "edit" ? "Show reading view" : "Show live preview"}
                 aria-pressed={!split && surface === "preview"}
@@ -730,8 +730,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "entropy-split-toggle h-8 w-8 text-muted-foreground",
-                  split && "bg-ink-2 text-foreground",
+                  "entropy-split-toggle h-8 w-8 bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground",
+                  split && "text-foreground",
                 )}
                 aria-label="Toggle split view"
                 aria-pressed={split}
@@ -830,27 +830,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                       <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
                     </div>
                   ) : null}
-                  <input
-                    className="entropy-note-title mb-3 w-full border-0 bg-transparent p-0 text-[1.75rem] font-medium leading-tight tracking-tight text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
-                    value={titleDraft}
-                    disabled={Boolean(activeTab?.conflict || activeTab?.missing)}
-                    aria-label="Note title"
-                    placeholder="Untitled"
-                    spellCheck
-                    onChange={(event) => setTitleDraft(event.target.value)}
-                    onBlur={() => void commitTitle()}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                        liveEditorRef.current?.focus({ at: "start" });
-                      }
-                      if (event.key === "Escape") {
-                        setTitleDraft(activeTab?.title ?? "");
-                        event.currentTarget.blur();
-                      }
-                    }}
-                  />
                   <WysiwygMarkdownEditor
                     ref={liveEditorRef}
                     value={activeTab?.content ?? ""}
@@ -861,6 +840,29 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     onDropPath={(path) => void insertFileLink(path)}
+                    titleSlot={
+                      <input
+                        className="entropy-note-title mb-3 mt-2 w-full border-0 bg-transparent p-0 text-[1.75rem] font-medium leading-tight tracking-tight text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
+                        value={titleDraft}
+                        disabled={Boolean(activeTab?.conflict || activeTab?.missing)}
+                        aria-label="Note title"
+                        placeholder="Untitled"
+                        spellCheck
+                        onChange={(event) => setTitleDraft(event.target.value)}
+                        onBlur={() => void commitTitle()}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                            liveEditorRef.current?.focus({ at: "start" });
+                          }
+                          if (event.key === "Escape") {
+                            setTitleDraft(activeTab?.title ?? "");
+                            event.currentTarget.blur();
+                          }
+                        }}
+                      />
+                    }
                   />
                 </div>
               </div>
