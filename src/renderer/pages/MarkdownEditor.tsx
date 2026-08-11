@@ -91,6 +91,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [titleDraft, setTitleDraft] = useState("");
   const [tipTapEditor, setTipTapEditor] = useState<Editor | null>(null);
   const mode = split ? "split" : surface;
+
+  const handleEditorReady = useCallback((next: Editor | null) => {
+    setTipTapEditor(next && !next.isDestroyed ? next : null);
+  }, []);
   const saveTimers = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
   const liveEditorRef = useRef<WysiwygMarkdownEditorHandle>(null);
@@ -816,7 +820,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     onDropPath={(path) => void insertFileLink(path)}
-                    onEditorReady={setTipTapEditor}
+                    onEditorReady={handleEditorReady}
                     titleSlot={
                       <input
                         className="entropy-note-title mb-3 w-full border-0 bg-transparent p-0 text-[1.75rem] font-medium leading-tight tracking-tight text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"

@@ -14,6 +14,22 @@ import {
 import { cn } from "../lib/utils";
 import { figma } from "../lib/figmaTokens";
 
+const IDLE_TOOLBAR_STATE = {
+  bold: false,
+  italic: false,
+  strike: false,
+  underline: false,
+  bulletList: false,
+  orderedList: false,
+  heading: 0,
+  canUndo: false,
+  canRedo: false,
+};
+
+function liveEditor(editor: Editor | null): Editor | null {
+  return editor && !editor.isDestroyed ? editor : null;
+}
+
 export function NoteFormatToolbar({
   editor,
   disabled = false,
@@ -23,40 +39,33 @@ export function NoteFormatToolbar({
   disabled?: boolean;
   className?: string;
 }) {
+  const active = liveEditor(editor);
   const state = useEditorState({
-    editor,
+    editor: active,
     selector: (ctx) => {
-      const current = ctx.editor;
-      if (!current) {
+      const current = liveEditor(ctx.editor);
+      if (!current) return IDLE_TOOLBAR_STATE;
+      try {
         return {
-          bold: false,
-          italic: false,
-          strike: false,
-          underline: false,
-          bulletList: false,
-          orderedList: false,
-          heading: 0,
-          canUndo: false,
-          canRedo: false,
+          bold: current.isActive("bold"),
+          italic: current.isActive("italic"),
+          strike: current.isActive("strike"),
+          underline: current.isActive("underline"),
+          bulletList: current.isActive("bulletList"),
+          orderedList: current.isActive("orderedList"),
+          heading: current.isActive("heading")
+            ? (current.getAttributes("heading").level as number)
+            : 0,
+          canUndo: current.can().undo(),
+          canRedo: current.can().redo(),
         };
+      } catch {
+        return IDLE_TOOLBAR_STATE;
       }
-      return {
-        bold: current.isActive("bold"),
-        italic: current.isActive("italic"),
-        strike: current.isActive("strike"),
-        underline: current.isActive("underline"),
-        bulletList: current.isActive("bulletList"),
-        orderedList: current.isActive("orderedList"),
-        heading: current.isActive("heading")
-          ? (current.getAttributes("heading").level as number)
-          : 0,
-        canUndo: current.can().undo(),
-        canRedo: current.can().redo(),
-      };
     },
   });
 
-  if (!editor) {
+  if (!active) {
     return (
       <div
         className={cn("entropy-format-toolbar flex min-w-0 flex-1 items-center", className)}
@@ -86,14 +95,14 @@ export function NoteFormatToolbar({
       <FormatButton
         label="Undo"
         disabled={disabled || !state?.canUndo}
-        onClick={() => editor.chain().focus().undo().run()}
+        onClick={() => active.chain().focus().undo().run()}
       >
         <Undo2 className="size-3.5" strokeWidth={1.75} />
       </FormatButton>
       <FormatButton
         label="Redo"
         disabled={disabled || !state?.canRedo}
-        onClick={() => editor.chain().focus().redo().run()}
+        onClick={() => active.chain().focus().redo().run()}
       >
         <Redo2 className="size-3.5" strokeWidth={1.75} />
       </FormatButton>
@@ -108,7 +117,7 @@ export function NoteFormatToolbar({
         value={headingValue}
         onChange={(event) => {
           const next = event.target.value;
-          const chain = editor.chain().focus();
+          const chain = active.chain().focus();
           if (next === "p") chain.setParagraph().run();
           else if (next === "h1") chain.toggleHeading({ level: 1 }).run();
           else if (next === "h2") chain.toggleHeading({ level: 2 }).run();
@@ -127,7 +136,7 @@ export function NoteFormatToolbar({
         label="Bullet list"
         active={Boolean(state?.bulletList)}
         disabled={disabled}
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        onClick={() => active.chain().focus().toggleBulletList().run()}
       >
         <List className="size-3.5" strokeWidth={1.75} />
       </FormatButton>
@@ -135,7 +144,7 @@ export function NoteFormatToolbar({
         label="Numbered list"
         active={Boolean(state?.orderedList)}
         disabled={disabled}
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        onClick={() => active.chain().focus().toggleOrderedList().run()}
       >
         <ListOrdered className="size-3.5" strokeWidth={1.75} />
       </FormatButton>
@@ -146,7 +155,7 @@ export function NoteFormatToolbar({
         label="Bold"
         active={Boolean(state?.bold)}
         disabled={disabled}
-        onClick={() => editor.chain().focus().toggleBold().run()}
+        onClick={() => active.chain().focus().toggleBold().run()}
       >
         <Bold className="size-3.5" strokeWidth={1.75} />
       </FormatButton>
@@ -154,7 +163,7 @@ export function NoteFormatToolbar({
         label="Italic"
         active={Boolean(state?.italic)}
         disabled={disabled}
-        onClick={() => editor.chain().focus().toggleItalic().run()}
+        onClick={() => active.chain().focus().toggleItalic().run()}
       >
         <Italic className="size-3.5" strokeWidth={1.75} />
       </FormatButton>
@@ -162,7 +171,7 @@ export function NoteFormatToolbar({
         label="Strikethrough"
         active={Boolean(state?.strike)}
         disabled={disabled}
-        onClick={() => editor.chain().focus().toggleStrike().run()}
+        onClick={() => active.chain().focus().toggleStrike().run()}
       >
         <Strikethrough className="size-3.5" strokeWidth={1.75} />
       </FormatButton>
@@ -170,7 +179,7 @@ export function NoteFormatToolbar({
         label="Underline"
         active={Boolean(state?.underline)}
         disabled={disabled}
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
+        onClick={() => active.chain().focus().toggleUnderline().run()}
       >
         <UnderlineIcon className="size-3.5" strokeWidth={1.75} />
       </FormatButton>

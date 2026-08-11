@@ -152,17 +152,24 @@ export const WysiwygMarkdownEditor = forwardRef<
   );
 
   useEffect(() => {
-    onEditorReady?.(editor ?? null);
-    return () => onEditorReady?.(null);
+    if (!editor || editor.isDestroyed) {
+      onEditorReady?.(null);
+      return;
+    }
+    onEditorReady?.(editor);
+    return () => {
+      // Avoid wiping a newer editor instance during note switches.
+      onEditorReady?.(null);
+    };
   }, [editor, onEditorReady]);
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
     editor.setEditable(!disabled);
   }, [disabled, editor]);
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
     const storage = editor.storage as {
       entropyNoteMeta?: { notePath: string | null; diskEpoch: number };
     };
@@ -173,7 +180,7 @@ export const WysiwygMarkdownEditor = forwardRef<
   }, [diskEpoch, editor, notePath]);
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
     const body = stripMatchingLeadingTitle(value, noteTitle);
     if (body === lastEmitted.current) return;
     const current = tipTapDocToMarkdown(editor.getJSON());
@@ -182,7 +189,11 @@ export const WysiwygMarkdownEditor = forwardRef<
       return;
     }
     applyingExternal.current = true;
-    editor.commands.setContent(markdownToTipTapDoc(body));
+    try {
+      editor.commands.setContent(markdownToTipTapDoc(body));
+    } catch {
+      // Editor may be mid-destroy during note switches.
+    }
     lastEmitted.current = body;
     applyingExternal.current = false;
   }, [editor, value, noteTitle, notePath]);
@@ -191,7 +202,7 @@ export const WysiwygMarkdownEditor = forwardRef<
     ref,
     () => ({
       insertMarkdown(markdown: string) {
-        if (!editor || disabled) return;
+        if (!editor || editor.isDestroyed || disabled) return;
         const blocks = parseMarkdownBlocks(markdown);
         for (const block of blocks) {
           if (block.type === "media") {
@@ -222,7 +233,7 @@ export const WysiwygMarkdownEditor = forwardRef<
         }
       },
       focus(options) {
-        if (!editor || disabled) return;
+        if (!editor || editor.isDestroyed || disabled) return;
         // Prefer caret-preserving focus; only jump when asked.
         if (options?.at === "start") editor.commands.focus("start");
         else if (options?.at === "end") editor.commands.focus("end");
