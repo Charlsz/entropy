@@ -797,77 +797,77 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               mode === "split" ? "entropy-editor-split grid gap-0" : "flex flex-col",
             )}
           >
-            {mode !== "preview" ? (
-              <div
-                className={cn(
-                  "min-h-0 flex-1 overflow-y-auto",
-                  mode === "split" ? "border-r border-border" : "",
-                )}
-              >
-                <div className="entropy-note-page entropy-prose-pad mx-auto flex w-full max-w-[720px] flex-col pb-24 pt-8">
+            {/* Keep the live editor mounted in reading mode to avoid TipTap remount glitches. */}
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto",
+                mode === "split" ? "border-r border-border" : "",
+                mode === "preview" ? "hidden" : "",
+              )}
+              aria-hidden={mode === "preview"}
+            >
+              <div className="entropy-note-page entropy-prose-pad mx-auto flex w-full max-w-[720px] flex-col pb-24 pt-8">
+                {activeTab && noteMeta.cover ? (
+                  <div className="mb-6">
+                    <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
+                  </div>
+                ) : null}
+                <WysiwygMarkdownEditor
+                  ref={liveEditorRef}
+                  value={activeTab?.content ?? ""}
+                  noteTitle={activeTab?.title ?? ""}
+                  notePath={activeTab?.path}
+                  diskEpoch={diskEpoch}
+                  disabled={Boolean(activeTab?.conflict) || mode === "preview"}
+                  onChange={handleChange}
+                  onKeyDown={handleKeyDown}
+                  onDropPath={(path) => void insertFileLink(path)}
+                  onEditorReady={handleEditorReady}
+                  titleSlot={
+                    <input
+                      className="entropy-note-title mb-3 w-full border-0 bg-transparent p-0 text-[1.75rem] font-medium leading-tight tracking-tight text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
+                      value={titleDraft}
+                      disabled={Boolean(activeTab?.conflict || activeTab?.missing || mode === "preview")}
+                      aria-label="Note title"
+                      placeholder="Untitled"
+                      spellCheck
+                      onChange={(event) => setTitleDraft(event.target.value)}
+                      onBlur={() => void commitTitle()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                          liveEditorRef.current?.focus();
+                        }
+                        if (event.key === "Escape") {
+                          setTitleDraft(activeTab?.title ?? "");
+                          event.currentTarget.blur();
+                        }
+                      }}
+                    />
+                  }
+                />
+              </div>
+            </div>
+            {mode !== "edit" ? (
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="entropy-note-page entropy-prose-pad mx-auto w-full max-w-[720px] pb-24 pt-8">
                   {activeTab && noteMeta.cover ? (
                     <div className="mb-6">
                       <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
                     </div>
                   ) : null}
-                  <WysiwygMarkdownEditor
-                    ref={liveEditorRef}
-                    value={activeTab?.content ?? ""}
-                    noteTitle={activeTab?.title ?? ""}
+                  <h1 className="entropy-note-title mb-3 text-left text-[1.75rem] font-medium leading-tight tracking-tight text-foreground">
+                    {activeTab?.title}
+                  </h1>
+                  <MarkdownPreview
+                    content={noteMeta.body}
                     notePath={activeTab?.path}
                     diskEpoch={diskEpoch}
-                    disabled={Boolean(activeTab?.conflict)}
-                    onChange={handleChange}
-                    onKeyDown={handleKeyDown}
-                    onDropPath={(path) => void insertFileLink(path)}
-                    onEditorReady={handleEditorReady}
-                    titleSlot={
-                      <input
-                        className="entropy-note-title mb-3 w-full border-0 bg-transparent p-0 text-[1.75rem] font-medium leading-tight tracking-tight text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
-                        value={titleDraft}
-                        disabled={Boolean(activeTab?.conflict || activeTab?.missing)}
-                        aria-label="Note title"
-                        placeholder="Untitled"
-                        spellCheck
-                        onChange={(event) => setTitleDraft(event.target.value)}
-                        onBlur={() => void commitTitle()}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            event.currentTarget.blur();
-                            liveEditorRef.current?.focus();
-                          }
-                          if (event.key === "Escape") {
-                            setTitleDraft(activeTab?.title ?? "");
-                            event.currentTarget.blur();
-                          }
-                        }}
-                      />
-                    }
+                    onOpenLocal={onOpenLocalPath}
+                    className="!mx-0 !max-w-none !px-0 !pb-0 !pt-0"
                   />
                 </div>
-              </div>
-            ) : null}
-            {mode !== "edit" ? (
-              <ScrollArea className="min-h-0 flex-1">
-                {mode === "preview" && activeTab && noteMeta.cover ? (
-                  <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
-                    <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
-                  </div>
-                ) : null}
-                {mode === "preview" ? (
-                  <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
-                    <h1 className="mb-4 text-left text-[1.75rem] font-medium leading-tight tracking-tight text-foreground">
-                      {activeTab?.title}
-                    </h1>
-                  </div>
-                ) : null}
-                <MarkdownPreview
-                  content={noteMeta.body}
-                  notePath={activeTab?.path}
-                  diskEpoch={diskEpoch}
-                  onOpenLocal={onOpenLocalPath}
-                />
               </ScrollArea>
             ) : null}
           </div>
