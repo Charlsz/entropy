@@ -154,7 +154,7 @@ export function NotebookPage({
 
   useEffect(() => {
     if (!pendingNote) return;
-    setOpenPaths((prev) => (prev.includes(pendingNote) ? prev : [...prev, pendingNote]));
+    setOpenPaths([pendingNote]);
     setActivePath(pendingNote);
     onPendingNoteHandled?.();
   }, [pendingNote, onPendingNoteHandled]);
@@ -181,7 +181,7 @@ export function NotebookPage({
         return false;
       }
 
-      setOpenPaths((prev) => (prev.includes(notePath) ? prev : [...prev, notePath]));
+      setOpenPaths([notePath]);
       setActivePath(notePath);
 
       const insert = await buildReferenceMarkdown(notePath, entry);
@@ -327,7 +327,8 @@ export function NotebookPage({
   }, [queuedReference, activePath, insertReferenceIntoOpenNote]);
 
   function openNoteLocal(notePath: string): void {
-    setOpenPaths((prev) => (prev.includes(notePath) ? prev : [...prev, notePath]));
+    // One note at a time — the workspace tree is the switcher (no tab strip).
+    setOpenPaths([notePath]);
     setActivePath(notePath);
     setCreateFolderPath(parentDirOfNote(notePath, workspace.path));
     addRecentFile(notePath);
@@ -742,10 +743,6 @@ export function NotebookPage({
             openPaths={openPaths}
             activePath={activePath}
             diskEpoch={diskEpoch}
-            onActiveChange={(notePath) => {
-              openNoteLocal(notePath);
-              visitNote(notePath);
-            }}
             onCloseTab={closeTab}
             onNotePathChange={(fromPath, toPath) => {
               setOpenPaths((prev) => prev.map((path) => (path === fromPath ? toPath : path)));

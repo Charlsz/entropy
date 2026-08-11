@@ -8,7 +8,8 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { X, PenLine, Columns2, Eye } from "lucide-react";
+import { Columns2, Eye, PenLine } from "lucide-react";
+import type { Editor } from "@tiptap/react";
 import type { NoteSearchResult } from "../../shared/types";
 import { registerFlush } from "../state/flushRegistry";
 import { Button } from "../components/ui/button";
@@ -19,6 +20,7 @@ import {
   WysiwygMarkdownEditor,
   type WysiwygMarkdownEditorHandle,
 } from "../components/WysiwygMarkdownEditor";
+import { NoteFormatToolbar } from "../components/NoteFormatToolbar";
 import { NoteCover } from "../components/NoteCover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { cn } from "../lib/utils";
@@ -43,7 +45,6 @@ interface MarkdownEditorProps {
   activePath: string | null;
   /** Bumps when workspace files change on disk — recheck open notes + embeds. */
   diskEpoch?: number;
-  onActiveChange: (path: string) => void;
   onCloseTab: (path: string) => void;
   /** Fired after the open note file was renamed on disk. */
   onNotePathChange?: (fromPath: string, toPath: string) => void;
@@ -73,7 +74,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       openPaths,
       activePath,
       diskEpoch = 0,
-      onActiveChange,
       onCloseTab,
       onNotePathChange,
       onStatsChange,
@@ -89,6 +89,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [split, setSplit] = useState(false);
   const [backlinks, setBacklinks] = useState<NoteSearchResult[]>([]);
   const [titleDraft, setTitleDraft] = useState("");
+  const [tipTapEditor, setTipTapEditor] = useState<Editor | null>(null);
   const mode = split ? "split" : surface;
   const saveTimers = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
@@ -263,10 +264,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     let cancelled = false;
 
     setTabs((prev) => {
-      const kept = prev.filter((tab) => openPaths.includes(tab.path));
-      const additions = openPaths
-        .filter((filePath) => !kept.some((tab) => tab.path === filePath))
-        .map((filePath) => ({
+      const MAX_SOFT_CACHE = 12;
+      const openSet = new Set(openPaths);
+      const byPath = new Map(prev.map((tab) => [tab.path, tab]));
+
+      for (const filePath of openPaths) {
+        if (byPath.has(filePath)) continue;
+        byPath.set(filePath, {
           path: filePath,
           title: filePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "Untitled",
           content: "",
@@ -275,12 +279,37 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           loading: true,
           missing: false,
           conflict: false,
-        }));
-      return [...kept, ...additions];
+        });
+      }
+
+      const openTabs = openPaths
+        .map((path) => byPath.get(path))
+        .filter((tab): tab is EditorTab => Boolean(tab));
+
+      // Soft-cache closed notes so switching back does not flash empty→content.
+      const cached = prev
+        .filter((tab) => !openSet.has(tab.path) && !tab.loading)
+        .slice(-MAX_SOFT_CACHE);
+
+      const next = [...openTabs];
+      for (const tab of cached) {
+        if (!next.some((item) => item.path === tab.path)) next.push(tab);
+      }
+      return next;
     });
 
     void (async () => {
       for (const filePath of openPaths) {
+        // Skip disk read when we already have a warm, clean tab for this path.
+        const warm = tabsRef.current.find(
+          (tab) =>
+            tab.path === filePath &&
+            !tab.loading &&
+            !tab.missing &&
+            tab.content === tab.savedContent,
+        );
+        if (warm) continue;
+
         try {
           const exists = await window.entropy.fs.exists(filePath);
           if (!exists) {
@@ -450,7 +479,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     scheduleSave(activePath, value);
   }
 
-  // Obsidian-like: landing in a note should be ready to type without an extra click.
+  // Focus once when a note finishes loading — do not re-steal focus on re-renders.
   useEffect(() => {
     if (mode === "preview") return;
     if (!activeTab || activeTab.loading || activeTab.missing || activeTab.conflict) return;
@@ -468,10 +497,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           return;
         }
       }
-      liveEditorRef.current?.focus({ at: "end" });
+      // Preserve caret; never jump to end (that made scrollbar clicks teleport).
+      liveEditorRef.current?.focus();
     }, 40);
 
     return () => window.clearTimeout(timer);
+    // Intentionally only when the open note / surface changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid focus thrash on content edits
   }, [activePath, mode, activeTab?.loading, activeTab?.missing, activeTab?.conflict]);
 
   useImperativeHandle(
@@ -639,61 +671,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   return (
     <div className="entropy-editor-shell flex h-full min-h-0 flex-col bg-background">
       <div
-        className="entropy-chrome-bar entropy-notes-chrome flex shrink-0 items-stretch border-b border-border"
-        aria-label="Open notes"
+        className="entropy-chrome-bar entropy-notes-chrome flex h-9 shrink-0 items-center border-b border-border"
+        aria-label="Note tools"
       >
-        <div
-          className="flex min-h-8 min-w-0 flex-1 items-stretch gap-1 overflow-x-auto"
-          role="tablist"
-        >
-          {tabs.map((tab) => {
-            const dirty = tab.content !== tab.savedContent;
-            const active = tab.path === activePath;
-            return (
-              <div
-                key={tab.path}
-                className={cn(
-                  "group flex max-w-[14rem] shrink-0 items-center gap-1 border-b-2 px-1.5 text-[13px]",
-                  active
-                    ? "border-foreground text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-                role="tab"
-                aria-selected={active}
-              >
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-1.5 truncate py-1.5 text-left font-medium"
-                  onClick={() => onActiveChange(tab.path)}
-                  title={tab.title}
-                >
-                  <span className="truncate">{tab.title}</span>
-                  <span
-                    className={cn(
-                      "size-1.5 shrink-0 rounded-full bg-foreground/70",
-                      dirty ? "opacity-100" : "opacity-0",
-                    )}
-                    aria-hidden={!dirty}
-                    title={dirty ? "Unsaved changes" : undefined}
-                  />
-                  {tab.missing ? (
-                    <span className="text-muted-foreground" title="Missing on disk">
-                      !
-                    </span>
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  className="rounded p-0.5 text-muted-foreground opacity-0 hover:bg-transparent hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
-                  aria-label={`Close ${tab.title}`}
-                  onClick={() => handleClose(tab.path)}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
+        {mode !== "preview" ? (
+          <NoteFormatToolbar
+            editor={tipTapEditor}
+            disabled={Boolean(activeTab?.conflict || activeTab?.missing || activeTab?.loading)}
+          />
+        ) : (
+          <div className="min-w-0 flex-1 px-3 text-[12px] text-muted-foreground">Reading view</div>
+        )}
         <div className="flex shrink-0 items-center gap-0.5 px-1">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -781,7 +769,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 size="sm"
                 onClick={() => handleClose(activeTab.path)}
               >
-                Close tab
+                Close
               </Button>
             ) : null}
           </div>
@@ -811,18 +799,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   "min-h-0 flex-1 overflow-y-auto",
                   mode === "split" ? "border-r border-border" : "",
                 )}
-                onMouseDown={(event) => {
-                  const target = event.target as HTMLElement;
-                  if (
-                    target.closest(
-                      ".ProseMirror, .entropy-note-title, .entropy-bubble-menu, button, a, input, iframe, video, img, figure",
-                    )
-                  ) {
-                    return;
-                  }
-                  event.preventDefault();
-                  liveEditorRef.current?.focus({ at: "end" });
-                }}
               >
                 <div className="entropy-note-page entropy-prose-pad mx-auto flex w-full max-w-[720px] flex-col pb-24 pt-8">
                   {activeTab && noteMeta.cover ? (
@@ -840,9 +816,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     onDropPath={(path) => void insertFileLink(path)}
+                    onEditorReady={setTipTapEditor}
                     titleSlot={
                       <input
-                        className="entropy-note-title mb-3 mt-2 w-full border-0 bg-transparent p-0 text-[1.75rem] font-medium leading-tight tracking-tight text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
+                        className="entropy-note-title mb-3 w-full border-0 bg-transparent p-0 text-[1.75rem] font-medium leading-tight tracking-tight text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
                         value={titleDraft}
                         disabled={Boolean(activeTab?.conflict || activeTab?.missing)}
                         aria-label="Note title"
@@ -854,7 +831,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                           if (event.key === "Enter") {
                             event.preventDefault();
                             event.currentTarget.blur();
-                            liveEditorRef.current?.focus({ at: "start" });
+                            liveEditorRef.current?.focus();
                           }
                           if (event.key === "Escape") {
                             setTitleDraft(activeTab?.title ?? "");
