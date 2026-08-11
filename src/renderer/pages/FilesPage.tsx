@@ -6,6 +6,7 @@ import {
   GalleryThumbnails,
   Image,
   ListFilter,
+  PanelLeft,
   RefreshCw,
 } from "lucide-react";
 import type {
@@ -33,6 +34,7 @@ import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { Skeleton } from "../components/ui/skeleton";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { InventoryBreadcrumb } from "../components/InventoryBreadcrumb";
+import { InventoryFolderTree } from "../components/InventoryFolderTree";
 import { ChromeTitlebarStart } from "../components/ChromeTitlebar";
 import { InventoryDuplicatesPanel } from "../components/InventoryDuplicatesPanel";
 import { FileIntelligencePanel } from "../components/FileIntelligencePanel";
@@ -171,6 +173,7 @@ export function FilesPage({
   const perspective = normalizePerspective(rawPerspective as string);
   const intelligenceView = workspace.settings.intelligenceView ?? null;
   const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed ?? true;
+  const folderTreeCollapsed = workspace.settings.inventoryFolderTreeCollapsed ?? false;
   const trimmedSearch = searchQuery.trim();
   const isSearching = trimmedSearch.length > 0;
 
@@ -965,6 +968,28 @@ export function FilesPage({
   }, [treemapPanelVisible]);
 
   const foldersSurface = perspective === "folders" || perspective === "gallery";
+  const showFolderTree =
+    foldersSurface &&
+    !folderTreeCollapsed &&
+    !isSearching &&
+    Boolean(scanRoot || workspace.inventoryScanRoot);
+
+  // Collapsing the tree uses a two-panel layout that persists sidebar:0; restore a
+  // usable width when the tree is shown again.
+  useEffect(() => {
+    if (!showFolderTree) return;
+    const layout = workspace.settings.inventoryPanelLayout;
+    if (layout.sidebar >= 8) return;
+    const context = layout.context || 28;
+    updateSettings({
+      inventoryPanelLayout: {
+        sidebar: 20,
+        main: Math.max(32, 100 - 20 - context),
+        context,
+      },
+    });
+  }, [showFolderTree, updateSettings, workspace.settings.inventoryPanelLayout]);
+
   const chromeIconClass =
     "h-7 w-7 shrink-0 bg-transparent text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground";
 
@@ -981,6 +1006,28 @@ export function FilesPage({
       >
         <ListFilter className="h-3.5 w-3.5" strokeWidth={1.75} />
       </Button>
+      {foldersSurface ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(chromeIconClass, !folderTreeCollapsed && "text-foreground")}
+              aria-label={folderTreeCollapsed ? "Show folder tree" : "Hide folder tree"}
+              aria-pressed={!folderTreeCollapsed}
+              onClick={() =>
+                updateSettings({ inventoryFolderTreeCollapsed: !folderTreeCollapsed })
+              }
+            >
+              <PanelLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            {folderTreeCollapsed ? "Show folder tree" : "Hide folder tree"}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
       {foldersSurface ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -1275,7 +1322,38 @@ export function FilesPage({
             id="inventory-layout-v3"
             variant="inventory"
             persistLayout={workspace.currentSection === "inventory"}
-            sidebar={null}
+            sidebar={
+              showFolderTree ? (
+                <InventoryFolderTree
+                  rootPath={scanRoot || workspace.inventoryScanRoot || workspace.currentFolder}
+                  rootLabel={
+                    workspace.inventoryRootLabel ||
+                    rootLabel ||
+                    workspace.name
+                  }
+                  currentFolder={workspace.currentFolder}
+                  selectedFilePath={selected && !selected.isDirectory ? selected.path : null}
+                  diskEpoch={diskEpoch}
+                  onOpenFolder={(folderPath) => {
+                    setSelected(null);
+                    goToFolder(folderPath);
+                  }}
+                  onSelectFile={(entry) => {
+                    addRecentFile(entry.path);
+                    const parent = parentFolderPath(entry.path);
+                    if (parent && !samePath(parent, workspace.currentFolder)) {
+                      setPendingSelectPath(entry.path);
+                      goToFolder(parent);
+                      visitPreview(entry.path, parent);
+                    } else {
+                      setSelected(entry);
+                      visitPreview(entry.path, workspace.currentFolder);
+                    }
+                  }}
+                  onCollapse={() => updateSettings({ inventoryFolderTreeCollapsed: true })}
+                />
+              ) : null
+            }
             context={
               selected && !selected.isDirectory ? (
                 <FileIntelligencePanel

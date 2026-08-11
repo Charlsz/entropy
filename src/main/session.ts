@@ -14,6 +14,7 @@ export interface AppSettings {
   sidebarCollapsed: boolean;
   contextCollapsed: boolean;
   inventoryTreemapCollapsed: boolean;
+  inventoryFolderTreeCollapsed: boolean;
   libraryPerspective: "folders" | "gallery" | "large-files" | "duplicates";
   intelligenceView: "relationships" | "copilot" | null;
   uiDensity: "comfortable" | "default" | "compact";
@@ -36,8 +37,8 @@ const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
 };
 
 const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 0,
-  main: 72,
+  sidebar: 20,
+  main: 52,
   context: 28,
 };
 
@@ -73,6 +74,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   sidebarCollapsed: false,
   contextCollapsed: false,
   inventoryTreemapCollapsed: true,
+  inventoryFolderTreeCollapsed: false,
   libraryPerspective: "folders",
   intelligenceView: null,
   uiDensity: "default",
@@ -112,6 +114,10 @@ export async function loadSession(): Promise<AppSession> {
         contextCollapsed: Boolean(parsed.settings?.contextCollapsed),
         // Storage map is opt-in; never restore an open panel from a previous session.
         inventoryTreemapCollapsed: true,
+        inventoryFolderTreeCollapsed: Boolean(
+          (parsed.settings as { inventoryFolderTreeCollapsed?: boolean } | undefined)
+            ?.inventoryFolderTreeCollapsed,
+        ),
         libraryPerspective: normalizePerspective(
           (parsed.settings as { libraryPerspective?: string } | undefined)?.libraryPerspective,
         ),

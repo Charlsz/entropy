@@ -14,6 +14,8 @@ export interface WorkspaceSettings {
   contextCollapsed: boolean;
   /** Hide Inventory Storage map for a wide gallery. */
   inventoryTreemapCollapsed: boolean;
+  /** Hide the Library Folders tree column. */
+  inventoryFolderTreeCollapsed: boolean;
   filesView: "list" | "grid";
   /** Active Library perspective (Folders / Gallery / …). */
   libraryPerspective: LibraryPerspective;
@@ -70,8 +72,8 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
 };
 
 export const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 0,
-  main: 72,
+  sidebar: 20,
+  main: 52,
   context: 28,
 };
 
@@ -80,6 +82,7 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   sidebarCollapsed: false,
   contextCollapsed: false,
   inventoryTreemapCollapsed: true,
+  inventoryFolderTreeCollapsed: false,
   filesView: "list",
   libraryPerspective: "folders",
   intelligenceView: null,

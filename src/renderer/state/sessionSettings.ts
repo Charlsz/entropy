@@ -12,6 +12,7 @@ export function toSessionSettings(settings: WorkspaceSettings) {
     sidebarCollapsed: settings.sidebarCollapsed,
     contextCollapsed: settings.contextCollapsed,
     inventoryTreemapCollapsed: settings.inventoryTreemapCollapsed,
+    inventoryFolderTreeCollapsed: settings.inventoryFolderTreeCollapsed,
     libraryPerspective: settings.libraryPerspective,
     intelligenceView: settings.intelligenceView,
     uiDensity: settings.uiDensity,
@@ -29,6 +30,7 @@ export function fromSessionSettings(
     libraryPerspective?: string;
     intelligenceView?: string | null;
     inventoryTreemapCollapsed?: boolean;
+    inventoryFolderTreeCollapsed?: boolean;
     largeFilesApproxBytes?: number | null;
     uiDensity?: string;
     theme?: string;
@@ -43,6 +45,7 @@ export function fromSessionSettings(
     contextCollapsed: Boolean(settings.contextCollapsed),
     // Storage map is opt-in; never restore an open panel from a previous session.
     inventoryTreemapCollapsed: true,
+    inventoryFolderTreeCollapsed: Boolean(raw.inventoryFolderTreeCollapsed),
     libraryPerspective:
       perspective === "gallery" ||
       perspective === "large-files" ||
@@ -57,10 +60,17 @@ export function fromSessionSettings(
         ? density
         : "default",
     panelLayout: normalizePanelLayout(settings.panelLayout ?? DEFAULT_PANEL_LAYOUT),
-    inventoryPanelLayout: normalizePanelLayout(
-      settings.inventoryPanelLayout ?? DEFAULT_INVENTORY_PANEL_LAYOUT,
-      DEFAULT_INVENTORY_PANEL_LAYOUT,
-    ),
+    inventoryPanelLayout: (() => {
+      const layout = normalizePanelLayout(
+        settings.inventoryPanelLayout ?? DEFAULT_INVENTORY_PANEL_LAYOUT,
+        DEFAULT_INVENTORY_PANEL_LAYOUT,
+      );
+      // Older sessions stored sidebar:0 when Library had no tree column.
+      if (!raw.inventoryFolderTreeCollapsed && layout.sidebar < 8) {
+        return { ...DEFAULT_INVENTORY_PANEL_LAYOUT };
+      }
+      return layout;
+    })(),
     inventoryExtraRoots: Array.isArray(settings.inventoryExtraRoots)
       ? settings.inventoryExtraRoots.filter((item): item is string => typeof item === "string")
       : [],
