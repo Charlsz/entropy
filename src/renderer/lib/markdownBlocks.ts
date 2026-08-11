@@ -1,10 +1,18 @@
-/** Standalone markdown image embed: ![alt](src) or ![alt](src "title") */
-export const MEDIA_LINE_RE =
-  /^!\[([^\]]*)\]\((<[^>\n]+>|[^)\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\)$/;
+/**
+ * Entropy face-line parser: Markdown images/links, HTML video/audio/iframe,
+ * and Obsidian `![[…]]` / `[[…]]` — all share one resolver downstream.
+ *
+ * Destinations may include spaces and Windows absolute paths. TipTap may escape
+ * broken faces as `!\[alt\](src)`; we recover those on load.
+ */
 
-/** Standalone markdown link: [label](src) or [label](src "title") */
+/** @deprecated Prefer parseParenDestination; kept for callers/tests. */
+export const MEDIA_LINE_RE =
+  /^!\[([^\]]*)\]\((<[^>\n]+>|[^)\n]+)(?:\s+(?:"[^"]*"|'[^']*'))?\)$/;
+
+/** @deprecated Prefer parseParenDestination; kept for callers/tests. */
 export const LINK_LINE_RE =
-  /^\[([^\]]+)\]\((<[^>\n]+>|[^)\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\)$/;
+  /^\[([^\]]+)\]\((<[^>\n]+>|[^)\n]+)(?:\s+(?:"[^"]*"|'[^']*'))?\)$/;
 
 /** Obsidian embed on its own line: ![[target]] or ![[target|alias]] */
 export const WIKI_EMBED_LINE_RE = /^!\[\[([^\]|#\n]+?)(?:\|([^\]]*))?\]\]\s*$/;
@@ -30,7 +38,7 @@ export type MarkdownBlock =
   | { type: "fileRef"; label: string; src: string; raw: string };
 
 const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv", ".m4v", ".avi", ".wmv"]);
-const AUDIO_EXT = new Set([".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac", ".opus"]);
+const AUDIO_EXT = new Set([".mp3", ".wav", ".m4a", ".flac", ".aac", ".opus"]);
 const IMAGE_EXT = new Set([
   ".png",
   ".jpg",
@@ -75,11 +83,6 @@ export function isLiveEmbedExt(extension: string): boolean {
   return IMAGE_EXT.has(ext) || VIDEO_EXT.has(ext) || AUDIO_EXT.has(ext) || PDF_EXT.has(ext);
 }
 
-function unwrapSrc(raw: string): string {
-  if (raw.startsWith("<") && raw.endsWith(">")) return raw.slice(1, -1);
-  return raw;
-}
-
 function basenameHint(target: string): string {
   const clean = target.replace(/\\/g, "/");
   return clean.split("/").pop() || target;
@@ -101,58 +104,115 @@ function isRemoteHref(href: string): boolean {
   return /^(https?:|mailto:|data:|#)/i.test(href);
 }
 
+/**
+ * Recover TipTap-escaped face markup that previously fell through as paragraph text:
+ * `!\[alt\](src)` → `![alt](src)`, `&lt;video` → `<video`.
+ */
+export function normalizeFaceCandidate(line: string): string {
+  let s = line.trim();
+  if (!s) return s;
+  s = s.replace(/^!\\\[/, "![").replace(/\\\]\(/g, "](");
+  s = s.replace(/^\\\[/, "[");
+  s = s.replace(/^&lt;(?=(\/?)(video|audio|iframe)\b)/i, "<");
+  s = s.replace(/&gt;/g, ">");
+  return s;
+}
+
+/**
+ * Parse the inside of Markdown `(…)`, including spaces and Windows absolute paths.
+ * Supports `<angled>` form and optional `"title"` / `'title'`.
+ */
+export function parseParenDestination(inside: string): string | null {
+  const trimmed = inside.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith("<")) {
+    const close = trimmed.indexOf(">");
+    if (close < 1) return null;
+    return trimmed.slice(1, close).trim() || null;
+  }
+
+  const withTitle = /^(.*?)\s+("([^"]*)"|'([^']*)')\s*$/.exec(trimmed);
+  if (withTitle) {
+    const href = withTitle[1]!.trim();
+    return href || null;
+  }
+
+  return trimmed;
+}
+
+function matchMdImageLine(
+  line: string,
+): { alt: string; src: string } | null {
+  const match = /^!\[([^\]]*)\]\((.*)\)$/.exec(line);
+  if (!match) return null;
+  const src = parseParenDestination(match[2]!);
+  if (!src) return null;
+  return { alt: match[1]!, src };
+}
+
+function matchMdLinkLine(
+  line: string,
+): { label: string; src: string } | null {
+  // Images start with `![` — don't treat them as links.
+  if (line.startsWith("![")) return null;
+  const match = /^\[([^\]]+)\]\((.*)\)$/.exec(line);
+  if (!match) return null;
+  const src = parseParenDestination(match[2]!);
+  if (!src) return null;
+  return { label: match[1]!, src };
+}
+
 function matchFaceLine(
   line: string,
 ):
-  | { kind: "media"; alt: string; src: string }
-  | { kind: "fileRef"; label: string; src: string }
+  | { kind: "media"; alt: string; src: string; raw: string }
+  | { kind: "fileRef"; label: string; src: string; raw: string }
   | null {
-  const trimmed = line.trimEnd();
+  const original = line.trimEnd();
+  const trimmed = normalizeFaceCandidate(original);
+  if (!trimmed) return null;
 
-  // Embeds first — `![[…]]` is preview; `[[…]]` is a link/card.
   const wikiEmbed = WIKI_EMBED_LINE_RE.exec(trimmed);
   if (wikiEmbed) {
     const src = wikiEmbed[1]!.trim();
-    return { kind: "media", alt: wikiAlt(src, wikiEmbed[2]), src };
+    return { kind: "media", alt: wikiAlt(src, wikiEmbed[2]), src, raw: trimmed };
   }
 
   const video = HTML_VIDEO_LINE_RE.exec(trimmed);
   if (video) {
     const src = video[1]!.trim();
-    return { kind: "media", alt: basenameHint(src), src };
+    return { kind: "media", alt: basenameHint(src), src, raw: trimmed };
   }
 
   const audio = HTML_AUDIO_LINE_RE.exec(trimmed);
   if (audio) {
     const src = audio[1]!.trim();
-    return { kind: "media", alt: basenameHint(src), src };
+    return { kind: "media", alt: basenameHint(src), src, raw: trimmed };
   }
 
   const iframe = HTML_IFRAME_LINE_RE.exec(trimmed);
   if (iframe) {
     const src = iframe[1]!.trim();
-    return { kind: "media", alt: basenameHint(src), src };
+    return { kind: "media", alt: basenameHint(src), src, raw: trimmed };
   }
 
-  const mdImage = MEDIA_LINE_RE.exec(trimmed);
+  const mdImage = matchMdImageLine(trimmed);
   if (mdImage) {
-    return { kind: "media", alt: mdImage[1]!, src: unwrapSrc(mdImage[2]!) };
+    return { kind: "media", alt: mdImage.alt, src: mdImage.src, raw: trimmed };
   }
 
   const wikiLink = WIKI_LINK_LINE_RE.exec(trimmed);
   if (wikiLink) {
     const src = wikiLink[1]!.trim();
     const label = wikiAlt(src, wikiLink[2]);
-    return { kind: "fileRef", label, src };
+    return { kind: "fileRef", label, src, raw: trimmed };
   }
 
-  const mdLink = LINK_LINE_RE.exec(trimmed);
+  const mdLink = matchMdLinkLine(trimmed);
   if (mdLink) {
-    const label = mdLink[1]!;
-    const src = unwrapSrc(mdLink[2]!);
-    if (isRemoteHref(src)) return null;
-    // Local file links become portable file cards (PDF/docs/etc.).
-    return { kind: "fileRef", label, src };
+    if (isRemoteHref(mdLink.src)) return null;
+    return { kind: "fileRef", label: mdLink.label, src: mdLink.src, raw: trimmed };
   }
 
   return null;
@@ -180,7 +240,7 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
         type: "media",
         alt: face.alt,
         src: face.src,
-        raw: line,
+        raw: face.raw,
       });
     } else if (face?.kind === "fileRef") {
       flushText();
@@ -188,7 +248,7 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
         type: "fileRef",
         label: face.label,
         src: face.src,
-        raw: line,
+        raw: face.raw,
       });
     } else {
       textLines.push(line);
@@ -288,27 +348,22 @@ export function expandWikiEmbedsForPreview(content: string): string {
   return content
     .split("\n")
     .map((line) => {
-      const trimmed = line.trimEnd();
-      const wiki = WIKI_EMBED_LINE_RE.exec(trimmed);
-      if (!wiki) return line;
-      const src = wiki[1]!.trim();
-      const alt = wikiAlt(src, wiki[2]);
-      const kind = embedKind(src);
+      const face = matchFaceLine(line);
+      if (!face) return line;
+      if (face.kind === "fileRef") {
+        return `[${face.label}](${formatMarkdownHref(face.src)})`;
+      }
+      const kind = embedKind(face.src);
       if (kind === "video") {
-        return `<video controls src="${escapeHtmlAttr(src)}"></video>`;
+        return `<video controls src="${escapeHtmlAttr(face.src)}"></video>`;
       }
       if (kind === "audio") {
-        return `<audio controls src="${escapeHtmlAttr(src)}"></audio>`;
+        return `<audio controls src="${escapeHtmlAttr(face.src)}"></audio>`;
       }
       if (kind === "pdf") {
-        return `<iframe src="${escapeHtmlAttr(src)}" title="${escapeHtmlAttr(alt)}"></iframe>`;
+        return `<iframe src="${escapeHtmlAttr(face.src)}" title="${escapeHtmlAttr(face.alt)}"></iframe>`;
       }
-      if (kind === "image" || kind === "other") {
-        // Images + unknown: standard Markdown image / link fallback for marked.
-        if (kind === "image") return `![${alt}](${formatMarkdownHref(src)})`;
-        return `[${alt}](${formatMarkdownHref(src)})`;
-      }
-      return line;
+      return `![${face.alt}](${formatMarkdownHref(face.src)})`;
     })
     .join("\n");
 }

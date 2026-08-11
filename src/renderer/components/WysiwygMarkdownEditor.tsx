@@ -66,6 +66,7 @@ export const WysiwygMarkdownEditor = forwardRef<
 ) {
   const lastEmitted = useRef(value);
   const applyingExternal = useRef(false);
+  const editorRef = useRef<Editor | null>(null);
 
   const extensions = useMemo(
     () => [
@@ -102,6 +103,12 @@ export const WysiwygMarkdownEditor = forwardRef<
       extensions,
       content: initialDoc,
       editable: !disabled,
+      onCreate: ({ editor: current }) => {
+        editorRef.current = current;
+      },
+      onDestroy: () => {
+        editorRef.current = null;
+      },
       editorProps: {
         attributes: {
           class: "entropy-wysiwyg",
@@ -129,6 +136,44 @@ export const WysiwygMarkdownEditor = forwardRef<
           }
           return false;
         },
+        handlePaste: (_view, event) => {
+          const text = event.clipboardData?.getData("text/plain");
+          if (!text?.trim()) return false;
+          const blocks = parseMarkdownBlocks(text);
+          const hasFace = blocks.some((block) => block.type === "media" || block.type === "fileRef");
+          if (!hasFace) return false;
+          const active = editorRef.current;
+          if (!active || active.isDestroyed || disabled) return false;
+          event.preventDefault();
+          for (const block of blocks) {
+            if (block.type === "media") {
+              active
+                .chain()
+                .focus()
+                .insertContent({
+                  type: "entropyMedia",
+                  attrs: { src: block.src, alt: block.alt, raw: block.raw },
+                })
+                .run();
+              continue;
+            }
+            if (block.type === "fileRef") {
+              active
+                .chain()
+                .focus()
+                .insertContent({
+                  type: "entropyFileRef",
+                  attrs: { src: block.src, label: block.label, raw: block.raw },
+                })
+                .run();
+              continue;
+            }
+            if (block.value.trim()) {
+              active.chain().focus().insertContent(block.value, { contentType: "markdown" }).run();
+            }
+          }
+          return true;
+        },
       },
       onUpdate: ({ editor: current }) => {
         if (applyingExternal.current) return;
@@ -139,6 +184,10 @@ export const WysiwygMarkdownEditor = forwardRef<
     },
     [notePath],
   );
+
+  useEffect(() => {
+    editorRef.current = editor && !editor.isDestroyed ? editor : null;
+  }, [editor]);
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) {
