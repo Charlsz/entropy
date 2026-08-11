@@ -759,6 +759,12 @@ export function NotebookPage({
               visitNote(notePath);
             }}
             onCloseTab={closeTab}
+            onNotePathChange={(fromPath, toPath) => {
+              setOpenPaths((prev) => prev.map((path) => (path === fromPath ? toPath : path)));
+              setActivePath((current) => (current === fromPath ? toPath : current));
+              void refreshNotes({ quiet: true });
+              visitNote(toPath);
+            }}
             onStatsChange={setStatusRight}
             onLiveContentChange={setLiveContent}
             onOpenLocalPath={(absolutePath) => {

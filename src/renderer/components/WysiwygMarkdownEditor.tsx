@@ -5,17 +5,26 @@ import {
   useMemo,
   useRef,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "@tiptap/markdown";
 import { Extension } from "@tiptap/core";
+import { Bold, Heading2, Italic, List, ListOrdered } from "lucide-react";
 import { cn } from "../lib/utils";
+import { Button } from "./ui/button";
 import { EntropyFileRef, EntropyMedia } from "../editor/entropyEmbedExtensions";
-import { markdownToTipTapDoc, tipTapDocToMarkdown } from "../editor/markdownDoc";
+import {
+  markdownToTipTapDoc,
+  stripMatchingLeadingTitle,
+  tipTapDocToMarkdown,
+} from "../editor/markdownDoc";
 import { parseMarkdownBlocks } from "../lib/markdownBlocks";
+import { figma } from "../lib/figmaTokens";
 
 export interface WysiwygMarkdownEditorHandle {
   insertMarkdown: (markdown: string) => void;
@@ -24,6 +33,8 @@ export interface WysiwygMarkdownEditorHandle {
 
 interface WysiwygMarkdownEditorProps {
   value: string;
+  /** Filename title (without .md) — used to hide a legacy leading `# Title`. */
+  noteTitle?: string;
   notePath?: string | null;
   diskEpoch?: number;
   disabled?: boolean;
@@ -47,7 +58,17 @@ export const WysiwygMarkdownEditor = forwardRef<
   WysiwygMarkdownEditorHandle,
   WysiwygMarkdownEditorProps
 >(function WysiwygMarkdownEditor(
-  { value, notePath, diskEpoch = 0, disabled, className, onChange, onKeyDown, onDropPath },
+  {
+    value,
+    noteTitle = "",
+    notePath,
+    diskEpoch = 0,
+    disabled,
+    className,
+    onChange,
+    onKeyDown,
+    onDropPath,
+  },
   ref,
 ) {
   const lastEmitted = useRef(value);
@@ -66,6 +87,7 @@ export const WysiwygMarkdownEditor = forwardRef<
       }),
       Placeholder.configure({
         placeholder: "Start writing…",
+        emptyEditorClass: "is-editor-empty",
       }),
       EntropyMedia,
       EntropyFileRef,
@@ -75,45 +97,55 @@ export const WysiwygMarkdownEditor = forwardRef<
     [],
   );
 
-  const editor = useEditor({
-    extensions,
-    content: markdownToTipTapDoc(value),
-    editable: !disabled,
-    editorProps: {
-      attributes: {
-        class:
-          "entropy-wysiwyg prose-entropy outline-none min-h-[12rem] w-full max-w-none text-[15px] leading-[1.7]",
-        "aria-label": "Note editor",
+  const initialDoc = useMemo(() => {
+    const body = stripMatchingLeadingTitle(value, noteTitle);
+    return markdownToTipTapDoc(body);
+  }, [notePath]); // eslint-disable-line react-hooks/exhaustive-deps -- seed once per note
+
+  const editor = useEditor(
+    {
+      immediatelyRender: false,
+      shouldRerenderOnTransaction: false,
+      extensions,
+      content: initialDoc,
+      editable: !disabled,
+      editorProps: {
+        attributes: {
+          class: "entropy-wysiwyg",
+          "aria-label": "Note editor",
+          spellcheck: "true",
+        },
+        handleKeyDown: (_view, event) => {
+          if (onKeyDown) {
+            onKeyDown(event as unknown as ReactKeyboardEvent);
+          }
+          return false;
+        },
+        handleDrop: (_view, event) => {
+          const entropyPath = event.dataTransfer?.getData("application/x-entropy-path");
+          if (entropyPath) {
+            event.preventDefault();
+            onDropPath?.(entropyPath);
+            return true;
+          }
+          const dropped = event.dataTransfer?.files?.[0] as (File & { path?: string }) | undefined;
+          if (dropped?.path) {
+            event.preventDefault();
+            onDropPath?.(dropped.path);
+            return true;
+          }
+          return false;
+        },
       },
-      handleKeyDown: (_view, event) => {
-        if (onKeyDown) {
-          // Bridge native keyboard events to the existing MarkdownEditor save shortcut.
-          onKeyDown(event as unknown as ReactKeyboardEvent);
-        }
-        return false;
-      },
-      handleDrop: (_view, event) => {
-        event.preventDefault();
-        const entropyPath = event.dataTransfer?.getData("application/x-entropy-path");
-        if (entropyPath) {
-          onDropPath?.(entropyPath);
-          return true;
-        }
-        const dropped = event.dataTransfer?.files?.[0] as (File & { path?: string }) | undefined;
-        if (dropped?.path) {
-          onDropPath?.(dropped.path);
-          return true;
-        }
-        return false;
+      onUpdate: ({ editor: current }) => {
+        if (applyingExternal.current) return;
+        const next = tipTapDocToMarkdown(current.getJSON());
+        lastEmitted.current = next;
+        onChange(next);
       },
     },
-    onUpdate: ({ editor: current }) => {
-      if (applyingExternal.current) return;
-      const next = tipTapDocToMarkdown(current.getJSON());
-      lastEmitted.current = next;
-      onChange(next);
-    },
-  });
+    [notePath],
+  );
 
   useEffect(() => {
     if (!editor) return;
@@ -131,15 +163,21 @@ export const WysiwygMarkdownEditor = forwardRef<
     }
   }, [diskEpoch, editor, notePath]);
 
-  // External content (disk sync / tab switch) — avoid clobbering identical local emits.
+  // External disk / tab content — keep caret when identical.
   useEffect(() => {
     if (!editor) return;
-    if (value === lastEmitted.current) return;
+    const body = stripMatchingLeadingTitle(value, noteTitle);
+    if (body === lastEmitted.current) return;
+    const current = tipTapDocToMarkdown(editor.getJSON());
+    if (body === current) {
+      lastEmitted.current = body;
+      return;
+    }
     applyingExternal.current = true;
-    editor.commands.setContent(markdownToTipTapDoc(value));
-    lastEmitted.current = value;
+    editor.commands.setContent(markdownToTipTapDoc(body));
+    lastEmitted.current = body;
     applyingExternal.current = false;
-  }, [editor, value, notePath]);
+  }, [editor, value, noteTitle, notePath]);
 
   useImperativeHandle(
     ref,
@@ -185,17 +223,14 @@ export const WysiwygMarkdownEditor = forwardRef<
 
   return (
     <div
-      className={cn(
-        "select-text entropy-prose-pad mb-8 flex min-h-full w-full flex-1 flex-col pb-16",
-        className,
-      )}
+      className={cn("entropy-note-body relative min-h-0 w-full flex-1", className)}
       onDragOver={(event) => event.preventDefault()}
       onMouseDown={(event) => {
         if (disabled || !editor) return;
         const target = event.target as HTMLElement;
         if (
           target.closest(
-            ".ProseMirror, a, input, iframe, video, img, figure, button.entropy-file-ref",
+            ".ProseMirror, .entropy-bubble-menu, a, input, iframe, video, img, figure, button",
           )
         ) {
           return;
@@ -214,7 +249,83 @@ export const WysiwygMarkdownEditor = forwardRef<
         if (dropped?.path) onDropPath?.(dropped.path);
       }}
     >
-      <EditorContent editor={editor} />
+      {editor ? (
+        <BubbleMenu
+          editor={editor}
+          className="entropy-bubble-menu flex items-center gap-0.5 rounded-md border px-1 py-0.5 shadow-sm"
+          style={{
+            backgroundColor: figma.canvas,
+            borderColor: figma.border,
+          }}
+        >
+          <FormatButton
+            label="Bold"
+            active={editor.isActive("bold")}
+            onClick={() => editor.chain().focus().toggleBold().run()}
+          >
+            <Bold className="size-3.5" strokeWidth={1.75} />
+          </FormatButton>
+          <FormatButton
+            label="Italic"
+            active={editor.isActive("italic")}
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+          >
+            <Italic className="size-3.5" strokeWidth={1.75} />
+          </FormatButton>
+          <FormatButton
+            label="Heading"
+            active={editor.isActive("heading", { level: 2 })}
+            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          >
+            <Heading2 className="size-3.5" strokeWidth={1.75} />
+          </FormatButton>
+          <FormatButton
+            label="Bullet list"
+            active={editor.isActive("bulletList")}
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+          >
+            <List className="size-3.5" strokeWidth={1.75} />
+          </FormatButton>
+          <FormatButton
+            label="Numbered list"
+            active={editor.isActive("orderedList")}
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          >
+            <ListOrdered className="size-3.5" strokeWidth={1.75} />
+          </FormatButton>
+        </BubbleMenu>
+      ) : null}
+      <EditorContent editor={editor} className="entropy-wysiwyg-host min-h-[50vh] w-full" />
     </div>
   );
 });
+
+function FormatButton({
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={cn(
+        "h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground",
+        active && "bg-select text-foreground",
+      )}
+      aria-label={label}
+      aria-pressed={active}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  );
+}

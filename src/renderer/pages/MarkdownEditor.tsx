@@ -45,6 +45,8 @@ interface MarkdownEditorProps {
   diskEpoch?: number;
   onActiveChange: (path: string) => void;
   onCloseTab: (path: string) => void;
+  /** Fired after the open note file was renamed on disk. */
+  onNotePathChange?: (fromPath: string, toPath: string) => void;
   onStatsChange?: (stats: string) => void;
   /** Fires when the active tab's in-memory markdown changes (before disk save). */
   onLiveContentChange?: (content: string | null) => void;
@@ -73,6 +75,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       diskEpoch = 0,
       onActiveChange,
       onCloseTab,
+      onNotePathChange,
       onStatsChange,
       onLiveContentChange,
       onOpenLocalPath,
@@ -85,6 +88,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [surface, setSurface] = useState<SurfaceMode>("edit");
   const [split, setSplit] = useState(false);
   const [backlinks, setBacklinks] = useState<NoteSearchResult[]>([]);
+  const [titleDraft, setTitleDraft] = useState("");
   const mode = split ? "split" : surface;
   const saveTimers = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
@@ -355,6 +359,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   const activeTab = tabs.find((tab) => tab.path === activePath) ?? null;
   const isDirty = activeTab ? activeTab.content !== activeTab.savedContent : false;
+
+  useEffect(() => {
+    setTitleDraft(activeTab?.title ?? "");
+  }, [activeTab?.path, activeTab?.title]);
+
   const noteMeta = useMemo(
     () => parseNoteFrontmatter(activeTab?.content ?? ""),
     [activeTab?.content],
@@ -449,7 +458,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const timer = window.setTimeout(() => {
       const active = document.activeElement;
       if (active instanceof HTMLElement) {
-        if (active.closest(".entropy-editor-shell textarea")) return;
+        if (active.closest(".entropy-editor-shell .ProseMirror")) return;
+        if (active.closest(".entropy-note-title")) return;
         if (
           active.closest(
             ".entropy-notes-sidebar input, [data-entropy-search], [role='dialog'] input, [role='dialog'] textarea",
@@ -579,6 +589,42 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       ? mediaEmbedMarkdown(href, name)
       : linkMarkdown(name, href);
     liveEditorRef.current?.insertMarkdown(snippet);
+  }
+
+  async function commitTitle(): Promise<void> {
+    if (!activeTab || activeTab.missing || activeTab.conflict) return;
+    const nextTitle = titleDraft.trim() || "Untitled";
+    if (nextTitle === activeTab.title) {
+      setTitleDraft(activeTab.title);
+      return;
+    }
+    try {
+      const dir = await window.entropy.fs.dirname(activeTab.path);
+      const target = await window.entropy.fs.join(dir, `${nextTitle}.md`);
+      if (await window.entropy.fs.exists(target)) {
+        setStatusMessage("A note with that name already exists.");
+        setTitleDraft(activeTab.title);
+        return;
+      }
+      // Persist unsaved body before the path moves.
+      if (activeTab.content !== activeTab.savedContent) {
+        await persistTab(activeTab);
+      }
+      await window.entropy.fs.rename(activeTab.path, target);
+      const fromPath = activeTab.path;
+      setTabs((prev) =>
+        prev.map((tab) =>
+          tab.path === fromPath
+            ? { ...tab, path: target, title: nextTitle }
+            : tab,
+        ),
+      );
+      onNotePathChange?.(fromPath, target);
+      setStatusMessage(null);
+    } catch (err) {
+      setStatusMessage(err instanceof Error ? err.message : "Could not rename note");
+      setTitleDraft(activeTab.title);
+    }
   }
 
   if (openPaths.length === 0) {
@@ -769,7 +815,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   const target = event.target as HTMLElement;
                   if (
                     target.closest(
-                      ".ProseMirror, button, a, input, iframe, video, img, figure",
+                      ".ProseMirror, .entropy-note-title, .entropy-bubble-menu, button, a, input, iframe, video, img, figure",
                     )
                   ) {
                     return;
@@ -778,27 +824,45 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   liveEditorRef.current?.focus({ at: "end" });
                 }}
               >
-                {activeTab && noteMeta.cover ? (
-                  <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
-                    <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
-                  </div>
-                ) : null}
-                <div className="entropy-prose-pad mx-auto w-full max-w-[720px] pt-6">
-                  <h1 className="mb-4 text-left text-[1.75rem] font-medium leading-tight tracking-tight text-foreground">
-                    {activeTab?.title}
-                  </h1>
+                <div className="entropy-note-page entropy-prose-pad mx-auto flex w-full max-w-[720px] flex-col pb-24 pt-8">
+                  {activeTab && noteMeta.cover ? (
+                    <div className="mb-6">
+                      <NoteCover notePath={activeTab.path} coverHref={noteMeta.cover} />
+                    </div>
+                  ) : null}
+                  <input
+                    className="entropy-note-title mb-3 w-full border-0 bg-transparent p-0 text-[1.75rem] font-medium leading-tight tracking-tight text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
+                    value={titleDraft}
+                    disabled={Boolean(activeTab?.conflict || activeTab?.missing)}
+                    aria-label="Note title"
+                    placeholder="Untitled"
+                    spellCheck
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onBlur={() => void commitTitle()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                        liveEditorRef.current?.focus({ at: "start" });
+                      }
+                      if (event.key === "Escape") {
+                        setTitleDraft(activeTab?.title ?? "");
+                        event.currentTarget.blur();
+                      }
+                    }}
+                  />
+                  <WysiwygMarkdownEditor
+                    ref={liveEditorRef}
+                    value={activeTab?.content ?? ""}
+                    noteTitle={activeTab?.title ?? ""}
+                    notePath={activeTab?.path}
+                    diskEpoch={diskEpoch}
+                    disabled={Boolean(activeTab?.conflict)}
+                    onChange={handleChange}
+                    onKeyDown={handleKeyDown}
+                    onDropPath={(path) => void insertFileLink(path)}
+                  />
                 </div>
-                <WysiwygMarkdownEditor
-                  ref={liveEditorRef}
-                  className={mode === "split" ? "" : "mx-auto max-w-[720px]"}
-                  value={activeTab?.content ?? ""}
-                  notePath={activeTab?.path}
-                  diskEpoch={diskEpoch}
-                  disabled={Boolean(activeTab?.conflict)}
-                  onChange={handleChange}
-                  onKeyDown={handleKeyDown}
-                  onDropPath={(path) => void insertFileLink(path)}
-                />
               </div>
             ) : null}
             {mode !== "edit" ? (

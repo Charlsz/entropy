@@ -3,9 +3,8 @@ import { MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import { parseMarkdownBlocks } from "../lib/markdownBlocks";
-import { EntropyFileRef, EntropyMedia } from "./entropyEmbedExtensions";
 
-/** Shared Markdown manager for converting text segments outside the live editor. */
+/** Shared Markdown manager — text-only extensions (embeds handled via block split). */
 const markdownManager = new MarkdownManager({
   extensions: [
     StarterKit.configure({
@@ -17,10 +16,21 @@ const markdownManager = new MarkdownManager({
       autolink: true,
       linkOnPaste: true,
     }),
-    EntropyMedia,
-    EntropyFileRef,
   ],
 });
+
+/**
+ * Notes store the title in the filename. If the body still starts with a matching
+ * `# Title` (legacy createNote), strip it so the page title isn’t duplicated.
+ */
+export function stripMatchingLeadingTitle(markdown: string, title: string): string {
+  const trimmedTitle = title.trim();
+  if (!trimmedTitle) return markdown;
+  const match = /^(?:---\r?\n[\s\S]*?\r?\n---\r?\n)?#\s+(.+?)\s*\r?\n([\s\S]*)$/.exec(markdown);
+  if (!match) return markdown;
+  if (match[1]!.trim() !== trimmedTitle) return markdown;
+  return match[2]!.replace(/^\r?\n/, "");
+}
 
 export function markdownToTipTapDoc(markdown: string): JSONContent {
   const blocks = parseMarkdownBlocks(markdown || "");
@@ -30,12 +40,7 @@ export function markdownToTipTapDoc(markdown: string): JSONContent {
     if (block.type === "text") {
       const value = block.value;
       if (!value.trim()) {
-        // Preserve blank gaps between embeds as empty paragraphs.
-        const blankLines = value.split("\n").length - 1;
-        const count = Math.max(1, blankLines > 0 && !value.trim() ? blankLines : 1);
-        for (let i = 0; i < Math.min(count, 2); i += 1) {
-          content.push({ type: "paragraph" });
-        }
+        content.push({ type: "paragraph" });
         continue;
       }
       const parsed = markdownManager.parse(value) as JSONContent;
@@ -107,10 +112,19 @@ export function tipTapDocToMarkdown(doc: JSONContent): string {
       continue;
     }
 
+    // Skip trailing empty paragraphs so saves stay clean.
+    if (
+      node.type === "paragraph" &&
+      (!node.content || node.content.length === 0) &&
+      parts.length === 0
+    ) {
+      continue;
+    }
+
     const slice: JSONContent = { type: "doc", content: [node] };
     const md = markdownManager.serialize(slice).replace(/\n+$/, "");
     parts.push(md);
   }
 
-  return parts.join("\n");
+  return parts.join("\n\n").replace(/\n{3,}/g, "\n\n");
 }

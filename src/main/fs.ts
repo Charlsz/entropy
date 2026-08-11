@@ -550,7 +550,7 @@ export async function createNote(dirPath: string, name?: string): Promise<string
     filePath = path.join(dirPath, `${base} ${suffix}.md`);
   }
 
-  await writeText(filePath, `# ${path.basename(filePath, ".md")}\n\n`);
+  await writeText(filePath, "");
   return filePath;
 }
 
