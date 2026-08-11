@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { forwardRef, useCallback, useEffect, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -163,12 +163,17 @@ export function WorkspaceExplorerTree({
   }
 
   function activateFolder(folderPath: string): void {
+    // Row click toggles open/closed (same as the chevron), and sets New note target.
     setExpanded((prev) => {
       const next = new Set(prev);
-      next.add(folderPath);
+      if (next.has(folderPath)) {
+        next.delete(folderPath);
+      } else {
+        next.add(folderPath);
+        if (!childrenByPath[folderPath]) void loadChildren(folderPath);
+      }
       return next;
     });
-    if (!childrenByPath[folderPath]) void loadChildren(folderPath);
     onOpenFolder(folderPath);
   }
 
@@ -276,18 +281,61 @@ function TreeChildren({
       {children.map((entry) => {
         if (entry.isDirectory) {
           const isExpanded = expanded.has(entry.path);
+          const isRenaming = renamingPath != null && samePath(renamingPath, entry.path);
+          const padLeft = 8 + depth * 12 + 28;
+
+          if (isRenaming) {
+            return (
+              <div
+                key={entry.path}
+                className="flex w-full min-w-0 items-center gap-1.5 py-1 pr-3"
+                style={{ paddingLeft: padLeft }}
+              >
+                <Folder
+                  className="size-[14px] shrink-0 overflow-hidden"
+                  style={{ color: figma.muted }}
+                  strokeWidth={1.75}
+                />
+                <input
+                  className="min-w-0 flex-1 rounded-sm border border-border bg-background px-1.5 py-0.5 text-[13px] text-foreground outline-none"
+                  value={renameValue}
+                  autoFocus
+                  aria-label={`Rename ${entry.name}`}
+                  onChange={(event) => onRenameValueChange?.(event.target.value)}
+                  onBlur={() => onCommitRename?.(entry.path)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      onCommitRename?.(entry.path);
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      onCancelRename?.();
+                    }
+                  }}
+                />
+              </div>
+            );
+          }
+
           return (
             <div key={entry.path}>
-              <TreeFolderRow
-                name={entry.name}
-                path={entry.path}
-                depth={depth}
-                expanded={isExpanded}
-                selected={samePath(createFolderPath, entry.path)}
-                loading={loadingPaths.has(entry.path)}
-                onToggle={() => onToggle(entry.path)}
-                onActivate={() => onOpenFolder(entry.path)}
-              />
+              <ItemContextMenu
+                label={entry.name}
+                actions={getFileActions(entry)}
+                dismissKey={dismissKey}
+              >
+                <TreeFolderRow
+                  name={entry.name}
+                  path={entry.path}
+                  depth={depth}
+                  expanded={isExpanded}
+                  selected={samePath(createFolderPath, entry.path)}
+                  loading={loadingPaths.has(entry.path)}
+                  onToggle={() => onToggle(entry.path)}
+                  onActivate={() => onOpenFolder(entry.path)}
+                />
+              </ItemContextMenu>
               {isExpanded ? (
                 <TreeChildren
                   folderPath={entry.path}
@@ -378,27 +426,25 @@ function TreeChildren({
   );
 }
 
-function TreeFolderRow({
-  name,
-  path,
-  depth,
-  expanded,
-  selected,
-  loading,
-  onToggle,
-  onActivate,
-}: {
-  name: string;
-  path: string;
-  depth: number;
-  expanded: boolean;
-  selected: boolean;
-  loading: boolean;
-  onToggle: () => void;
-  onActivate: () => void;
-}) {
+const TreeFolderRow = forwardRef<
+  HTMLDivElement,
+  {
+    name: string;
+    path: string;
+    depth: number;
+    expanded: boolean;
+    selected: boolean;
+    loading: boolean;
+    onToggle: () => void;
+    onActivate: () => void;
+  }
+>(function TreeFolderRow(
+  { name, path, depth, expanded, selected, loading, onToggle, onActivate },
+  ref,
+) {
   return (
     <div
+      ref={ref}
       className="entropy-quiet-row flex w-full min-w-0 items-center gap-0.5 py-1 pr-2"
       data-selected={selected ? "true" : undefined}
       style={{
@@ -413,7 +459,10 @@ function TreeFolderRow({
         aria-label={expanded ? `Collapse ${name}` : `Expand ${name}`}
         aria-expanded={expanded}
         onMouseDown={(event) => event.preventDefault()}
-        onClick={onToggle}
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggle();
+        }}
       >
         {expanded ? (
           <ChevronDown className="size-3.5" strokeWidth={1.75} />
@@ -438,4 +487,4 @@ function TreeFolderRow({
       </button>
     </div>
   );
-}
+});
