@@ -299,7 +299,7 @@ export function NoteContextPanel({
                 {preview.isDirectory ? (
                   <EntryPreview entry={preview} size="lg" className="max-h-40" />
                 ) : (
-                  <FilePreview file={preview} compact />
+                  <FilePreview key={preview.path} file={preview} compact />
                 )}
               </div>
               <p

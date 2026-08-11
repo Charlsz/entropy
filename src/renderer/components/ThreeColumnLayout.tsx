@@ -1,5 +1,11 @@
-import { useMemo, type ReactNode } from "react";
-import { Group, Panel, Separator, type Layout } from "react-resizable-panels";
+import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+  Group,
+  Panel,
+  Separator,
+  type Layout,
+  type PanelImperativeHandle,
+} from "react-resizable-panels";
 import { useWorkspace } from "../state/useWorkspace";
 import { clampNotebookPanelLayout, layoutFromGroup } from "../state/workspace";
 import { cn } from "../lib/utils";
@@ -33,17 +39,18 @@ export function ThreeColumnLayout({
   /** Notebook keeps a zero-width context slot so the notes column does not resize. */
   const keepContextSlot = !isInventory && hasSidebar;
   const showContext = hasContext;
+  const contextPanelRef = useRef<PanelImperativeHandle>(null);
   const savedLayout = isInventory
     ? workspace.settings.inventoryPanelLayout
     : clampNotebookPanelLayout(workspace.settings.panelLayout);
 
   const defaultLayout = useMemo<Layout>(() => {
     if (keepContextSlot) {
-      // Absolute % of the full group — never re-normalize when context content toggles.
+      // Always reserve the saved context share; collapse/expand via imperative API.
       return {
         sidebar: savedLayout.sidebar,
-        main: showContext ? savedLayout.main : savedLayout.main + savedLayout.context,
-        context: showContext ? savedLayout.context : 0,
+        main: savedLayout.main,
+        context: savedLayout.context,
       } as Layout;
     }
     if (!hasSidebar && hasContext) {
@@ -68,13 +75,24 @@ export function ThreeColumnLayout({
       main: (savedLayout.main / total) * 100,
       context: (savedLayout.context / total) * 100,
     };
-  }, [hasContext, hasSidebar, keepContextSlot, savedLayout, showContext]);
+  }, [hasContext, hasSidebar, keepContextSlot, savedLayout]);
 
-  // Remount when context content toggles so the slot can expand/collapse;
-  // sidebar % stays absolute so the notes column does not jump.
+  // Stable key — remounting on showContext made note↔image switches flash the whole UI.
   const layoutKey = keepContextSlot
-    ? `${id}-v3-notebook-${showContext ? "ctx" : "plain"}`
-    : `${id}-v3-${hasSidebar ? "side" : "noside"}-${hasContext ? "context" : "main"}`;
+    ? `${id}-v4-notebook`
+    : `${id}-v4-${hasSidebar ? "side" : "noside"}-${hasContext ? "context" : "main"}`;
+
+  // Before paint — useEffect left one blank/squashed frame on note↔image.
+  useLayoutEffect(() => {
+    if (!keepContextSlot) return;
+    const panel = contextPanelRef.current;
+    if (!panel) return;
+    if (showContext) {
+      if (panel.isCollapsed()) panel.expand();
+    } else if (!panel.isCollapsed()) {
+      panel.collapse();
+    }
+  }, [keepContextSlot, showContext]);
 
   return (
     <Group
@@ -157,6 +175,7 @@ export function ThreeColumnLayout({
           />
           <Panel
             id="context"
+            panelRef={contextPanelRef}
             className={cn(
               "min-h-0 bg-panel",
               isInventory ? "min-w-0" : showContext ? "min-w-[15rem]" : "min-w-0",

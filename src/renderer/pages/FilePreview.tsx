@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FileEntry } from "../../shared/types";
 import { cn } from "../lib/utils";
 import { isMediaReleasing, subscribeMediaRelease } from "../lib/mediaRelease";
+import { fileUrlSync, thumbUrlSync } from "../lib/urlCache";
 
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"]);
 const VIDEO_EXT = new Set([".mp4", ".webm", ".ogg", ".mov", ".mkv", ".m4v"]);
@@ -45,12 +46,20 @@ interface FilePreviewProps {
 
 export function FilePreview({ file, compact = false }: FilePreviewProps) {
   const kind = detectKind(file);
-  const [url, setUrl] = useState<string | null>(null);
-  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  // Images/audio resolve sync every render — never wait on an effect (note→image flash).
+  const syncMediaUrl =
+    kind === "image" || kind === "audio" ? fileUrlSync(file.path) : null;
+  const [url, setUrl] = useState<string | null>(() => syncMediaUrl);
+  const [thumbUrl, setThumbUrl] = useState<string | null>(() =>
+    kind === "video" || kind === "pdf" ? thumbUrlSync(file.path) : null,
+  );
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    () => syncMediaUrl == null && kind !== "unsupported",
+  );
   const [releasing, setReleasing] = useState(() => isMediaReleasing(file.path));
+  const displayUrl = releasing ? null : (syncMediaUrl ?? url);
 
   useEffect(() => {
     return subscribeMediaRelease(() => {
@@ -64,28 +73,51 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
     let cancelled = false;
 
     async function load(): Promise<void> {
-      setLoading(true);
       setError(null);
-      setText(null);
-      setUrl(null);
-      setThumbUrl(null);
+
+      if (kind === "image" || kind === "audio") {
+        const next = fileUrlSync(file.path);
+        if (!cancelled) {
+          setUrl(next);
+          setThumbUrl(null);
+          setText(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Keep previous pixels on screen until the next URL is ready.
+      setLoading(true);
 
       try {
         if (kind === "text") {
           const content = await window.entropy.fs.readText(file.path);
-          if (!cancelled) setText(content.slice(0, 20_000));
+          if (!cancelled) {
+            setText(content.slice(0, 20_000));
+            setUrl(null);
+            setThumbUrl(null);
+          }
         } else if (kind === "pdf" || kind === "video") {
           const [full, thumb] = await Promise.all([
             window.entropy.fs.toUrl(file.path),
-            window.entropy.fs.toThumbUrl(file.path).catch(() => null),
+            window.entropy.fs.toThumbUrl(file.path).catch(() => thumbUrlSync(file.path)),
           ]);
           if (!cancelled) {
             setUrl(full);
             setThumbUrl(thumb);
+            setText(null);
           }
         } else if (kind !== "unsupported") {
           const next = await window.entropy.fs.toUrl(file.path);
-          if (!cancelled) setUrl(next);
+          if (!cancelled) {
+            setUrl(next);
+            setThumbUrl(null);
+            setText(null);
+          }
+        } else if (!cancelled) {
+          setUrl(null);
+          setThumbUrl(null);
+          setText(null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -102,7 +134,8 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
     };
   }, [file.path, kind]);
 
-  if (loading) {
+  // Never blank media that already has a URL — that caused the note→image flash.
+  if (loading && !displayUrl && text === null && !thumbUrl) {
     return <p className="text-sm text-muted-foreground">Loading preview…</p>;
   }
 
@@ -126,10 +159,15 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
     compact && "file-preview-compact max-h-40",
   );
 
-  if (kind === "image" && url) {
+  if (kind === "image" && displayUrl) {
     return (
       <div className={frame}>
-        <img src={url} alt={file.name} className={compact ? "max-h-40 w-full object-cover" : undefined} />
+        <img
+          src={displayUrl}
+          alt={file.name}
+          decoding="async"
+          className={compact ? "max-h-40 w-full object-cover" : undefined}
+        />
       </div>
     );
   }
@@ -188,10 +226,10 @@ export function FilePreview({ file, compact = false }: FilePreviewProps) {
     );
   }
 
-  if (kind === "audio" && url && !releasing) {
+  if (kind === "audio" && displayUrl && !releasing) {
     return (
       <div className="rounded-lg border border-border bg-secondary p-3">
-        <audio className="w-full" src={url} controls />
+        <audio className="w-full" src={displayUrl} controls />
       </div>
     );
   }
