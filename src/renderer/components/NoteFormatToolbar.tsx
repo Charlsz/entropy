@@ -80,7 +80,7 @@ export function NoteFormatToolbar({
   return (
     <div
       className={cn(
-        "entropy-format-toolbar flex min-w-0 flex-1 flex-wrap items-center gap-0.5 px-2",
+        "entropy-format-toolbar flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-x-auto px-2",
         className,
       )}
       role="toolbar"
@@ -103,32 +103,33 @@ export function NoteFormatToolbar({
 
       <ToolbarDivider />
 
-      <FormatButton
-        label="Heading 1"
-        active={state?.heading === 1}
-        disabled={disabled}
-        onClick={() => active.chain().focus().toggleHeading({ level: 1 }).run()}
-      >
-        <Heading1 className="size-3.5" strokeWidth={1.75} />
-      </FormatButton>
-      <FormatButton
-        label="Heading 2"
-        active={state?.heading === 2}
-        disabled={disabled}
-        onClick={() => active.chain().focus().toggleHeading({ level: 2 }).run()}
-      >
-        <Heading2 className="size-3.5" strokeWidth={1.75} />
-      </FormatButton>
-      <FormatButton
-        label="Heading 3"
-        active={state?.heading === 3}
-        disabled={disabled}
-        onClick={() => active.chain().focus().toggleHeading({ level: 3 }).run()}
-      >
-        <Heading3 className="size-3.5" strokeWidth={1.75} />
-      </FormatButton>
-
-      <ToolbarDivider />
+      <span data-toolbar-group="heading" className="contents">
+        <FormatButton
+          label="Heading 1"
+          active={state?.heading === 1}
+          disabled={disabled}
+          onClick={() => active.chain().focus().toggleHeading({ level: 1 }).run()}
+        >
+          <Heading1 className="size-3.5" strokeWidth={1.75} />
+        </FormatButton>
+        <FormatButton
+          label="Heading 2"
+          active={state?.heading === 2}
+          disabled={disabled}
+          onClick={() => active.chain().focus().toggleHeading({ level: 2 }).run()}
+        >
+          <Heading2 className="size-3.5" strokeWidth={1.75} />
+        </FormatButton>
+        <FormatButton
+          label="Heading 3"
+          active={state?.heading === 3}
+          disabled={disabled}
+          onClick={() => active.chain().focus().toggleHeading({ level: 3 }).run()}
+        >
+          <Heading3 className="size-3.5" strokeWidth={1.75} />
+        </FormatButton>
+        <ToolbarDivider />
+      </span>
 
       <FormatButton
         label="Bullet list"
@@ -167,6 +168,7 @@ export function NoteFormatToolbar({
       </FormatButton>
       <FormatButton
         label="Strikethrough"
+        priority="low"
         active={Boolean(state?.strike)}
         disabled={disabled}
         onClick={() => active.chain().focus().toggleStrike().run()}
@@ -175,6 +177,7 @@ export function NoteFormatToolbar({
       </FormatButton>
       <FormatButton
         label="Underline"
+        priority="low"
         active={Boolean(state?.underline)}
         disabled={disabled}
         onClick={() => active.chain().focus().toggleUnderline().run()}
@@ -201,16 +204,20 @@ function FormatButton({
   disabled,
   onClick,
   children,
+  priority = "normal",
 }: {
   label: string;
   active?: boolean;
   disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
+  /** Hidden first when the chrome bar is narrow. */
+  priority?: "normal" | "low";
 }) {
   return (
     <button
       type="button"
+      data-toolbar-priority={priority}
       className={cn(
         "entropy-quiet-control inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
         active ? "text-foreground" : "text-muted-foreground",

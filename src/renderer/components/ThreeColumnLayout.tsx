@@ -82,17 +82,22 @@ export function ThreeColumnLayout({
     ? `${id}-v4-notebook`
     : `${id}-v4-${hasSidebar ? "side" : "noside"}-${hasContext ? "context" : "main"}`;
 
-  // Before paint — useEffect left one blank/squashed frame on note↔image.
+  // Before paint. expand() alone restores the *last* size — if the panel never
+  // opened (always 0), it stays invisible; resize to the saved share.
   useLayoutEffect(() => {
     if (!keepContextSlot) return;
     const panel = contextPanelRef.current;
     if (!panel) return;
     if (showContext) {
       if (panel.isCollapsed()) panel.expand();
+      const { asPercentage } = panel.getSize();
+      if (asPercentage < 8) {
+        panel.resize(`${savedLayout.context}%`);
+      }
     } else if (!panel.isCollapsed()) {
       panel.collapse();
     }
-  }, [keepContextSlot, showContext]);
+  }, [keepContextSlot, savedLayout.context, showContext]);
 
   return (
     <Group
@@ -190,15 +195,8 @@ export function ThreeColumnLayout({
                   ? "16%"
                   : 240
             }
-            maxSize={
-              keepContextSlot
-                ? showContext
-                  ? 360
-                  : 0
-                : isInventory
-                  ? "55%"
-                  : 360
-            }
+            // Keep a real max while collapsed — maxSize 0 blocked expand/resize.
+            maxSize={keepContextSlot ? 360 : isInventory ? "55%" : 360}
             collapsible={keepContextSlot}
             collapsedSize={0}
             defaultSize={
