@@ -273,32 +273,17 @@ export function FilesPage({
         if (!homeBootstrapped.current) {
           homeBootstrapped.current = true;
           const homeRoot = nextRoots.find((root) => root.id === "home");
-          const homeLabel = homeRoot?.name ?? "Home";
-          // Fresh workspace opens with currentFolder === workspace.path. Land Library
-          // on that folder so nested structure is visible immediately (do not flatten
-          // or force Home). Keep Home as the breadcrumb/scan root when under Home.
-          if (!workspace.currentFolder || samePath(workspace.currentFolder, workspace.path)) {
-            const folder = workspace.path;
-            if (home && isUnderPath(folder, home)) {
-              setScanRoot(home);
-              bootstrapInventoryFolder(folder, homeLabel, home);
-            } else {
-              const match = pickRoot(folder, nextRoots);
-              if (match) {
-                setScanRoot(match.path);
-                bootstrapInventoryFolder(folder, match.name, match.path);
-              } else {
-                setScanRoot(folder);
-                bootstrapInventoryFolder(folder, workspace.name, folder);
-              }
-            }
+          const label = homeRoot?.name ?? "Home";
+          setScanRoot(home);
+          if (samePath(workspace.currentFolder, workspace.path) || !workspace.currentFolder) {
+            bootstrapInventoryFolder(home, label);
           } else {
             const match = pickRoot(workspace.currentFolder, nextRoots);
             const rootPath = match?.path ?? home;
             setScanRoot(rootPath);
             bootstrapInventoryFolder(
               workspace.currentFolder,
-              match?.name ?? homeLabel,
+              match?.name ?? label,
               rootPath,
             );
           }
