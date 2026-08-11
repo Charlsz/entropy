@@ -13,6 +13,8 @@ interface ContentAreaProps {
   librarySearchQuery?: string;
   onLibrarySearchQueryChange?: (query: string) => void;
   onPickWorkspace?: (path: string) => void;
+  /** True when Notebook has no notes workspace (library-only / empty recents). */
+  needsNotebookWorkspace?: boolean;
 }
 
 export function ContentArea({
@@ -24,6 +26,7 @@ export function ContentArea({
   librarySearchQuery = "",
   onLibrarySearchQueryChange,
   onPickWorkspace,
+  needsNotebookWorkspace = false,
 }: ContentAreaProps) {
   return (
     <div className="relative h-full min-h-0 w-full">
@@ -34,6 +37,7 @@ export function ContentArea({
           pendingReference={pendingReference}
           onPendingReferenceHandled={onPendingReferenceHandled}
           onPickWorkspace={onPickWorkspace}
+          needsNotebookWorkspace={needsNotebookWorkspace}
         />
       </SectionPane>
       <SectionPane active={section === "inventory"}>

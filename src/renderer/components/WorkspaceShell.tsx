@@ -13,7 +13,6 @@ import {
   onTreemapChromeActive,
   requestTreemapPanelToggle,
 } from "../lib/treemapPanelBus";
-import { WorkspaceSelector } from "./WorkspaceSelector";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "../lib/utils";
 
@@ -137,9 +136,6 @@ function WorkspaceShellFrame({
     }, 0);
   }
 
-  const showNotebookGate =
-    needsNotebookWorkspace && workspace.currentSection === "notebook";
-
   const densityZoom =
     density === "comfortable" ? 1.08 : density === "compact" ? 0.92 : 1;
 
@@ -213,21 +209,9 @@ function WorkspaceShellFrame({
             librarySearchQuery={searchQuery}
             onLibrarySearchQueryChange={setSearchQuery}
             onPickWorkspace={onPickWorkspace}
+            needsNotebookWorkspace={needsNotebookWorkspace}
           />
         </div>
-
-        {showNotebookGate ? (
-          <div
-            className="absolute inset-0 z-40 flex items-center justify-center px-6"
-            style={{
-              backgroundColor: "color-mix(in srgb, var(--color-surface) 88%, transparent)",
-            }}
-          >
-            <div className="w-full max-w-md">
-              <WorkspaceSelector onSelect={onPickWorkspace} embedded />
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   );

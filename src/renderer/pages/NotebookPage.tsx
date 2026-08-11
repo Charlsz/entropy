@@ -1,14 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { ChevronDown, ChevronRight, FilePlus2, Folder } from "lucide-react";
+import { ChevronDown, FilePlus2, MoreHorizontal } from "lucide-react";
 import type { FileEntry, RecentWorkspace } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
 import { MarkdownEditor, type MarkdownEditorHandle } from "../pages/MarkdownEditor";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { ScrollArea } from "../components/ui/scroll-area";
-import { ItemContextMenu } from "../components/ItemContextMenu";
-import type { ItemAction } from "../components/ItemActionsMenu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,27 +15,20 @@ import {
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MoveToDialog } from "../components/MoveToDialog";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
-import { Skeleton } from "../components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { NoteContextPanel } from "../components/NoteContextPanel";
+import { WorkspaceExplorerTree } from "../components/WorkspaceExplorerTree";
 import { copyPath, moveEntryToFolder, revealPath } from "../lib/itemActions";
 import { noteContextIsUseful } from "../lib/noteContext";
-import {
-  buildNoteFolderTree,
-  noteAncestorFolders,
-  parentDirOfNote,
-  type NoteTreeFolder,
-  type NoteTreeNote,
-} from "../lib/noteFolderTree";
+import { parentDirOfNote } from "../lib/noteFolderTree";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isLiveEmbedExt, linkMarkdown, mediaEmbedMarkdown } from "../lib/markdownBlocks";
-import { formatBytes, formatModifiedLabel } from "../lib/format";
+import { formatBytes } from "../lib/format";
 import { figma } from "../lib/figmaTokens";
 import { osTrashName, samePath } from "../lib/platform";
 import { revealInFolderLabel } from "../../shared/platform";
 import { useAppToasts } from "../components/ToastProvider";
-import { cn } from "../lib/utils";
 
 export function NotebookPage({
   pendingNote,
@@ -47,26 +36,23 @@ export function NotebookPage({
   pendingReference,
   onPendingReferenceHandled,
   onPickWorkspace,
+  needsNotebookWorkspace = false,
 }: {
   pendingNote?: string | null;
   onPendingNoteHandled?: () => void;
   pendingReference?: string | null;
   onPendingReferenceHandled?: () => void;
   onPickWorkspace?: (path: string) => void;
+  needsNotebookWorkspace?: boolean;
 } = {}) {
   const { workspace, addRecentFile, visitNote, openFolder, updateSettings, closeWorkspace } =
     useWorkspace();
-  const [notes, setNotes] = useState<FileEntry[]>([]);
   const [openPaths, setOpenPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
-  /** Folder that receives New Note (workspace root or a nested notes folder). */
+  /** Folder that receives New Note (workspace root or a nested folder). */
   const [createFolderPath, setCreateFolderPath] = useState(workspace.path);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
   const [previewEntry, setPreviewEntry] = useState<FileEntry | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [, setStatusRight] = useState("");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [pendingForgetWorkspace, setPendingForgetWorkspace] = useState(false);
@@ -81,7 +67,6 @@ export function NotebookPage({
   const [liveContent, setLiveContent] = useState<string | null>(null);
   const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
   const { pushToast } = useAppToasts();
-  const refreshNotesRef = useRef<(options?: { quiet?: boolean }) => Promise<void>>(async () => undefined);
   const openNoteRef = useRef<(path: string) => void>(() => undefined);
   activePathRef.current = activePath;
 
@@ -136,55 +121,36 @@ export function NotebookPage({
 
   useEffect(() => {
     setCreateFolderPath(workspace.path);
-    setExpandedFolders(new Set());
+    setOpenPaths([]);
+    setActivePath(null);
+    setPreviewEntry(null);
   }, [workspace.path]);
 
-  const refreshNotes = useCallback(async (options?: { quiet?: boolean }) => {
-    const quiet = Boolean(options?.quiet);
-    if (!quiet) {
-      setLoading(true);
-      setError(null);
-    }
-    try {
-      setNotes(await window.entropy.fs.listMarkdown(workspace.path));
-      if (quiet) setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load notes");
-    } finally {
-      if (!quiet) setLoading(false);
-    }
-  }, [workspace.path]);
-
-  refreshNotesRef.current = refreshNotes;
-
-  useEffect(() => {
-    if (workspace.currentSection !== "notebook") return;
-    void refreshNotes();
-  }, [refreshNotes, workspace.currentSection]);
+  const bumpDisk = useCallback(() => {
+    setDiskEpoch((value) => value + 1);
+    setContextEpoch((value) => value + 1);
+  }, []);
 
   useDirWatch(
     workspace.path,
     () => {
-      void refreshNotes({ quiet: true });
-      setContextEpoch((value) => value + 1);
-      setDiskEpoch((value) => value + 1);
+      bumpDisk();
     },
     {
       // Stay live even while Inventory is focused (sections keep-alive).
       recursive: true,
-      enabled: Boolean(workspace.path),
+      enabled: Boolean(workspace.path) && !needsNotebookWorkspace,
     },
   );
 
   // Slow safety net if directory watch drops events (Obsidian/Windows).
   useEffect(() => {
-    if (!workspace.path) return;
+    if (!workspace.path || needsNotebookWorkspace) return;
     const timer = window.setInterval(() => {
-      void refreshNotes({ quiet: true });
       setDiskEpoch((value) => value + 1);
     }, 2500);
     return () => window.clearInterval(timer);
-  }, [workspace.path, refreshNotes]);
+  }, [workspace.path, needsNotebookWorkspace]);
 
   useEffect(() => {
     if (!pendingNote) return;
@@ -260,7 +226,7 @@ export function NotebookPage({
   }, [workspace.activeNotePath, workspace.recentFiles]);
 
   useEffect(() => {
-    if (!pendingReference) return;
+    if (!pendingReference || needsNotebookWorkspace) return;
     const signal = { cancelled: false };
 
     void (async () => {
@@ -283,7 +249,7 @@ export function NotebookPage({
             // Only create a note when the workspace has no Markdown at all.
             notePath = await window.entropy.fs.createNote(workspace.path);
             if (signal.cancelled) return;
-            void refreshNotes({ quiet: true });
+            bumpDisk();
           } else {
             // Notes exist but none is "current" — panel only until the user opens one.
             setQueuedReference(entry.path);
@@ -316,8 +282,9 @@ export function NotebookPage({
     onPendingReferenceHandled,
     resolveTargetNote,
     insertReferenceIntoOpenNote,
-    refreshNotes,
+    bumpDisk,
     workspace.path,
+    needsNotebookWorkspace,
   ]);
 
   // Deferred insert: user opened a note after Add to Workspace showed panel-only.
@@ -372,41 +339,13 @@ export function NotebookPage({
   }
   openNoteRef.current = openNote;
 
-  function toggleFolder(folderPath: string): void {
-    setExpandedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(folderPath)) next.delete(folderPath);
-      else next.add(folderPath);
-      return next;
-    });
+  function handleTreeOpenFile(entry: FileEntry): void {
+    if (entry.extension.toLowerCase() === ".md") {
+      openNote(entry.path);
+      return;
+    }
+    setPreviewEntry(entry);
   }
-
-  function selectFolder(folderPath: string): void {
-    setCreateFolderPath(folderPath);
-    setExpandedFolders((prev) => {
-      const next = new Set(prev);
-      next.add(folderPath);
-      return next;
-    });
-  }
-
-  // Keep the active note’s folder chain expanded so nested files stay reachable.
-  useEffect(() => {
-    if (!activePath) return;
-    const ancestors = noteAncestorFolders(workspace.path, activePath);
-    if (ancestors.length === 0) return;
-    setExpandedFolders((prev) => {
-      let changed = false;
-      const next = new Set(prev);
-      for (const folder of ancestors) {
-        if (!next.has(folder)) {
-          next.add(folder);
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [activePath, workspace.path]);
 
   function closeTab(notePath: string): void {
     setOpenPaths((prev) => {
@@ -421,7 +360,7 @@ export function NotebookPage({
       const targetDir = createFolderPath || workspace.path;
       const created = await window.entropy.fs.createNote(targetDir);
       openNote(created);
-      await refreshNotes();
+      bumpDisk();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create note");
     }
@@ -455,7 +394,7 @@ export function NotebookPage({
           if (result.restored === 0) {
             throw new Error(`Couldn't restore the note. It may already be gone from ${trash}.`);
           }
-          await refreshNotesRef.current({ quiet: true });
+          bumpDisk();
           const restored = paths[0];
           if (restored) openNoteRef.current(restored);
         },
@@ -464,50 +403,10 @@ export function NotebookPage({
         },
       });
       setError(null);
-      await refreshNotes();
+      bumpDisk();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete note");
-      await refreshNotes();
-    }
-  }
-
-  function startRename(note: FileEntry): void {
-    setRenaming(note.path);
-    setRenameValue(
-      note.isDirectory || note.extension.toLowerCase() === ".md"
-        ? note.name.replace(/\.md$/i, "")
-        : note.name,
-    );
-  }
-
-  async function commitRename(notePath: string): Promise<void> {
-    const entry = notes.find((item) => item.path === notePath) ?? previewEntry;
-    const isMarkdown = (entry?.extension ?? ".md").toLowerCase() === ".md" && !entry?.isDirectory;
-    const nextName = isMarkdown
-      ? renameValue.trim().replace(/\.md$/i, "")
-      : renameValue.trim();
-    setRenaming(null);
-    if (!nextName) return;
-    try {
-      const dir = await window.entropy.fs.dirname(notePath);
-      const target = await window.entropy.fs.join(
-        dir,
-        isMarkdown ? `${nextName}.md` : nextName,
-      );
-      if (target === notePath) return;
-      if (await window.entropy.fs.exists(target)) {
-        setError("An item with that name already exists.");
-        return;
-      }
-      await window.entropy.fs.rename(notePath, target);
-      setOpenPaths((prev) => prev.map((path) => (path === notePath ? target : path)));
-      if (activePath === notePath) setActivePath(target);
-      if (previewEntry?.path === notePath) {
-        setPreviewEntry(await window.entropy.fs.stat(target));
-      }
-      await refreshNotes();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to rename");
+      bumpDisk();
     }
   }
 
@@ -550,66 +449,57 @@ export function NotebookPage({
       if (previewEntry?.path === source) {
         setPreviewEntry(await window.entropy.fs.stat(target));
       }
-      await refreshNotes();
+      bumpDisk();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to move item");
     }
   }
 
-  function noteActions(note: { path: string; name: string }): ItemAction[] {
+  function noteActions(note: { path: string }): Array<{
+    label: string;
+    onSelect: () => void;
+    destructive?: boolean;
+    separatorBefore?: boolean;
+  }> {
     const osRevealLabel = revealInFolderLabel(window.entropy.platform).replace(/^Show in\s+/i, "");
     return [
-      {
-        label: "Rename",
-        onSelect: () =>
-          startRename({
-            name: note.name,
-            path: note.path,
-            isDirectory: false,
-            size: 0,
-            modifiedAt: 0,
-            extension: ".md",
-          }),
-      },
       { label: "Copy path", onSelect: () => void copyPath(note.path) },
       {
-        label: "Show in",
-        children: [
-          {
-            label: "Folders",
-            onSelect: () => {
-              void (async () => {
-                const dir = await window.entropy.fs.dirname(note.path);
-                updateSettings({ libraryPerspective: "folders", intelligenceView: null });
-                openFolder(dir);
-              })();
-            },
-          },
-          {
-            label: "Gallery",
-            onSelect: () => {
-              void (async () => {
-                const dir = await window.entropy.fs.dirname(note.path);
-                updateSettings({ libraryPerspective: "gallery", intelligenceView: null });
-                openFolder(dir);
-              })();
-            },
-          },
-          {
-            label: osRevealLabel,
-            onSelect: () => void revealPath(note.path),
-          },
-        ],
+        label: "Show in Folders",
+        onSelect: () => {
+          void (async () => {
+            const dir = await window.entropy.fs.dirname(note.path);
+            updateSettings({ libraryPerspective: "folders", intelligenceView: null });
+            openFolder(dir);
+          })();
+        },
       },
-      { label: "Move to…", onSelect: () => setMovingPath(note.path) },
-      { label: "Delete", destructive: true, onSelect: () => requestDelete(note.path) },
+      {
+        label: "Show in Gallery",
+        onSelect: () => {
+          void (async () => {
+            const dir = await window.entropy.fs.dirname(note.path);
+            updateSettings({ libraryPerspective: "gallery", intelligenceView: null });
+            openFolder(dir);
+          })();
+        },
+      },
+      {
+        label: `Show in ${osRevealLabel}`,
+        onSelect: () => void revealPath(note.path),
+      },
+      {
+        label: "Move to…",
+        separatorBefore: true,
+        onSelect: () => setMovingPath(note.path),
+      },
+      {
+        label: "Delete",
+        destructive: true,
+        onSelect: () => requestDelete(note.path),
+      },
     ];
   }
-
-  const noteTree = useMemo(
-    () => buildNoteFolderTree(notes, workspace.path),
-    [notes, workspace.path],
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -626,6 +516,65 @@ export function NotebookPage({
       cancelled = true;
     };
   }, [activePath, previewEntry, workspace.path, contextEpoch, liveContent]);
+
+  if (needsNotebookWorkspace) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <ThreeColumnLayout
+          id="notebook-layout"
+          persistLayout={false}
+          context={null}
+          sidebar={
+            <div
+              className="flex h-full min-h-0 w-full flex-col"
+              style={{ backgroundColor: figma.surface, borderRight: `1px solid ${figma.border}` }}
+            >
+              <div className="flex items-center gap-1.5 px-4 py-2">
+                <span
+                  className="min-w-0 flex-1 truncate text-[13px] font-semibold"
+                  style={{ color: figma.ink }}
+                >
+                  Notebook
+                </span>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col items-stretch justify-center px-4 pb-8">
+                <Empty className="py-8">
+                  <EmptyTitle>Open a workspace</EmptyTitle>
+                  <EmptyDescription>
+                    Pick a folder for notes, or create a new workspace on disk.
+                  </EmptyDescription>
+                </Empty>
+                <div className="mt-2 flex flex-col gap-2 px-2">
+                  <Button type="button" variant="outline" onClick={() => void handleOpenWorkspace()}>
+                    Open workspace…
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => void handleCreateWorkspace()}>
+                    Create new…
+                  </Button>
+                </div>
+                {error ? (
+                  <p className="mt-3 px-2 text-sm text-muted-foreground">{error}</p>
+                ) : null}
+              </div>
+            </div>
+          }
+          main={
+            <Empty className="h-full">
+              <EmptyTitle>Choose a workspace</EmptyTitle>
+              <EmptyDescription>
+                Open or create a workspace to write Markdown notes.
+              </EmptyDescription>
+            </Empty>
+          }
+        />
+      </div>
+    );
+  }
+
+  const activeNoteName = activePath
+    ? (activePath.split(/[/\\]/).pop()?.replace(/\.md$/i, "") ?? "note")
+    : null;
+  const activeNoteActions = activePath ? noteActions({ path: activePath }) : [];
 
   const context =
     contextUseful || previewEntry ? (
@@ -659,13 +608,13 @@ export function NotebookPage({
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] px-1.5 py-1 text-left outline-none hover:bg-select focus-visible:bg-select"
+                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] px-1.5 py-1 text-left outline-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent"
+                    style={{ color: figma.ink }}
                     aria-label="Switch workspace"
                     onClick={() => setCreateFolderPath(workspace.path)}
                   >
                     <span
                       className="min-w-0 flex-1 truncate text-[13px] font-semibold"
-                      style={{ color: figma.ink }}
                       title={workspace.name}
                     >
                       {workspace.name}
@@ -715,13 +664,51 @@ export function NotebookPage({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              {activePath ? (
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                          aria-label={`Actions for ${activeNoteName}`}
+                        >
+                          <MoreHorizontal className="h-4 w-4" strokeWidth={1.75} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Note actions</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="end" className="min-w-[11rem]">
+                    {activeNoteActions.flatMap((action) => {
+                      const item = (
+                        <DropdownMenuItem
+                          key={action.label}
+                          className={action.destructive ? "text-muted-foreground" : undefined}
+                          onSelect={() => action.onSelect()}
+                        >
+                          {action.label}
+                        </DropdownMenuItem>
+                      );
+                      if (!action.separatorBefore) return [item];
+                      return [
+                        <DropdownMenuSeparator key={`${action.label}-sep`} />,
+                        item,
+                      ];
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 shrink-0 text-muted-foreground"
+                    className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
                     aria-label="New note"
                     onClick={() => void handleCreate()}
                   >
@@ -736,68 +723,17 @@ export function NotebookPage({
               </Tooltip>
             </div>
 
-            <ScrollArea className="min-h-0 flex-1" type="hover">
-              <div className="pb-6">
-                {error ? <p className="px-4 pb-2 text-sm text-muted-foreground">{error}</p> : null}
-                {loading ? (
-                  <div className="space-y-1 px-4">
-                    <Skeleton className="h-14 w-full" />
-                    <Skeleton className="h-14 w-full" />
-                    <Skeleton className="h-14 w-full" />
-                  </div>
-                ) : null}
-                {!loading && notes.length === 0 ? (
-                  <Empty className="py-16">
-                    <EmptyTitle>No notes yet</EmptyTitle>
-                    <EmptyDescription>Use + to create a note and start writing.</EmptyDescription>
-                  </Empty>
-                ) : null}
+            {error ? <p className="px-4 pb-2 text-sm text-muted-foreground">{error}</p> : null}
 
-                <ul aria-label="Notes">
-                  {!loading
-                    ? noteTree.map((node) =>
-                        node.type === "folder" ? (
-                          <NoteFolderRow
-                            key={node.path}
-                            folder={node}
-                            depth={0}
-                            expandedFolders={expandedFolders}
-                            createFolderPath={createFolderPath}
-                            activePath={activePath}
-                            renaming={renaming}
-                            renameValue={renameValue}
-                            onRenameValueChange={setRenameValue}
-                            onToggleFolder={toggleFolder}
-                            onSelectFolder={selectFolder}
-                            onOpenNote={openNote}
-                            onStartRename={startRename}
-                            onCommitRename={(path) => void commitRename(path)}
-                            onCancelRename={() => setRenaming(null)}
-                            noteActions={noteActions}
-                            dismissKey={workspace.currentSection}
-                          />
-                        ) : (
-                          <NoteFileRow
-                            key={node.path}
-                            note={node}
-                            depth={0}
-                            activePath={activePath}
-                            renaming={renaming}
-                            renameValue={renameValue}
-                            onRenameValueChange={setRenameValue}
-                            onOpenNote={openNote}
-                            onStartRename={startRename}
-                            onCommitRename={(path) => void commitRename(path)}
-                            onCancelRename={() => setRenaming(null)}
-                            noteActions={noteActions}
-                            dismissKey={workspace.currentSection}
-                          />
-                        ),
-                      )
-                    : null}
-                </ul>
-              </div>
-            </ScrollArea>
+            <WorkspaceExplorerTree
+              rootPath={workspace.path}
+              rootLabel={workspace.name}
+              activeFilePath={activePath}
+              createFolderPath={createFolderPath}
+              diskEpoch={diskEpoch}
+              onOpenFolder={setCreateFolderPath}
+              onOpenFile={handleTreeOpenFile}
+            />
           </div>
         }
         main={
@@ -814,7 +750,7 @@ export function NotebookPage({
             onNotePathChange={(fromPath, toPath) => {
               setOpenPaths((prev) => prev.map((path) => (path === fromPath ? toPath : path)));
               setActivePath((current) => (current === fromPath ? toPath : current));
-              void refreshNotes({ quiet: true });
+              bumpDisk();
               visitNote(toPath);
             }}
             onStatsChange={setStatusRight}
@@ -871,217 +807,3 @@ export function NotebookPage({
     </div>
   );
 }
-
-function NoteFolderRow({
-  folder,
-  depth,
-  expandedFolders,
-  createFolderPath,
-  activePath,
-  renaming,
-  renameValue,
-  onRenameValueChange,
-  onToggleFolder,
-  onSelectFolder,
-  onOpenNote,
-  onStartRename,
-  onCommitRename,
-  onCancelRename,
-  noteActions,
-  dismissKey,
-}: {
-  folder: NoteTreeFolder;
-  depth: number;
-  expandedFolders: Set<string>;
-  createFolderPath: string;
-  activePath: string | null;
-  renaming: string | null;
-  renameValue: string;
-  onRenameValueChange: (value: string) => void;
-  onToggleFolder: (path: string) => void;
-  onSelectFolder: (path: string) => void;
-  onOpenNote: (path: string) => void;
-  onStartRename: (note: FileEntry) => void;
-  onCommitRename: (path: string) => void;
-  onCancelRename: () => void;
-  noteActions: (note: { path: string; name: string }) => ItemAction[];
-  dismissKey: string;
-}) {
-  const expanded = expandedFolders.has(folder.path);
-  const selected = samePath(createFolderPath, folder.path);
-
-  return (
-    <li>
-      <div
-        className="flex min-w-0 items-center"
-        style={{
-          backgroundColor: selected ? figma.select : "transparent",
-          borderBottom: `1px solid ${figma.border}`,
-          paddingLeft: 8 + depth * 12,
-        }}
-      >
-        <button
-          type="button"
-          className="flex size-7 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground"
-          aria-label={expanded ? `Collapse ${folder.name}` : `Expand ${folder.name}`}
-          aria-expanded={expanded}
-          onClick={() => onToggleFolder(folder.path)}
-        >
-          {expanded ? (
-            <ChevronDown className="size-3.5" strokeWidth={1.75} />
-          ) : (
-            <ChevronRight className="size-3.5" strokeWidth={1.75} />
-          )}
-        </button>
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center gap-1.5 py-2 pr-4 text-left"
-          onClick={() => onSelectFolder(folder.path)}
-          title={folder.path}
-        >
-          <Folder className="size-[14px] shrink-0" style={{ color: figma.muted }} strokeWidth={1.75} />
-          <span
-            className={cn("truncate text-[13px]", selected ? "font-medium" : "font-normal")}
-            style={{ color: figma.ink }}
-          >
-            {folder.name}
-          </span>
-        </button>
-      </div>
-      {expanded ? (
-        <ul>
-          {folder.children.map((child) =>
-            child.type === "folder" ? (
-              <NoteFolderRow
-                key={child.path}
-                folder={child}
-                depth={depth + 1}
-                expandedFolders={expandedFolders}
-                createFolderPath={createFolderPath}
-                activePath={activePath}
-                renaming={renaming}
-                renameValue={renameValue}
-                onRenameValueChange={onRenameValueChange}
-                onToggleFolder={onToggleFolder}
-                onSelectFolder={onSelectFolder}
-                onOpenNote={onOpenNote}
-                onStartRename={onStartRename}
-                onCommitRename={onCommitRename}
-                onCancelRename={onCancelRename}
-                noteActions={noteActions}
-                dismissKey={dismissKey}
-              />
-            ) : (
-              <NoteFileRow
-                key={child.path}
-                note={child}
-                depth={depth + 1}
-                activePath={activePath}
-                renaming={renaming}
-                renameValue={renameValue}
-                onRenameValueChange={onRenameValueChange}
-                onOpenNote={onOpenNote}
-                onStartRename={onStartRename}
-                onCommitRename={onCommitRename}
-                onCancelRename={onCancelRename}
-                noteActions={noteActions}
-                dismissKey={dismissKey}
-              />
-            ),
-          )}
-        </ul>
-      ) : null}
-    </li>
-  );
-}
-
-function NoteFileRow({
-  note,
-  depth,
-  activePath,
-  renaming,
-  renameValue,
-  onRenameValueChange,
-  onOpenNote,
-  onStartRename,
-  onCommitRename,
-  onCancelRename,
-  noteActions,
-  dismissKey,
-}: {
-  note: NoteTreeNote;
-  depth: number;
-  activePath: string | null;
-  renaming: string | null;
-  renameValue: string;
-  onRenameValueChange: (value: string) => void;
-  onOpenNote: (path: string) => void;
-  onStartRename: (note: FileEntry) => void;
-  onCommitRename: (path: string) => void;
-  onCancelRename: () => void;
-  noteActions: (note: { path: string; name: string }) => ItemAction[];
-  dismissKey: string;
-}) {
-  const title = note.name.replace(/\.md$/i, "");
-  const active = activePath === note.path;
-  const padLeft = 8 + depth * 12 + (depth > 0 ? 0 : 0);
-
-  return (
-    <li style={{ borderBottom: `1px solid ${figma.border}` }}>
-      {renaming === note.path ? (
-        <div className="px-4 py-2.5" style={{ paddingLeft: padLeft + 28 }}>
-          <Input
-            className="h-9"
-            value={renameValue}
-            autoFocus
-            onChange={(event) => onRenameValueChange(event.target.value)}
-            onBlur={() => onCommitRename(note.path)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") onCommitRename(note.path);
-              if (event.key === "Escape") onCancelRename();
-            }}
-          />
-        </div>
-      ) : (
-        <ItemContextMenu label={title} actions={noteActions(note)} dismissKey={dismissKey}>
-          <div
-            className="group flex min-w-0 items-start"
-            style={{
-              backgroundColor: active ? figma.select : "transparent",
-              paddingLeft: padLeft,
-            }}
-          >
-            <span className="size-7 shrink-0" aria-hidden />
-            <button
-              type="button"
-              className="min-w-0 flex-1 py-2.5 pr-4 text-left"
-              title={note.path}
-              onClick={() => onOpenNote(note.path)}
-              onDoubleClick={() =>
-                onStartRename({
-                  name: note.name,
-                  path: note.path,
-                  isDirectory: false,
-                  size: 0,
-                  modifiedAt: note.modifiedAt,
-                  extension: ".md",
-                })
-              }
-            >
-              <p
-                className={cn("truncate text-[13px]", active ? "font-medium" : "font-normal")}
-                style={{ color: figma.ink }}
-              >
-                {title}
-              </p>
-              <p className="mt-1 text-[11px]" style={{ color: figma.muted }}>
-                {note.modifiedAt ? formatModifiedLabel(note.modifiedAt) : "Local note"}
-              </p>
-            </button>
-          </div>
-        </ItemContextMenu>
-      )}
-    </li>
-  );
-}
-
