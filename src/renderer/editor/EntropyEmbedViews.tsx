@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { FileRefChip, MediaFace } from "../components/LiveMarkdownEditor";
+import { FileRefChip, MediaFace } from "./EmbedFaces";
 import { useWorkspace } from "../state/useWorkspace";
 import { parseMarkdownBlocks } from "../lib/markdownBlocks";
 import { markdownToTipTapDoc } from "./markdownDoc";
