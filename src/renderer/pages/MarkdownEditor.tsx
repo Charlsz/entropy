@@ -16,9 +16,9 @@ import { ScrollArea } from "../components/ui/scroll-area";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
 import { MarkdownPreview } from "../components/MarkdownPreview";
 import {
-  LiveMarkdownEditor,
-  type LiveMarkdownEditorHandle,
-} from "../components/LiveMarkdownEditor";
+  WysiwygMarkdownEditor,
+  type WysiwygMarkdownEditorHandle,
+} from "../components/WysiwygMarkdownEditor";
 import { NoteCover } from "../components/NoteCover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { cn } from "../lib/utils";
@@ -88,7 +88,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const mode = split ? "split" : surface;
   const saveTimers = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
-  const liveEditorRef = useRef<LiveMarkdownEditorHandle>(null);
+  const liveEditorRef = useRef<WysiwygMarkdownEditorHandle>(null);
   const activePathRef = useRef(activePath);
   const openKey = openPaths.join("\0");
 
@@ -508,7 +508,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     onCloseTab(path);
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+  function handleKeyDown(event: KeyboardEvent): void {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       if (!activeTab || activeTab.missing) return;
@@ -767,7 +767,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 )}
                 onMouseDown={(event) => {
                   const target = event.target as HTMLElement;
-                  if (target.closest("textarea, button, a, input, iframe, video, img, figure")) {
+                  if (
+                    target.closest(
+                      ".ProseMirror, button, a, input, iframe, video, img, figure",
+                    )
+                  ) {
                     return;
                   }
                   event.preventDefault();
@@ -784,7 +788,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                     {activeTab?.title}
                   </h1>
                 </div>
-                <LiveMarkdownEditor
+                <WysiwygMarkdownEditor
                   ref={liveEditorRef}
                   className={mode === "split" ? "" : "mx-auto max-w-[720px]"}
                   value={activeTab?.content ?? ""}

@@ -552,7 +552,7 @@ export const LiveMarkdownEditor = forwardRef<LiveMarkdownEditorHandle, LiveMarkd
   },
 );
 
-interface MediaFaceProps {
+export interface MediaFaceProps {
   alt: string;
   src: string;
   notePath?: string | null;
@@ -563,7 +563,7 @@ interface MediaFaceProps {
   onRemove: () => void;
 }
 
-function MediaFace({
+export function MediaFace({
   alt,
   src,
   notePath,
@@ -719,7 +719,7 @@ function MediaFace({
   );
 }
 
-function FileRefChip({
+export function FileRefChip({
   label,
   src,
   disabled,
