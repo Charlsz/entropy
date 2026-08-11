@@ -151,15 +151,6 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
   return blocks;
 }
 
-export function joinMarkdownBlocks(blocks: MarkdownBlock[]): string {
-  return blocks
-    .map((block) => {
-      if (block.type === "text") return block.value;
-      return block.raw;
-    })
-    .join("\n");
-}
-
 /**
  * Wrap a destination so CommonMark / marked / live embeds accept it.
  * Bare destinations cannot contain spaces or unescaped parentheses.
@@ -178,10 +169,6 @@ export function mediaEmbedMarkdown(src: string, alias?: string): string {
     return `![[${target}|${alias.trim()}]]`;
   }
   return `![[${target}]]`;
-}
-
-export function mediaMarkdown(alt: string, src: string): string {
-  return mediaEmbedMarkdown(src, alt);
 }
 
 export function linkMarkdown(label: string, href: string): string {

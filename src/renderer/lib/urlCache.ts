@@ -32,12 +32,6 @@ function toEntropyThumbUrl(filePath: string): string {
   return `entropy://thumb/${encodePathToken(filePath)}`;
 }
 
-/** Drop in-memory URL cache (e.g. after protocol format changes). */
-export function clearUrlCaches(): void {
-  cache.clear();
-  thumbCache.clear();
-}
-
 /** Sync entropy:// URL — same encoding as main protocol (no IPC). */
 export function fileUrlSync(filePath: string): string {
   const existing = cache.get(filePath);
