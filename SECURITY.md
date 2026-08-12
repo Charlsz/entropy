@@ -22,4 +22,4 @@ Please include:
 
 ## Unsigned builds
 
-Official installers on [Charlsz/entropy-downloads](https://github.com/Charlsz/entropy-downloads/releases) may be unsigned until certificates are configured. Prefer that channel. Windows and macOS will warn; that is expected for alpha.
+Official installers on [this repository’s Releases](https://github.com/Charlsz/entropy/releases) may be unsigned until certificates are configured. Prefer that page. Windows and macOS will warn; that is expected for alpha.
