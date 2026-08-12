@@ -1,42 +1,51 @@
 # Entropy
 
-I just want a better way to organize my ideas and files.
+**Alpha (0.1.x).** A local-first desktop workspace where the filesystem is the source of truth.
 
-In a more complex way:
+Notebook gives files meaning. Library gives files structure. Entropy never imports, copies, or claims ownership of your files. Notes are Markdown in a folder you choose. Media stays where it already lives.
 
-This application is a notebook designed to bridge the gap between human thinking and the computer's filesystem. It combines the freedom and permanence of a physical notebook with the organization and accessibility of modern file management, without replacing either.
+If this app disappeared tomorrow, your notes and files would still be ordinary files on disk.
 
-Instead of treating images, PDFs, videos, code files, or other documents as simple attachments, they become first-class elements of the notebook. Every page can naturally contain writing, sketches, diagrams, references, media, and existing files from the user's computer, all living together in the same context.
+Site: [entropy.charlsz.tech](https://entropy.charlsz.tech) · Installers: [Charlsz/entropy-downloads](https://github.com/Charlsz/entropy-downloads/releases)
 
-The notebook doesn't try to replace the filesystem. Files remain in their original locations and formats, while the notebook provides the meaning around them. It answers questions like why this file matters, how it relates to other ideas, and what the user was thinking when they collected it.
+## Status
 
-Every notebook is simply a folder on the user's computer. Pages are stored in open formats (such as Markdown), original assets remain untouched, and any indexing or search database exists only as a rebuildable cache. If the application disappeared tomorrow, the user's notebook and files would still be completely accessible.
+This is early software. Layout, media embeds, and Library scans can still break under heavy use. Installers are **unsigned**, so Windows SmartScreen and macOS Gatekeeper will warn.
 
-The experience should feel closer to writing in a real book than editing a document. A page is free to become whatever the idea requires: mostly text, mostly visuals, or a seamless mixture of both. Images are not secondary, files are not hidden behind links, and writing is not constrained by rigid document structures.
+| Works today | Not done / stubbed |
+|---|---|
+| Markdown notes (WYSIWYG + source) in a workspace folder | Intelligence destinations (Relationships, File Copilot) |
+| Inline media and file references without importing | Code-signed / notarized installers |
+| Library: Folders (List / Gallery), Large Files, Duplicates | Near-duplicates, auto-organize, cloud sync |
+| Storage treemap, safe trash with undo | Replacing Finder / Explorer |
+| Protected OS paths skipped by scans and reclaim | |
 
-The philosophy is that thinking and organizing should happen in the same place. Today's computers separate notes, images, PDFs, files, whiteboards, and references into different applications, forcing users to reconstruct context themselves. This application reunites those pieces into a single environment where knowledge grows naturally while remaining organized, searchable, and entirely owned by the user.
+Product rules: [`PRODUCT.md`](PRODUCT.md) · Visual system: [`DESIGN.md`](DESIGN.md) · Agent/contributor contract: [`AGENTS.md`](AGENTS.md)
 
-It is intentionally calm. It does not aim to become an all-in-one productivity platform or replace every application. Instead, it focuses on one idea: giving people a beautiful, durable place where their thoughts and their files can coexist as naturally as they would on a real desk or inside a physical notebook.
+## Install
 
-## Building installers
+Download a Windows, macOS, or Linux build from the [releases channel](https://github.com/Charlsz/entropy-downloads/releases/latest). Prefer that page over random copies.
 
-Local (unsigned):
+## Run from source
 
-```bash
-npm run dist:win    # Windows NSIS
-npm run dist:mac    # macOS DMG
-npm run dist:linux  # Linux AppImage + deb
-```
-
-CI builds the same targets when you push a version tag (`v0.1.0`, `v1.0.0`, …). Workflow: `.github/workflows/build-installers.yml`.
-
-- Uploads private **GitHub Actions artifacts** (kept 30 days)
-- Publishes public installers to [`Charlsz/entropy-downloads`](https://github.com/Charlsz/entropy-downloads/releases) (requires `ENTROPY_DOWNLOADS_TOKEN` — see [`docs/downloads-channel.md`](docs/downloads-channel.md))
-- Does **not** open-source this app repository
-- Installers are **unsigned** until certificates are configured (see `build/README.md`)
+Needs [Node.js 22+](https://nodejs.org/).
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
-# CI builds, then updates the public downloads release when the token secret is set.
+git clone https://github.com/Charlsz/entropy.git
+cd entropy
+npm ci
+npm start
 ```
+
+`npm start` compiles the app, then launches Electron. More detail is in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## What Entropy is not
+
+- Not a vault that owns your files
+- Not a Finder / Explorer replacement
+- Not an all-in-one productivity suite
+- Not an Obsidian, Refern, or WinDirStat clone
+
+## License
+
+[MIT](LICENSE) © Carlos Galvis
