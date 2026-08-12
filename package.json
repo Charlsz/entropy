@@ -3,9 +3,19 @@
   "version": "0.1.1",
   "description": "A local-first workspace where the filesystem is the source of truth.",
   "main": "dist/main/index.js",
-  "author": "Charlsz",
-  "license": "ISC",
+  "author": "Carlos Galvis",
+  "license": "MIT",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "electron",
+    "local-first",
+    "markdown",
+    "notes",
+    "filesystem"
+  ],
   "scripts": {
     "build": "npm run build:renderer && npm run build:main && npm run build:preload",
     "build:renderer": "vite build",
@@ -19,7 +29,9 @@
     "dist:linux": "npm run build && electron-builder --linux --x64 --publish never",
     "pack": "npm run build && electron-builder --dir --publish never",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "test": "npm run test:markdown-blocks && npm run test:theme",
     "test:markdown-blocks": "tsx scripts/test-markdown-blocks.mts",
+    "test:theme": "node scripts/verify-theme.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -32,7 +44,7 @@
   "bugs": {
     "url": "https://github.com/Charlsz/entropy/issues"
   },
-  "homepage": "https://github.com/Charlsz/entropy#readme",
+  "homepage": "https://entropy.charlsz.tech",
   "dependencies": {
     "@noble/hashes": "^2.2.0"
   },
@@ -76,6 +88,7 @@
     "react-resizable-panels": "^4.12.2",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.23.12",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.37.0",
     "vite": "^6.3.5"

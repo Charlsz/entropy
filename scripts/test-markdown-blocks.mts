@@ -21,14 +21,14 @@ function typesOf(markdown: string): string[] {
     });
 }
 
-// Destinations with spaces (Windows "Personal Space", titled PDFs, etc.)
+// Destinations with spaces (folder names, titled PDFs, etc.)
 assert.equal(
-  parseParenDestination("C:/Users/Cgalv/Desktop/Personal Space/ok.png"),
-  "C:/Users/Cgalv/Desktop/Personal Space/ok.png",
+  parseParenDestination("C:/Users/alex/Documents/Personal Space/ok.png"),
+  "C:/Users/alex/Documents/Personal Space/ok.png",
 );
 assert.equal(
-  parseParenDestination("<C:/Users/Cgalv/Desktop/Alerta — Riesgo Climático Agrícola.pdf>"),
-  "C:/Users/Cgalv/Desktop/Alerta — Riesgo Climático Agrícola.pdf",
+  parseParenDestination("<C:/Users/alex/Documents/Climate — Risk Report.pdf>"),
+  "C:/Users/alex/Documents/Climate — Risk Report.pdf",
 );
 
 // TipTap escape recovery
@@ -38,12 +38,12 @@ assert.equal(
 );
 
 const samples = [
-  '<video controls src="C:/Users/Cgalv/Desktop/images/charlie.mp4"></video>',
-  "[Alerta — Riesgo Climático Agrícola.pdf](<C:/Users/Cgalv/Desktop/Alerta — Riesgo Climático Agrícola.pdf>)",
-  "![cat-pixel.gif](C:/Users/Cgalv/Desktop/my-website/public/images/cat-pixel.gif)",
-  "![shot.png](C:/Users/Cgalv/Desktop/Personal Space/shot.png)",
-  "![[charlie.mp4]]",
-  "![[Alerta — Riesgo Climático Agrícola.pdf]]",
+  '<video controls src="C:/Users/alex/Videos/demo.mp4"></video>',
+  "[Climate — Risk Report.pdf](<C:/Users/alex/Documents/Climate — Risk Report.pdf>)",
+  "![cat-pixel.gif](C:/Users/alex/Pictures/cat-pixel.gif)",
+  "![shot.png](C:/Users/alex/Documents/Personal Space/shot.png)",
+  "![[demo.mp4]]",
+  "![[Climate — Risk Report.pdf]]",
   "!\\[escaped.gif\\](C:/Users/a/escaped.gif)",
 ].join("\n\n");
 
@@ -70,7 +70,7 @@ assert.ok(
 const round = tipTapDocToMarkdown(doc);
 const reparsed = parseMarkdownBlocks(round);
 assert.ok(
-  reparsed.some((block) => block.type === "media" && block.src.includes("charlie.mp4")),
+  reparsed.some((block) => block.type === "media" && block.src.includes("demo.mp4")),
   "video face lost after round-trip",
 );
 assert.ok(
@@ -78,7 +78,7 @@ assert.ok(
   "gif face lost after round-trip",
 );
 assert.ok(
-  reparsed.some((block) => block.type === "fileRef" && block.src.includes("Alerta")),
+  reparsed.some((block) => block.type === "fileRef" && block.src.includes("Climate")),
   "pdf file card lost after round-trip",
 );
 assert.ok(

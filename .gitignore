@@ -4,6 +4,13 @@ release/
 .vite/
 .entropy/
 
+.env
+.env.*
+*.pem
+*.p12
+*.pfx
+*.key
+
 .DS_Store
 Thumbs.db
 
