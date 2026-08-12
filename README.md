@@ -86,8 +86,6 @@ On Windows and Linux, use `Ctrl` instead of `Cmd`.
 
 Entropy is early. Issues and small PRs are welcome when they match [`PRODUCT.md`](PRODUCT.md) and [`DESIGN.md`](DESIGN.md). Read [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`AGENTS.md`](AGENTS.md) before changing product or UI.
 
-This is not an Obsidian, Refern, or WinDirStat clone. Features that import files, auto-move them, or require an account are out of scope.
-
 ## License
 
 [MIT](LICENSE) © Carlos Galvis
