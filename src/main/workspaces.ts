@@ -100,6 +100,8 @@ export async function renameWorkspace(
 ): Promise<string> {
   const clean = newName
     .trim()
+    // Control chars are illegal in Windows folder names.
+    // eslint-disable-next-line no-control-regex -- strip C0 controls from user-typed names
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
     .replace(/[. ]+$/g, "");
   if (!clean) {
