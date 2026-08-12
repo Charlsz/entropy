@@ -1,9 +1,9 @@
 name: Build installers
 
 # Builds Windows / macOS / Linux installers when a version tag is pushed.
-# Also publishes installer assets to the public Charlsz/entropy-downloads
-# releases channel (requires ENTROPY_DOWNLOADS_TOKEN). Private repo Actions
-# artifacts remain available for 30 days as a backup.
+# Also publishes installer assets to Charlsz/entropy-downloads
+# (requires ENTROPY_DOWNLOADS_TOKEN). Actions artifacts stay available
+# for 30 days as a backup.
 
 on:
   push:
@@ -69,7 +69,7 @@ jobs:
       - name: Package installer
         run: npx electron-builder ${{ matrix.args }} --publish never
         env:
-          # Unsigned private builds until certificates are configured.
+          # Unsigned until certificates are configured (see build/README.md).
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
       - name: Upload installer artifacts
@@ -128,7 +128,7 @@ jobs:
 
           notes="Official Entropy ${VERSION} installers.
 
-          Built automatically from tag \`${TAG}\` in the private app repository.
+          Built automatically from tag \`${TAG}\` in Charlsz/entropy.
 
           - Windows: NSIS x64
           - macOS: universal DMG

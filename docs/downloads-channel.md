@@ -1,7 +1,7 @@
 # Public downloads channel
 
-Entropy source stays in the **private** `Charlsz/entropy` repo.
-Installers ship on the **public** [`Charlsz/entropy-downloads`](https://github.com/Charlsz/entropy-downloads) releases page.
+Source lives in `Charlsz/entropy`.
+Installers ship on [`Charlsz/entropy-downloads`](https://github.com/Charlsz/entropy-downloads) so the source repo stays a git history, not a binary dump.
 
 ## Flow
 
@@ -9,7 +9,7 @@ Installers ship on the **public** [`Charlsz/entropy-downloads`](https://github.c
 2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z` (match `package.json` version).
 3. Workflow **Build installers**:
    - Builds Windows / macOS / Linux on GitHub-hosted runners
-   - Uploads private Actions artifacts (30 days)
+   - Uploads GitHub Actions artifacts (30 days)
    - Publishes `.exe` / `.dmg` / `.AppImage` / `.deb` to `Charlsz/entropy-downloads` as GitHub Release `vX.Y.Z`
 
 Site download buttons should link to:
@@ -49,7 +49,7 @@ gh secret set ENTROPY_DOWNLOADS_TOKEN --repo Charlsz/entropy
 
 ## Bootstrap / re-publish without a new tag
 
-To copy an existing private release onto the public channel from your machine (while logged into `gh`):
+To copy an existing source-repo release onto the downloads channel from your machine (while logged into `gh`):
 
 ```bash
 gh release download v0.1.0 --repo Charlsz/entropy --dir /tmp/entropy-v0.1.0 --pattern "*.exe" --pattern "*.dmg" --pattern "*.AppImage" --pattern "*.deb"
