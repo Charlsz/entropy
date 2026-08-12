@@ -2,4 +2,4 @@ blank_issues_enabled: true
 contact_links:
   - name: Installers
     url: https://github.com/Charlsz/entropy/releases
-    about: Official Windows / macOS / Linux builds (may be unsigned)
+    about: Windows, macOS, and Linux builds (unsigned while alpha)

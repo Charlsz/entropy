@@ -84,7 +84,7 @@ On Windows and Linux, use `Ctrl` instead of `Cmd`.
 
 ## Contributing
 
-Entropy is early. Issues and small PRs are welcome when they match [`PRODUCT.md`](PRODUCT.md) and [`DESIGN.md`](DESIGN.md). Read [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`AGENTS.md`](AGENTS.md) before changing product or UI.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Open an issue if something is broken or you have a focused idea.
 
 ## License
 
