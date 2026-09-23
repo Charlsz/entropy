@@ -25,6 +25,11 @@ export interface WorkspaceSettings {
   inventoryPanelLayout: PanelLayoutState;
   /** User-added drives/folders for Library indexing. */
   inventoryExtraRoots: string[];
+  /**
+   * Library browse root when it is not Home (another drive, USB, or added folder).
+   * Null keeps the Home anchor.
+   */
+  libraryRootPath: string | null;
   /** Cached approximate bytes of ≥100MB files across Library roots. */
   largeFilesApproxBytes: number | null;
 }
@@ -72,6 +77,7 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],
+  libraryRootPath: null,
   largeFilesApproxBytes: null,
 };
 

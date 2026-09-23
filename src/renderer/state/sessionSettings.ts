@@ -16,6 +16,7 @@ export function toSessionSettings(settings: WorkspaceSettings) {
     panelLayout: { ...settings.panelLayout },
     inventoryPanelLayout: { ...settings.inventoryPanelLayout },
     inventoryExtraRoots: [...settings.inventoryExtraRoots],
+    libraryRootPath: settings.libraryRootPath,
     largeFilesApproxBytes: settings.largeFilesApproxBytes,
   };
 }
@@ -27,6 +28,7 @@ export function fromSessionSettings(
     libraryPerspective?: string;
     inventoryTreemapCollapsed?: boolean;
     largeFilesApproxBytes?: number | null;
+    libraryRootPath?: string | null;
     uiDensity?: string;
     theme?: string;
   };
@@ -57,6 +59,7 @@ export function fromSessionSettings(
     inventoryExtraRoots: Array.isArray(settings.inventoryExtraRoots)
       ? settings.inventoryExtraRoots.filter((item): item is string => typeof item === "string")
       : [],
+    libraryRootPath: typeof raw.libraryRootPath === "string" ? raw.libraryRootPath : null,
     largeFilesApproxBytes:
       typeof raw.largeFilesApproxBytes === "number"
         ? Math.max(0, Math.floor(raw.largeFilesApproxBytes))

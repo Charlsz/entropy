@@ -64,6 +64,7 @@ import { isProtectedOsPath, protectedPathMessage } from "../../shared/protectedP
 import { figma } from "../lib/figmaTokens";
 import { cn } from "../lib/utils";
 import { LARGE_FILE_BYTES, type LibraryPerspective } from "../types/library";
+import { libraryRootLabel } from "../lib/libraryRoots";
 
 type SortKey = "name" | "modified" | "size" | "type";
 
@@ -266,18 +267,31 @@ export function FilesPage({
           homeBootstrapped.current = true;
           const homeRoot = nextRoots.find((root) => root.id === "home");
           const label = homeRoot?.name ?? "Home";
-          setScanRoot(home);
-          if (samePath(workspace.currentFolder, workspace.path) || !workspace.currentFolder) {
-            bootstrapInventoryFolder(home, label);
+          const pinned = workspace.settings.libraryRootPath;
+          const pinnedExists = pinned ? await window.entropy.fs.exists(pinned) : false;
+          if (pinned && pinnedExists) {
+            const pinnedLabel = libraryRootLabel(pinned, nextRoots);
+            setScanRoot(pinned);
+            if (samePath(workspace.currentFolder, workspace.path) || !workspace.currentFolder) {
+              bootstrapInventoryFolder(pinned, pinnedLabel);
+            } else {
+              bootstrapInventoryFolder(workspace.currentFolder, pinnedLabel, pinned);
+            }
           } else {
-            const match = pickRoot(workspace.currentFolder, nextRoots);
-            const rootPath = match?.path ?? home;
-            setScanRoot(rootPath);
-            bootstrapInventoryFolder(
-              workspace.currentFolder,
-              match?.name ?? label,
-              rootPath,
-            );
+            if (pinned && !pinnedExists) updateSettings({ libraryRootPath: null });
+            setScanRoot(home);
+            if (samePath(workspace.currentFolder, workspace.path) || !workspace.currentFolder) {
+              bootstrapInventoryFolder(home, label);
+            } else {
+              const match = pickRoot(workspace.currentFolder, nextRoots);
+              const rootPath = match?.path ?? home;
+              setScanRoot(rootPath);
+              bootstrapInventoryFolder(
+                workspace.currentFolder,
+                match?.name ?? label,
+                rootPath,
+              );
+            }
           }
         }
       } catch {
@@ -292,6 +306,14 @@ export function FilesPage({
 
   useEffect(() => {
     if (!roots.length || !workspace.currentFolder) return;
+    const pinned = workspace.settings.libraryRootPath;
+    if (
+      pinned &&
+      (samePath(workspace.currentFolder, pinned) || isUnderPath(workspace.currentFolder, pinned))
+    ) {
+      if (!samePath(pinned, scanRoot)) setScanRoot(pinned);
+      return;
+    }
     const home = roots.find((root) => root.id === "home");
     // Stay anchored to Home while browsing under it so crumbs stay Home > Desktop > …
     // Named shortcuts (Desktop, Downloads, …) must not steal the breadcrumb root.
@@ -303,18 +325,11 @@ export function FilesPage({
     if (match && !samePath(match.path, scanRoot)) {
       setScanRoot(match.path);
     }
-  }, [roots, scanRoot, workspace.currentFolder]);
+  }, [roots, scanRoot, workspace.currentFolder, workspace.settings.libraryRootPath]);
 
   useEffect(() => {
     if (!scanRoot) return;
-    const home = roots.find((root) => root.id === "home");
-    const label =
-      home && samePath(scanRoot, home.path)
-        ? home.name
-        : (roots.find((root) => samePath(root.path, scanRoot))?.name ??
-          activeRoot?.name ??
-          "Home");
-    setInventoryRoot(scanRoot, label);
+    setInventoryRoot(scanRoot, libraryRootLabel(scanRoot, roots));
   }, [activeRoot?.name, roots, scanRoot, setInventoryRoot]);
 
   useEffect(() => {

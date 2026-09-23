@@ -17,6 +17,8 @@ export interface AppSettings {
   panelLayout: PanelLayoutState;
   inventoryPanelLayout: PanelLayoutState;
   inventoryExtraRoots: string[];
+  /** Drive or folder Library is browsing, when it is not Home. */
+  libraryRootPath: string | null;
   /** Cached approximate bytes of ≥100MB files across Library roots. */
   largeFilesApproxBytes: number | null;
 }
@@ -55,6 +57,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
   inventoryExtraRoots: [],
+  libraryRootPath: null,
   largeFilesApproxBytes: null,
 };
 
@@ -103,6 +106,11 @@ export async function loadSession(): Promise<AppSession> {
               (item): item is string => typeof item === "string",
             )
           : [],
+        libraryRootPath:
+          typeof (parsed.settings as { libraryRootPath?: unknown } | undefined)?.libraryRootPath ===
+          "string"
+            ? (parsed.settings as { libraryRootPath: string }).libraryRootPath
+            : null,
         largeFilesApproxBytes:
           typeof (parsed.settings as { largeFilesApproxBytes?: unknown } | undefined)
             ?.largeFilesApproxBytes === "number"

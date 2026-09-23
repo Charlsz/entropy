@@ -264,6 +264,8 @@ export interface AppSession {
       context: number;
     };
     inventoryExtraRoots?: string[];
+    /** Drive or folder Library is browsing, when it is not Home. */
+    libraryRootPath?: string | null;
     largeFilesApproxBytes?: number | null;
   };
 }
