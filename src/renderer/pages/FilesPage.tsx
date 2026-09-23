@@ -115,7 +115,9 @@ function hitToFileEntry(hit: GlobalSearchHit): FileEntry {
 }
 
 function normalizePerspective(value: string | undefined): LibraryPerspective {
-  if (value === "gallery" || value === "large-files" || value === "duplicates") return value;
+  if (value === "gallery" || value === "large-files" || value === "duplicates" || value === "recent") {
+    return value;
+  }
   return "folders";
 }
 
@@ -174,12 +176,18 @@ export function FilesPage({
   const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed ?? true;
   const trimmedSearch = searchQuery.trim();
   const isSearching = trimmedSearch.length > 0;
+  const [indexEpoch, setIndexEpoch] = useState(0);
+  const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentTruncated, setRecentTruncated] = useState(false);
+  const [recentScanId, setRecentScanId] = useState(0);
+  const forceRecentRef = useRef(false);
 
   useEffect(() => {
-    if ((rawPerspective as string) === "recent") {
-      updateSettings({ libraryPerspective: "folders" });
-    }
-  }, [rawPerspective, updateSettings]);
+    return window.entropy.library.onUpdated(() => {
+      setIndexEpoch((value) => value + 1);
+    });
+  }, []);
 
   // Titlebar map control: File Intelligence ↔ storage map ↔ hidden (one shared right panel).
   const selectedRef = useRef(selected);
@@ -522,12 +530,15 @@ export function FilesPage({
             );
           });
 
-          const [noteLists, inventoryHits] = await Promise.all([
-            Promise.all(noteSearches),
-            inventoryRoot
-              ? window.entropy.fs.searchInventoryNames(inventoryRoot, trimmedSearch)
-              : Promise.resolve([] as GlobalSearchHit[]),
-          ]);
+          const noteLists = await Promise.all(noteSearches);
+          const indexed = inventoryRoot
+            ? await window.entropy.library.search(inventoryRoot, trimmedSearch)
+            : { ready: false, truncated: false, hits: [] as GlobalSearchHit[] };
+          const inventoryHits = indexed.ready
+            ? indexed.hits
+            : inventoryRoot
+              ? await window.entropy.fs.searchInventoryNames(inventoryRoot, trimmedSearch)
+              : [];
           if (cancelled) return;
 
           const hits: GlobalSearchHit[] = [];
@@ -586,6 +597,41 @@ export function FilesPage({
     workspace.currentFolder,
     workspace.path,
     workspace.name,
+    indexEpoch,
+  ]);
+
+  useEffect(() => {
+    if (perspective !== "recent") return;
+    const root = scanRoot || workspace.inventoryScanRoot || workspace.currentFolder;
+    if (!root) return;
+    let cancelled = false;
+    setRecentLoading(true);
+    const force = forceRecentRef.current;
+    forceRecentRef.current = false;
+    void (async () => {
+      try {
+        const result = await window.entropy.library.recent(root, { force });
+        if (cancelled) return;
+        setRecentEntries(result.files);
+        setRecentTruncated(result.truncated);
+        setRecentLoading(!result.ready);
+      } catch {
+        if (!cancelled) {
+          setRecentEntries([]);
+          setRecentLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    perspective,
+    scanRoot,
+    workspace.inventoryScanRoot,
+    workspace.currentFolder,
+    recentScanId,
+    indexEpoch,
   ]);
 
   useEffect(() => {
@@ -653,18 +699,33 @@ export function FilesPage({
     return isSearching ? searchVisible : folderVisible;
   }, [folderVisible, searchVisible, isSearching]);
 
+  const recentVisible = useMemo(() => {
+    return [...recentEntries].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "name") cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      if (sortKey === "modified") cmp = b.modifiedAt - a.modifiedAt;
+      if (sortKey === "size") cmp = a.size - b.size;
+      if (sortKey === "type") cmp = a.extension.localeCompare(b.extension);
+      if (sortKey !== "modified") return sortAsc ? cmp : -cmp;
+      return sortAsc ? -cmp : cmp;
+    });
+  }, [recentEntries, sortAsc, sortKey]);
+
   const tableEntries =
     isSearching
       ? searchVisible
       : perspective === "large-files"
         ? largeFileVisible
-        : folderVisible;
+        : perspective === "recent"
+          ? recentVisible
+          : folderVisible;
 
-  const listLoading =
-    perspective === "large-files"
+  const listLoading = isSearching
+    ? searchLoading
+    : perspective === "large-files"
       ? largeFilesLoading
-      : isSearching
-        ? searchLoading
+      : perspective === "recent"
+        ? recentLoading
         : loading;
 
   function clearLibrarySearch(): void {
@@ -996,7 +1057,7 @@ export function FilesPage({
           </TooltipContent>
         </Tooltip>
       ) : null}
-      {perspective === "large-files" ? (
+      {perspective === "large-files" || perspective === "recent" ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1004,20 +1065,30 @@ export function FilesPage({
               variant="ghost"
               size="icon"
               className={chromeIconClass}
-              aria-label="Refresh large files"
-              disabled={largeFilesLoading}
-              onClick={refreshLargeFiles}
+              aria-label={perspective === "recent" ? "Refresh recent files" : "Refresh large files"}
+              disabled={perspective === "recent" ? recentLoading : largeFilesLoading}
+              onClick={() => {
+                if (perspective === "recent") {
+                  forceRecentRef.current = true;
+                  setRecentScanId((value) => value + 1);
+                  return;
+                }
+                refreshLargeFiles();
+              }}
             >
               <RefreshCw
                 className={cn(
                   "h-3.5 w-3.5",
-                  largeFilesLoading && "animate-spin motion-reduce:animate-none",
+                  (perspective === "recent" ? recentLoading : largeFilesLoading) &&
+                    "animate-spin motion-reduce:animate-none",
                 )}
                 strokeWidth={1.75}
               />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Refresh large files</TooltipContent>
+          <TooltipContent side="bottom">
+            {perspective === "recent" ? "Refresh recent files" : "Refresh large files"}
+          </TooltipContent>
         </Tooltip>
       ) : null}
     </div>
@@ -1233,6 +1304,26 @@ export function FilesPage({
             tableEntries,
             "No large files found",
             "Files over 100 MB under Home and your added Library roots will show up here.",
+          )}
+        </>
+      );
+    }
+
+    if (!isSearching && perspective === "recent") {
+      return (
+        <>
+          {pathChrome}
+          {recentTruncated ? (
+            <p className="shrink-0 px-6 py-2 text-[12px]" style={{ color: figma.muted }}>
+              This drive is large, so Recent stops after the files the index could read.
+            </p>
+          ) : null}
+          {renderFileTable(
+            tableEntries,
+            recentLoading ? "Reading this drive" : "No recent files",
+            recentLoading
+              ? "Entropy is indexing names on this drive. System folders are skipped."
+              : "Files you have touched on this drive will show up here.",
           )}
         </>
       );

@@ -62,6 +62,20 @@ const api: EntropyApi = {
       };
     },
   },
+  library: {
+    search: (rootPath, query) => ipcRenderer.invoke("library:search", rootPath, query),
+    recent: (rootPath, options) => ipcRenderer.invoke("library:recent", rootPath, options),
+    invalidate: (rootPath) => ipcRenderer.invoke("library:invalidate", rootPath),
+    onUpdated: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, info: { root: string }) => {
+        callback(info);
+      };
+      ipcRenderer.on("library:updated", listener);
+      return () => {
+        ipcRenderer.removeListener("library:updated", listener);
+      };
+    },
+  },
   fs: {
     listDir: (dirPath) => ipcRenderer.invoke("fs:listDir", dirPath),
     readText: (filePath) => ipcRenderer.invoke("fs:readText", filePath),

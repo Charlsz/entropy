@@ -12,7 +12,7 @@ export interface AppSettings {
   sidebarCollapsed: boolean;
   contextCollapsed: boolean;
   inventoryTreemapCollapsed: boolean;
-  libraryPerspective: "folders" | "gallery" | "large-files" | "duplicates";
+  libraryPerspective: "folders" | "gallery" | "large-files" | "duplicates" | "recent";
   uiDensity: "comfortable" | "default" | "compact";
   panelLayout: PanelLayoutState;
   inventoryPanelLayout: PanelLayoutState;
@@ -35,6 +35,7 @@ function normalizePerspective(
     value === "gallery" ||
     value === "large-files" ||
     value === "duplicates" ||
+    value === "recent" ||
     value === "folders"
   ) {
     return value;

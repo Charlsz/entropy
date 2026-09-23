@@ -3,13 +3,15 @@ export type LibraryPerspective =
   | "folders"
   | "gallery"
   | "large-files"
-  | "duplicates";
+  | "duplicates"
+  | "recent";
 
 export const PERSPECTIVE_LABELS: Record<LibraryPerspective, string> = {
   folders: "Folders",
   gallery: "Gallery",
   "large-files": "Large Files",
   duplicates: "Duplicates",
+  recent: "Recent",
 };
 
 /** Files larger than this belong in Large Files perspective. */

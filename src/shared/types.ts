@@ -175,6 +175,19 @@ export interface EntropyApi {
     cancel: () => Promise<void>;
     onProgress: (callback: (progress: DuplicateScanProgress) => void) => () => void;
   };
+  /** Rebuildable name index for the Library root the user is browsing. */
+  library: {
+    search: (
+      rootPath: string,
+      query: string,
+    ) => Promise<{ ready: boolean; truncated: boolean; hits: GlobalSearchHit[] }>;
+    recent: (
+      rootPath: string,
+      options?: { force?: boolean },
+    ) => Promise<{ ready: boolean; truncated: boolean; files: FileEntry[] }>;
+    invalidate: (rootPath: string) => Promise<void>;
+    onUpdated: (callback: (info: { root: string }) => void) => () => void;
+  };
   fs: {
     listDir: (dirPath: string) => Promise<FileEntry[]>;
     readText: (filePath: string) => Promise<string>;
@@ -251,7 +264,7 @@ export interface AppSession {
     sidebarCollapsed: boolean;
     contextCollapsed: boolean;
     inventoryTreemapCollapsed?: boolean;
-    libraryPerspective?: "folders" | "gallery" | "large-files" | "duplicates";
+    libraryPerspective?: "folders" | "gallery" | "large-files" | "duplicates" | "recent";
     uiDensity?: "comfortable" | "default" | "compact";
     panelLayout: {
       sidebar: number;

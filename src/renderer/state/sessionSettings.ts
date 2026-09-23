@@ -44,6 +44,7 @@ export function fromSessionSettings(
       perspective === "gallery" ||
       perspective === "large-files" ||
       perspective === "duplicates" ||
+      perspective === "recent" ||
       perspective === "folders"
         ? perspective
         : "folders",

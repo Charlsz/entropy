@@ -6,6 +6,7 @@ import * as filesystem from "./fs";
 import * as inventory from "./inventory";
 import { undoRemoves, finalizeTrash, finalizeOrphanedStaging } from "./trash";
 import { findExactDuplicates } from "./duplicates";
+import { recentLibraryIndex, searchLibraryIndex, invalidateLibraryIndex } from "./libraryIndex";
 import type { DuplicateScanProgress } from "./duplicates";
 import {
   DEFAULT_DUPLICATE_SCAN_SCOPE,
@@ -354,6 +355,16 @@ function registerIpc(): void {
   });
   ipcMain.handle("fs:unwatchAll", (event) => {
     unwatchAll(event.sender);
+  });
+
+  ipcMain.handle("library:search", (event, rootPath: string, query: string) =>
+    searchLibraryIndex(rootPath, query, event.sender),
+  );
+  ipcMain.handle("library:recent", (event, rootPath: string, options?: { force?: boolean }) =>
+    recentLibraryIndex(rootPath, event.sender, options),
+  );
+  ipcMain.handle("library:invalidate", (_event, rootPath: string) => {
+    invalidateLibraryIndex(rootPath);
   });
 
   ipcMain.handle("duplicates:scan", async (event, rootPath: string, scope?: string) => {

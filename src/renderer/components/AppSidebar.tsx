@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Clock,
   Copy,
   Database,
   FilePen,
@@ -215,6 +216,7 @@ export function AppSidebar({
             ["folders", FolderOpen],
             ["large-files", Package],
             ["duplicates", Copy],
+            ["recent", Clock],
           ] as const
         ).map(([id, icon]) => (
           <SidebarItem
