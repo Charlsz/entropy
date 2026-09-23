@@ -22,6 +22,7 @@
     "build:main": "tsc -p tsconfig.main.json",
     "build:preload": "tsc -p tsconfig.preload.json",
     "start": "npm run build && electron --disable-warning=DEP0180 .",
+    "dev": "node scripts/dev.mjs",
     "start:app": "electron --disable-warning=DEP0180 .",
     "dist": "npm run build && electron-builder --publish never",
     "dist:win": "npm run build && electron-builder --win --x64 --publish never",
