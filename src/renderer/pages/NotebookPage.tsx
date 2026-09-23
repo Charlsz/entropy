@@ -422,7 +422,7 @@ export function NotebookPage({
     filePath: string,
     perspective: "folders" | "gallery",
   ): Promise<void> {
-    updateSettings({ libraryPerspective: perspective, intelligenceView: null });
+    updateSettings({ libraryPerspective: perspective });
     try {
       const info = await window.entropy.fs.stat(filePath).catch(() => null);
       const dir = info?.isDirectory ? filePath : await window.entropy.fs.dirname(filePath);

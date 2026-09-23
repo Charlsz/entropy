@@ -1,5 +1,5 @@
 import type { Layout } from "react-resizable-panels";
-import type { IntelligenceView, LibraryPerspective } from "../types/library";
+import type { LibraryPerspective } from "../types/library";
 import type { SectionId } from "../types/section";
 
 export interface PanelLayoutState {
@@ -14,11 +14,8 @@ export interface WorkspaceSettings {
   contextCollapsed: boolean;
   /** Hide Inventory Storage map for a wide gallery. */
   inventoryTreemapCollapsed: boolean;
-  filesView: "list" | "grid";
   /** Active Library perspective (Folders / Gallery / …). */
   libraryPerspective: LibraryPerspective;
-  /** Intelligence stub view; null when browsing Library normally. */
-  intelligenceView: IntelligenceView | null;
   /** User interface density for font/icon chrome. */
   uiDensity: "comfortable" | "default" | "compact";
   panelLayout: PanelLayoutState;
@@ -80,9 +77,7 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   sidebarCollapsed: false,
   contextCollapsed: false,
   inventoryTreemapCollapsed: true,
-  filesView: "list",
   libraryPerspective: "folders",
-  intelligenceView: null,
   uiDensity: "default",
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },

@@ -97,4 +97,4 @@ Before adding anything to Library, ask:
 - **Yes** → belongs in Library (exact duplicates, browsing, gallery, large files, reclaim, safe delete, file intelligence).
 - **Maybe useful someday / meaning / writing** → Notebook, Intelligence stubs, a future extension, or not at all.
 
-Keep Library as Library. Prefer performance and clarity over hover/animation overload. Defer near-duplicates, auto-organize rules, and dashboards. Intelligence nav may ship as “Coming soon”.
+Keep Library as Library. Prefer performance and clarity over hover/animation overload. Defer near-duplicates, auto-organize rules, dashboards, and Intelligence destinations.

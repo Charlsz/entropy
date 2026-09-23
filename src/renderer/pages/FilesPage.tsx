@@ -169,7 +169,6 @@ export function FilesPage({
 
   const rawPerspective = workspace.settings.libraryPerspective ?? "folders";
   const perspective = normalizePerspective(rawPerspective as string);
-  const intelligenceView = workspace.settings.intelligenceView ?? null;
   const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed ?? true;
   const trimmedSearch = searchQuery.trim();
   const isSearching = trimmedSearch.length > 0;
@@ -201,14 +200,6 @@ export function FilesPage({
       updateSettings({ inventoryTreemapCollapsed: !collapsed });
     });
   }, [updateSettings]);
-
-  useEffect(() => {
-    if (intelligenceView) {
-      updateSettings({ intelligenceView: null });
-    }
-    // Clear retired Intelligence stubs from older sessions.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once when remnant is present
-  }, [intelligenceView]);
 
   const activeRoot = pickRoot(workspace.currentFolder, roots) ?? roots[0] ?? null;
   const rootLabel = activeRoot?.name ?? "Home";
@@ -254,7 +245,7 @@ export function FilesPage({
     },
     {
       recursive: true,
-      enabled: Boolean(workspace.currentFolder) && !intelligenceView && perspective !== "duplicates",
+      enabled: Boolean(workspace.currentFolder) && perspective !== "duplicates",
     },
   );
 
@@ -344,7 +335,7 @@ export function FilesPage({
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory" || !workspace.currentFolder) return;
-    if (intelligenceView || perspective === "duplicates") return;
+    if (perspective === "duplicates") return;
     let cancelled = false;
     void (async () => {
       try {
@@ -364,7 +355,6 @@ export function FilesPage({
     workspace.currentFolder,
     workspace.currentSection,
     diskEpoch,
-    intelligenceView,
     perspective,
   ]);
 
@@ -979,7 +969,6 @@ export function FilesPage({
               onClick={() =>
                 updateSettings({
                   libraryPerspective: perspective === "gallery" ? "folders" : "gallery",
-                  intelligenceView: null,
                 })
               }
             >

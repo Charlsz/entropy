@@ -91,17 +91,13 @@ export function AppSidebar({
   }, []);
 
   function goNotebook(): void {
-    updateSettings({ intelligenceView: null });
     visitSection("notebook");
   }
 
   function goLibrary(next?: LibraryPerspective): void {
     // Perspective navigation leaves search so Folders/Large Files/etc. show themselves.
     onSearchQueryChange("");
-    updateSettings({
-      intelligenceView: null,
-      ...(next ? { libraryPerspective: next } : {}),
-    });
+    if (next) updateSettings({ libraryPerspective: next });
     visitSection("inventory");
   }
 

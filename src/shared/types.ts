@@ -252,12 +252,10 @@ export interface AppSession {
   lastWorkspace: string | null;
   settings: {
     theme: "dark" | "light";
-    filesView: "list" | "grid";
     sidebarCollapsed: boolean;
     contextCollapsed: boolean;
     inventoryTreemapCollapsed?: boolean;
     libraryPerspective?: "folders" | "gallery" | "large-files" | "duplicates";
-    intelligenceView?: "relationships" | "copilot" | null;
     uiDensity?: "comfortable" | "default" | "compact";
     panelLayout: {
       sidebar: number;

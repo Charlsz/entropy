@@ -10,12 +10,10 @@ export interface PanelLayoutState {
 
 export interface AppSettings {
   theme: "dark" | "light";
-  filesView: "list" | "grid";
   sidebarCollapsed: boolean;
   contextCollapsed: boolean;
   inventoryTreemapCollapsed: boolean;
   libraryPerspective: "folders" | "gallery" | "large-files" | "duplicates";
-  intelligenceView: "relationships" | "copilot" | null;
   uiDensity: "comfortable" | "default" | "compact";
   panelLayout: PanelLayoutState;
   inventoryPanelLayout: PanelLayoutState;
@@ -55,13 +53,6 @@ function normalizePerspective(
   return "folders";
 }
 
-function normalizeIntelligence(
-  value: string | null | undefined,
-): AppSettings["intelligenceView"] {
-  if (value === "relationships" || value === "copilot") return value;
-  return null;
-}
-
 function normalizeDensity(value: string | undefined): AppSettings["uiDensity"] {
   if (value === "comfortable" || value === "compact" || value === "default") return value;
   return "default";
@@ -69,12 +60,10 @@ function normalizeDensity(value: string | undefined): AppSettings["uiDensity"] {
 
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "light",
-  filesView: "list",
   sidebarCollapsed: false,
   contextCollapsed: false,
   inventoryTreemapCollapsed: true,
   libraryPerspective: "folders",
-  intelligenceView: null,
   uiDensity: "default",
   panelLayout: { ...DEFAULT_PANEL_LAYOUT },
   inventoryPanelLayout: { ...DEFAULT_INVENTORY_PANEL_LAYOUT },
@@ -107,16 +96,12 @@ export async function loadSession(): Promise<AppSession> {
       lastWorkspace: typeof parsed.lastWorkspace === "string" ? parsed.lastWorkspace : null,
       settings: {
         theme: parsed.settings?.theme === "dark" ? "dark" : "light",
-        filesView: parsed.settings?.filesView === "grid" ? "grid" : "list",
         sidebarCollapsed: Boolean(parsed.settings?.sidebarCollapsed),
         contextCollapsed: Boolean(parsed.settings?.contextCollapsed),
         // Storage map is opt-in; never restore an open panel from a previous session.
         inventoryTreemapCollapsed: true,
         libraryPerspective: normalizePerspective(
           (parsed.settings as { libraryPerspective?: string } | undefined)?.libraryPerspective,
-        ),
-        intelligenceView: normalizeIntelligence(
-          (parsed.settings as { intelligenceView?: string | null } | undefined)?.intelligenceView,
         ),
         uiDensity: normalizeDensity(
           (parsed.settings as { uiDensity?: string } | undefined)?.uiDensity,

@@ -125,7 +125,7 @@ Treemap / size-map remains available as a power tool where useful, but Folders +
 
 ### Intelligence
 
-Sidebar entries for Relationships and File Copilot may appear early as calm “Coming soon” destinations — they must not invent fake cloud dependency or block local workflows.
+Sidebar entries for Relationships and File Copilot stay deferred. Do not show stub destinations, and do not invent a cloud dependency.
 
 ## Elevation & Depth
 
