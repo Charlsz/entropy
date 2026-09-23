@@ -115,7 +115,7 @@ async function createWindow(): Promise<BrowserWindow> {
   const icon = appIconPath();
   // Match session theme before first paint so Win/Linux overlays aren't briefly paper-white.
   const session = await loadSession().catch(() => null);
-  const chrome = chromeColors(session?.settings.theme === "light" ? "light" : "dark");
+  const chrome = chromeColors(session?.settings.theme === "dark" ? "dark" : "light");
   const win = new BrowserWindow({
     width: 1280,
     height: 800,

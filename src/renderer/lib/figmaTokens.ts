@@ -1,6 +1,6 @@
 /**
  * Theme-aware color tokens (CSS variables).
- * Dark is the product default; light remaps ink/paper via CSS variables.
+ * Light is the product default; dark remaps ink/paper via CSS variables.
  */
 export const figma = {
   ink: "var(--color-ink)",

@@ -44,7 +44,7 @@ export function App() {
         const session = await window.entropy.session.load();
         if (cancelled) return;
 
-        // Dark is the product default; respect an explicit saved light theme.
+        // Light is the product default; respect an explicit saved dark theme.
         const settings = fromSessionSettings(session.settings);
         setInitialSettings(settings);
         latestSettings.current = settings;
@@ -156,7 +156,7 @@ export function App() {
     content = (
       <div
         className="relative flex h-full flex-col items-center justify-center"
-        data-theme={initialSettings?.theme ?? "dark"}
+        data-theme={initialSettings?.theme ?? "light"}
         style={{ backgroundColor: figma.surface }}
       >
         <div className="absolute right-0 top-0">

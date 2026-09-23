@@ -76,7 +76,7 @@ export const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
 };
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
-  theme: "dark",
+  theme: "light",
   sidebarCollapsed: false,
   contextCollapsed: false,
   inventoryTreemapCollapsed: true,

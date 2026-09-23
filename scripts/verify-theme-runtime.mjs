@@ -102,7 +102,7 @@ app.whenReady().then(async () => {
       failures.push(`toggle back to dark failed: ${JSON.stringify(againDark)}`);
     }
 
-    // Bare html (no data-theme) must still be dark — product default.
+    // Bare html (no data-theme) must still be light — product default.
     const bare = await win.webContents.executeJavaScript(`
       (() => {
         document.documentElement.removeAttribute('data-theme');
@@ -110,8 +110,8 @@ app.whenReady().then(async () => {
         return cs.getPropertyValue('--background').trim();
       })()
     `);
-    if (bare !== "#131413") {
-      failures.push(`bare html default background expected #131413, got ${bare}`);
+    if (bare !== "#ffffff") {
+      failures.push(`bare html default background expected #ffffff, got ${bare}`);
     }
 
     win.destroy();

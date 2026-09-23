@@ -68,7 +68,7 @@ function normalizeDensity(value: string | undefined): AppSettings["uiDensity"] {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  theme: "dark",
+  theme: "light",
   filesView: "list",
   sidebarCollapsed: false,
   contextCollapsed: false,
@@ -106,7 +106,7 @@ export async function loadSession(): Promise<AppSession> {
     return {
       lastWorkspace: typeof parsed.lastWorkspace === "string" ? parsed.lastWorkspace : null,
       settings: {
-        theme: parsed.settings?.theme === "light" ? "light" : "dark",
+        theme: parsed.settings?.theme === "dark" ? "dark" : "light",
         filesView: parsed.settings?.filesView === "grid" ? "grid" : "list",
         sidebarCollapsed: Boolean(parsed.settings?.sidebarCollapsed),
         contextCollapsed: Boolean(parsed.settings?.contextCollapsed),

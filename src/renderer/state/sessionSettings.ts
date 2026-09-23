@@ -37,7 +37,7 @@ export function fromSessionSettings(
   const intelligence = raw.intelligenceView;
   const density = raw.uiDensity;
   return {
-    theme: raw.theme === "light" ? "light" : "dark",
+    theme: raw.theme === "dark" ? "dark" : "light",
     filesView: settings.filesView,
     sidebarCollapsed: Boolean(settings.sidebarCollapsed),
     contextCollapsed: Boolean(settings.contextCollapsed),

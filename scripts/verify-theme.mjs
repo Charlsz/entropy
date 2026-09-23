@@ -1,5 +1,5 @@
 /**
- * Static proofs that dark/light theme wiring cannot regress to "always light".
+ * Static proofs that light is the default and a saved dark theme is never wiped.
  * Run: node scripts/verify-theme.mjs
  */
 import fs from "node:fs";
@@ -45,62 +45,62 @@ const ok = (cond, msg) => {
     "App must not hardcode light on documentElement",
   );
   ok(
-    /initialSettings\?\.theme\s*\?\?\s*["']dark["']/.test(app),
-    "Boot splash fallback theme must be dark",
+    /initialSettings\?\.theme\s*\?\?\s*["']light["']/.test(app),
+    "Boot splash fallback theme must be light",
   );
 }
 
-// 3) Defaults are dark.
+// 3) Defaults are light. Saved dark stays dark.
 {
   const workspace = read("src/renderer/state/workspace.ts");
   ok(
-    /export const DEFAULT_SETTINGS[\s\S]*?theme:\s*["']dark["']/.test(workspace),
-    "DEFAULT_SETTINGS.theme must be dark",
+    /export const DEFAULT_SETTINGS[\s\S]*?theme:\s*["']light["']/.test(workspace),
+    "DEFAULT_SETTINGS.theme must be light",
   );
   ok(
-    !/createWorkspaceState[\s\S]*?theme:\s*["']light["']/.test(workspace),
-    "createWorkspaceState must not override theme to light",
+    !/createWorkspaceState[\s\S]*?theme:\s*["']dark["']/.test(workspace),
+    "createWorkspaceState must not override theme to dark",
   );
 
   const session = read("src/renderer/state/sessionSettings.ts");
   ok(
-    /theme:\s*raw\.theme\s*===\s*["']light["']\s*\?\s*["']light["']\s*:\s*["']dark["']/.test(
+    /theme:\s*raw\.theme\s*===\s*["']dark["']\s*\?\s*["']dark["']\s*:\s*["']light["']/.test(
       session,
     ),
-    "fromSessionSettings must default unknown themes to dark",
+    "fromSessionSettings must keep saved dark and default unknown themes to light",
   );
 }
 
-// 4) CSS: bare html is dark; light only when data-theme=light.
+// 4) CSS: bare html is light; dark only when data-theme=dark.
 {
   const css = read("src/renderer/styles/global.css");
-  const darkBlock = css.match(
-    /html,\s*\n\s*html\[data-theme="dark"\]\s*\{([\s\S]*?)\n\s*\}/,
+  const lightBlock = css.match(
+    /html,\s*\n\s*html\[data-theme="light"\]\s*\{([\s\S]*?)\n\s*\}/,
   );
-  const lightBlock = css.match(/html\[data-theme="light"\]\s*\{([\s\S]*?)\n\s*\}/);
-  ok(Boolean(darkBlock), 'CSS must define tokens on html, html[data-theme="dark"]');
-  ok(Boolean(lightBlock), 'CSS must define tokens on html[data-theme="light"]');
-  ok(
-    darkBlock?.[1]?.includes("--background: #131413"),
-    "Default/dark CSS background must be #131413",
-  );
+  const darkBlock = css.match(/html\[data-theme="dark"\]\s*\{([\s\S]*?)\n\s*\}/);
+  ok(Boolean(lightBlock), 'CSS must define tokens on html, html[data-theme="light"]');
+  ok(Boolean(darkBlock), 'CSS must define tokens on html[data-theme="dark"]');
   ok(
     lightBlock?.[1]?.includes("--background: #ffffff") ||
       lightBlock?.[1]?.includes("--background: #fff"),
-    "Light CSS background must be white",
+    "Default/light CSS background must be white",
   );
   ok(
-    !/html,\s*\n\s*html\[data-theme="light"\]/.test(css),
-    "Bare html must not share the light token block",
+    darkBlock?.[1]?.includes("--background: #131413"),
+    "Dark CSS background must be #131413",
+  );
+  ok(
+    !/html,\s*\n\s*html\[data-theme="dark"\]/.test(css),
+    "Bare html must not share the dark token block",
   );
 }
 
-// 5) index.html paints dark before JS.
+// 5) index.html paints light before JS.
 {
   const html = read("src/renderer/index.html");
   ok(
-    /<html[^>]*data-theme="dark"/.test(html),
-    'index.html must set data-theme="dark" on <html>',
+    /<html[^>]*data-theme="light"/.test(html),
+    'index.html must set data-theme="light" on <html>',
   );
 }
 
@@ -126,11 +126,11 @@ const ok = (cond, msg) => {
 
 // 7) Simulate session → applied theme round-trip (mirrors fromSessionSettings).
 {
-  const apply = (raw) => (raw === "light" ? "light" : "dark");
-  ok(apply(undefined) === "dark", "missing session theme → dark");
+  const apply = (raw) => (raw === "dark" ? "dark" : "light");
+  ok(apply(undefined) === "light", "missing session theme → light");
   ok(apply("dark") === "dark", "saved dark → dark");
   ok(apply("light") === "light", "saved light → light");
-  ok(apply("nonsense") === "dark", "invalid session theme → dark");
+  ok(apply("nonsense") === "light", "invalid session theme → light");
 }
 
 if (failures.length) {
@@ -139,4 +139,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("THEME VERIFY OK — dark default, light opt-in, no force-to-light writers.");
+console.log("THEME VERIFY OK — light default, saved dark kept, no force-to-light writers.");

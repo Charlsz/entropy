@@ -32,48 +32,10 @@
 
   /*
    * Theme tokens on html so portaled menus inherit.
-   * Bare html + data-theme=dark = product default (dark).
-   * Light only when explicitly selected.
+   * Bare html + data-theme=light = product default (light).
+   * Dark only when explicitly selected.
    */
   html,
-  html[data-theme="dark"] {
-    --color-ink: #fafaf9;
-    --color-surface: #131413;
-    --color-canvas: #1c1d1c;
-    --color-border: color-mix(in srgb, #fafaf9 12%, #131413);
-    --color-muted: #c8c8c6;
-    --color-select: color-mix(in srgb, #6a7ba2 32%, #131413);
-    --color-accent: #8a9bb8;
-
-    --ink: #131413;
-    --ink-2: #1c1d1c;
-    --paper: #fafaf9;
-    --paper-2: #c8c8c6;
-    --background: #131413;
-    --foreground: #fafaf9;
-    --card: #1c1d1c;
-    --card-foreground: #fafaf9;
-    --primary: #fafaf9;
-    --primary-foreground: #131413;
-    --secondary: #1c1d1c;
-    --secondary-foreground: #fafaf9;
-    --muted: #1c1d1c;
-    --muted-foreground: color-mix(in srgb, #fafaf9 62%, #131413);
-    --accent: color-mix(in srgb, #6a7ba2 32%, #131413);
-    --accent-foreground: #fafaf9;
-    --select: color-mix(in srgb, #6a7ba2 32%, #131413);
-    --accent-bar: #8a9bb8;
-    --destructive: #c8c8c6;
-    --destructive-foreground: #131413;
-    --border: color-mix(in srgb, #fafaf9 12%, #131413);
-    --input: #1c1d1c;
-    --ring: color-mix(in srgb, #fafaf9 50%, #131413);
-    --rail: #131413;
-    --panel: #1c1d1c;
-    --scrollbar: color-mix(in srgb, #fafaf9 16%, transparent);
-    --scrollbar-hover: color-mix(in srgb, #fafaf9 28%, transparent);
-  }
-
   html[data-theme="light"] {
     --color-ink: #131413;
     --color-surface: #fafaf9;
@@ -110,6 +72,44 @@
     --panel: #fafaf9;
     --scrollbar: color-mix(in srgb, #131413 14%, transparent);
     --scrollbar-hover: color-mix(in srgb, #131413 26%, transparent);
+  }
+
+  html[data-theme="dark"] {
+    --color-ink: #fafaf9;
+    --color-surface: #131413;
+    --color-canvas: #1c1d1c;
+    --color-border: color-mix(in srgb, #fafaf9 12%, #131413);
+    --color-muted: #c8c8c6;
+    --color-select: color-mix(in srgb, #6a7ba2 32%, #131413);
+    --color-accent: #8a9bb8;
+
+    --ink: #131413;
+    --ink-2: #1c1d1c;
+    --paper: #fafaf9;
+    --paper-2: #c8c8c6;
+    --background: #131413;
+    --foreground: #fafaf9;
+    --card: #1c1d1c;
+    --card-foreground: #fafaf9;
+    --primary: #fafaf9;
+    --primary-foreground: #131413;
+    --secondary: #1c1d1c;
+    --secondary-foreground: #fafaf9;
+    --muted: #1c1d1c;
+    --muted-foreground: color-mix(in srgb, #fafaf9 62%, #131413);
+    --accent: color-mix(in srgb, #6a7ba2 32%, #131413);
+    --accent-foreground: #fafaf9;
+    --select: color-mix(in srgb, #6a7ba2 32%, #131413);
+    --accent-bar: #8a9bb8;
+    --destructive: #c8c8c6;
+    --destructive-foreground: #131413;
+    --border: color-mix(in srgb, #fafaf9 12%, #131413);
+    --input: #1c1d1c;
+    --ring: color-mix(in srgb, #fafaf9 50%, #131413);
+    --rail: #131413;
+    --panel: #1c1d1c;
+    --scrollbar: color-mix(in srgb, #fafaf9 16%, transparent);
+    --scrollbar-hover: color-mix(in srgb, #fafaf9 28%, transparent);
   }
 
   :root,
