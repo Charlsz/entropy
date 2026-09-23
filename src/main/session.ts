@@ -1,12 +1,11 @@
 import { app } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
-
-export interface PanelLayoutState {
-  sidebar: number;
-  main: number;
-  context: number;
-}
+import {
+  DEFAULT_INVENTORY_PANEL_LAYOUT,
+  DEFAULT_PANEL_LAYOUT,
+  type PanelLayoutState,
+} from "../shared/layout";
 
 export interface AppSettings {
   theme: "dark" | "light";
@@ -26,18 +25,6 @@ export interface AppSession {
   lastWorkspace: string | null;
   settings: AppSettings;
 }
-
-const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 16,
-  main: 66,
-  context: 18,
-};
-
-const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 0,
-  main: 72,
-  context: 28,
-};
 
 function normalizePerspective(
   value: string | undefined,

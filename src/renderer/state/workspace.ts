@@ -1,12 +1,14 @@
 import type { Layout } from "react-resizable-panels";
 import type { LibraryPerspective } from "../types/library";
 import type { SectionId } from "../types/section";
+import {
+  DEFAULT_INVENTORY_PANEL_LAYOUT,
+  DEFAULT_PANEL_LAYOUT,
+  type PanelLayoutState,
+} from "../../shared/layout";
 
-export interface PanelLayoutState {
-  sidebar: number;
-  main: number;
-  context: number;
-}
+export type { PanelLayoutState };
+export { DEFAULT_INVENTORY_PANEL_LAYOUT, DEFAULT_PANEL_LAYOUT };
 
 export interface WorkspaceSettings {
   theme: "dark" | "light";
@@ -59,18 +61,6 @@ export interface WorkspaceState {
   navHistory: NavEntry[];
   navHistoryIndex: number;
 }
-
-export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 20,
-  main: 58,
-  context: 22,
-};
-
-export const DEFAULT_INVENTORY_PANEL_LAYOUT: PanelLayoutState = {
-  sidebar: 0,
-  main: 72,
-  context: 28,
-};
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
   theme: "light",
