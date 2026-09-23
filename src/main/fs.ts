@@ -523,23 +523,6 @@ export async function findDuplicates(
   return matches.filter((entry): entry is FileEntry => entry != null).slice(0, DUP_MAX_RESULTS);
 }
 
-export function joinPath(...parts: string[]): string {
-  return path.join(...parts);
-}
-
-export function dirnamePath(filePath: string): string {
-  return path.dirname(filePath);
-}
-
-export function basenamePath(filePath: string): string {
-  return path.basename(filePath);
-}
-
-export function relativePath(fromPath: string, toPath: string): string {
-  const relative = path.relative(fromPath, toPath);
-  return relative.split(path.sep).join("/");
-}
-
 export async function createNote(dirPath: string, name?: string): Promise<string> {
   const base = (name?.trim() || "Untitled").replace(/[<>:"/\\|?*]/g, "").replace(/\.md$/i, "");
   let filePath = path.join(dirPath, `${base}.md`);

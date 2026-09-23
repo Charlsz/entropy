@@ -16,6 +16,7 @@ import { formatMarkdownHref } from "../lib/markdownBlocks";
 import { listLocalFileReferences } from "../lib/noteContext";
 import { revealPath } from "../lib/itemActions";
 import { osRevealLabel } from "../lib/platform";
+import { dirname, relative } from "../lib/paths";
 
 /** Prefer the real filename for linked / embedded files. */
 function linkDisplayLabel(link: NoteLink): string {
@@ -181,9 +182,9 @@ export function NoteContextPanel({
     if (!notePath) return;
     const picked = await window.entropy.fs.pickFile();
     if (!picked) return;
-    const noteDir = await window.entropy.fs.dirname(notePath);
-    const relative = await window.entropy.fs.relative(noteDir, picked);
-    const nextHref = relative.replace(/\\/g, "/");
+    const noteDir = dirname(notePath);
+    const relativeHref = relative(noteDir, picked);
+    const nextHref = relativeHref.replace(/\\/g, "/");
     const wrapped = formatMarkdownHref(nextHref);
     const next = rewriteMarkdownHref(rawContent, href, wrapped);
     setRawContent(next);

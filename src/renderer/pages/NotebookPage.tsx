@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { ChevronDown, FilePlus2, MoreHorizontal } from "lucide-react";
 import type { FileEntry, RecentWorkspace } from "../../shared/types";
 import { useWorkspace } from "../state/useWorkspace";
+import { dirname, join, relative as toRelative } from "../lib/paths";
 import { MarkdownEditor, type MarkdownEditorHandle } from "../pages/MarkdownEditor";
 import { Button } from "../components/ui/button";
 import {
@@ -162,11 +163,11 @@ export function NotebookPage({
   }, [pendingNote, onPendingNoteHandled]);
 
   const buildReferenceMarkdown = useCallback(async (notePath: string, entry: FileEntry) => {
-    const noteDir = await window.entropy.fs.dirname(notePath);
-    const relative = await window.entropy.fs.relative(noteDir, entry.path);
+    const noteDir = dirname(notePath);
+    const rel = toRelative(noteDir, entry.path);
     // Prefer note-relative; keep absolute when relative still looks drive-rooted.
-    let href = (relative || entry.path).replace(/\\/g, "/");
-    if (/^[a-zA-Z]:/.test(relative) || relative.startsWith("\\\\")) {
+    let href = (rel || entry.path).replace(/\\/g, "/");
+    if (/^[a-zA-Z]:/.test(rel) || rel.startsWith("\\\\")) {
       href = entry.path.replace(/\\/g, "/");
     }
     const label = entry.isDirectory ? entry.name : entry.name.replace(/\.md$/i, "");
@@ -396,9 +397,9 @@ export function NotebookPage({
       const nextName = isMarkdown ? trimmed.replace(/\.md$/i, "") : trimmed;
       if (!nextName) return;
 
-      const dir = await window.entropy.fs.dirname(filePath);
+      const dir = dirname(filePath);
       const targetName = isMarkdown ? `${nextName}.md` : nextName;
-      const target = await window.entropy.fs.join(dir, targetName);
+      const target = join(dir, targetName);
       if (samePath(target, filePath)) return;
       if (await window.entropy.fs.exists(target)) {
         throw new Error("An item with that name already exists.");
@@ -425,7 +426,7 @@ export function NotebookPage({
     updateSettings({ libraryPerspective: perspective });
     try {
       const info = await window.entropy.fs.stat(filePath).catch(() => null);
-      const dir = info?.isDirectory ? filePath : await window.entropy.fs.dirname(filePath);
+      const dir = info?.isDirectory ? filePath : dirname(filePath);
       openFolder(dir);
     } catch {
       // Fall back to switching Library even if dirname fails.

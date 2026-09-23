@@ -59,6 +59,7 @@ import {
 } from "../lib/treemapCache";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { isUnderPath, osTrashName, samePath, hostPlatform } from "../lib/platform";
+import { dirname, join } from "../lib/paths";
 import { isProtectedOsPath, protectedPathMessage } from "../../shared/protectedPaths";
 import { figma } from "../lib/figmaTokens";
 import { cn } from "../lib/utils";
@@ -684,7 +685,7 @@ export function FilesPage({
       }
       // Open file: leave search, land in its folder, keep File Intelligence.
       try {
-        const dir = await window.entropy.fs.dirname(entry.path);
+        const dir = dirname(entry.path);
         setPendingSelectPath(entry.path);
         clearLibrarySearch();
         openFolder(dir);
@@ -713,8 +714,8 @@ export function FilesPage({
     if (!nextName || nextName === entry.name) return;
 
     try {
-      const dir = await window.entropy.fs.dirname(entry.path);
-      const target = await window.entropy.fs.join(dir, nextName);
+      const dir = dirname(entry.path);
+      const target = join(dir, nextName);
       if (await window.entropy.fs.exists(target)) {
         setError("A file with that name already exists.");
         return;
@@ -787,7 +788,7 @@ export function FilesPage({
         },
       });
       setError(null);
-      const parent = await window.entropy.fs.dirname(targetPath).catch(() => "");
+      const parent = dirname(targetPath);
       if (parent) invalidateFolderPreview(parent);
       await refresh();
     } catch (err) {

@@ -88,10 +88,6 @@ const api: EntropyApi = {
     findDuplicates: (rootPath, filePath) =>
       ipcRenderer.invoke("fs:findDuplicates", rootPath, filePath),
     createNote: (dirPath, name) => ipcRenderer.invoke("fs:createNote", dirPath, name),
-    join: (...parts) => ipcRenderer.invoke("fs:join", ...parts),
-    dirname: (filePath) => ipcRenderer.invoke("fs:dirname", filePath),
-    basename: (filePath) => ipcRenderer.invoke("fs:basename", filePath),
-    relative: (fromPath, toPath) => ipcRenderer.invoke("fs:relative", fromPath, toPath),
     toUrl: (filePath) => ipcRenderer.invoke("fs:toUrl", filePath),
     toThumbUrl: (filePath) => ipcRenderer.invoke("fs:toThumbUrl", filePath),
     resolveEmbedTarget: (target, notePath, workspacePath) =>

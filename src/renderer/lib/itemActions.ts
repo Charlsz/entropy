@@ -1,5 +1,6 @@
 import type { ItemAction } from "../components/ItemActionsMenu";
 import { revealInFolderLabel } from "../../shared/platform";
+import { basename, join } from "./paths";
 
 export type { ItemAction };
 
@@ -19,8 +20,8 @@ export async function moveEntryToFolder(
   sourcePath: string,
   destinationFolder: string,
 ): Promise<string> {
-  const name = await window.entropy.fs.basename(sourcePath);
-  const target = await window.entropy.fs.join(destinationFolder, name);
+  const name = basename(sourcePath);
+  const target = join(destinationFolder, name);
   if (target === sourcePath) return sourcePath;
   if (await window.entropy.fs.exists(target)) {
     throw new Error("An item with that name already exists in the destination.");

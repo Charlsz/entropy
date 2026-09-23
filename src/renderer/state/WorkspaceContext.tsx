@@ -20,6 +20,7 @@ import {
   type WorkspaceState,
 } from "./workspace";
 import { samePath } from "../lib/platform";
+import { dirname, join } from "../lib/paths";
 
 export type FolderNavMode = "push" | "replace";
 
@@ -300,7 +301,7 @@ export function WorkspaceProvider({
         .replace(/^[/\\]+/, "");
       const parts = relative ? relative.split(/[/\\]/) : [];
       const nextParts = parts.slice(0, index + 1);
-      const next = await window.entropy.fs.join(root, ...nextParts);
+      const next = join(root, ...nextParts);
       goToFolder(next, "push", { activate: true });
     },
     [goToFolder, workspace.currentFolder, workspace.inventoryScanRoot],
@@ -378,7 +379,7 @@ export function WorkspaceProvider({
     async (filePath: string) => {
       addRecentFile(filePath);
       try {
-        const dir = await window.entropy.fs.dirname(filePath);
+        const dir = dirname(filePath);
         setWorkspace((prev) => pushEntry(prev, navPreview(filePath, dir), "push"));
       } catch {
         visitSection("inventory");

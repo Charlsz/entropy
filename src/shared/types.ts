@@ -198,10 +198,6 @@ export interface EntropyApi {
     searchInventoryNames: (rootPath: string, query: string) => Promise<GlobalSearchHit[]>;
     findBacklinks: (rootPath: string, notePath: string) => Promise<NoteSearchResult[]>;
     createNote: (dirPath: string, name?: string) => Promise<string>;
-    join: (...parts: string[]) => Promise<string>;
-    dirname: (filePath: string) => Promise<string>;
-    basename: (filePath: string) => Promise<string>;
-    relative: (fromPath: string, toPath: string) => Promise<string>;
     toUrl: (filePath: string) => Promise<string>;
     toThumbUrl: (filePath: string) => Promise<string>;
     /** Resolve `![[target]]` / image href: absolute, note-relative, workspace, then basename search. */

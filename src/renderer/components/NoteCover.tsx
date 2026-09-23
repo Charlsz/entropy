@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { cn } from "../lib/utils";
+import { dirname, join } from "../lib/paths";
 
 interface NoteCoverProps {
   notePath: string;
@@ -19,8 +20,8 @@ export function NoteCover({ notePath, coverHref, className }: NoteCoverProps) {
           if (!cancelled) setUrl(coverHref);
           return;
         }
-        const noteDir = await window.entropy.fs.dirname(notePath);
-        const absolute = await window.entropy.fs.join(noteDir, coverHref);
+        const noteDir = dirname(notePath);
+        const absolute = join(noteDir, coverHref);
         if (!(await window.entropy.fs.exists(absolute))) {
           if (!cancelled) setUrl(null);
           return;

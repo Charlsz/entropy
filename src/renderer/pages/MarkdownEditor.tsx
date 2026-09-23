@@ -12,6 +12,7 @@ import { Columns2, Eye, PanelRight, PenLine } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 import type { NoteSearchResult } from "../../shared/types";
 import { registerFlush } from "../state/flushRegistry";
+import { basename, dirname, join, relative as toRelative } from "../lib/paths";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Empty, EmptyDescription, EmptyTitle } from "../components/ui/empty";
@@ -628,12 +629,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   async function insertFileLink(filePath: string): Promise<void> {
     if (!activeTab || activeTab.missing) return;
-    const noteDir = await window.entropy.fs.dirname(activeTab.path);
-    const relative = await window.entropy.fs.relative(noteDir, filePath);
-    const name = await window.entropy.fs.basename(filePath);
+    const noteDir = dirname(activeTab.path);
+    const rel = toRelative(noteDir, filePath);
+    const name = basename(filePath);
     const info = await window.entropy.fs.stat(filePath);
-    let href = (relative || filePath).replace(/\\/g, "/");
-    if (/^[a-zA-Z]:/.test(relative) || relative.startsWith("\\\\")) {
+    let href = (rel || filePath).replace(/\\/g, "/");
+    if (/^[a-zA-Z]:/.test(rel) || rel.startsWith("\\\\")) {
       href = filePath.replace(/\\/g, "/");
     }
     const snippet = portableFileMarkdown(href, info.extension || "", name);
@@ -648,8 +649,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       return;
     }
     try {
-      const dir = await window.entropy.fs.dirname(activeTab.path);
-      const target = await window.entropy.fs.join(dir, `${nextTitle}.md`);
+      const dir = dirname(activeTab.path);
+      const target = join(dir, `${nextTitle}.md`);
       if (await window.entropy.fs.exists(target)) {
         setStatusMessage("A note with that name already exists.");
         setTitleDraft(activeTab.title);

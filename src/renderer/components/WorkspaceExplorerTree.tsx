@@ -13,6 +13,7 @@ import type { ItemAction } from "./ItemActionsMenu";
 import { ItemContextMenu } from "./ItemContextMenu";
 import { figma } from "../lib/figmaTokens";
 import { isUnderPath, samePath } from "../lib/platform";
+import { join, relative as toRelative } from "../lib/paths";
 import { cn } from "../lib/utils";
 
 interface WorkspaceExplorerTreeProps {
@@ -117,16 +118,15 @@ export function WorkspaceExplorerTree({
     let cancelled = false;
     void (async () => {
       try {
-        const relative = await window.entropy.fs.relative(rootPath, activeFilePath);
-        if (cancelled || !relative || relative.startsWith("..")) return;
-        const parts = relative.replace(/\\/g, "/").split("/").filter(Boolean);
+        const rel = toRelative(rootPath, activeFilePath);
+        if (cancelled || !rel || rel.startsWith("..")) return;
+        const parts = rel.replace(/\\/g, "/").split("/").filter(Boolean);
         if (parts.length <= 1) return;
 
-        // Use main-process join so keys match listDir paths on every OS.
         const folders: string[] = [];
         let cursor = rootPath;
         for (let i = 0; i < parts.length - 1; i += 1) {
-          cursor = await window.entropy.fs.join(cursor, parts[i]!);
+          cursor = join(cursor, parts[i]!);
           folders.push(cursor);
         }
         if (cancelled) return;

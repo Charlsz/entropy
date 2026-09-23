@@ -243,12 +243,6 @@ function registerIpc(): void {
   ipcMain.handle("fs:createNote", (_event, dirPath: string, name?: string) =>
     filesystem.createNote(dirPath, name),
   );
-  ipcMain.handle("fs:join", (_event, ...parts: string[]) => filesystem.joinPath(...parts));
-  ipcMain.handle("fs:dirname", (_event, filePath: string) => filesystem.dirnamePath(filePath));
-  ipcMain.handle("fs:basename", (_event, filePath: string) => filesystem.basenamePath(filePath));
-  ipcMain.handle("fs:relative", (_event, fromPath: string, toPath: string) =>
-    filesystem.relativePath(fromPath, toPath),
-  );
   ipcMain.handle("fs:toUrl", (_event, filePath: string) => toEntropyUrl(filePath));
   ipcMain.handle("fs:toThumbUrl", (_event, filePath: string) => toEntropyThumbUrl(filePath));
   ipcMain.handle(
