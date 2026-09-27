@@ -2,6 +2,8 @@ import { app, dialog, type BrowserWindow } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { RecentWorkspace } from "../shared/types";
+import { assertPathMutable } from "../shared/protectedPaths";
+import { noteFilesystemChanged } from "./libraryIndex";
 
 const MAX_RECENT = 12;
 
@@ -116,6 +118,9 @@ export async function renameWorkspace(
     return normalized;
   }
 
+  assertPathMutable(normalized, process.platform, "rename");
+  assertPathMutable(target, process.platform, "rename into");
+
   try {
     await fs.access(target);
     throw new Error("A folder with that name already exists.");
@@ -126,6 +131,8 @@ export async function renameWorkspace(
   }
 
   await fs.rename(normalized, target);
+  noteFilesystemChanged(normalized);
+  noteFilesystemChanged(target);
 
   const items = await readRecent();
   const filtered = items.filter((item) => {
