@@ -112,6 +112,12 @@ export function VirtualGalleryGrid({ count, className, children }: VirtualGaller
     estimateSize: () => rowHeight,
     overscan: 4,
   });
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
+
+  useEffect(() => {
+    virtualizerRef.current.measure();
+  }, [columns, rowHeight, rowCount]);
 
   return (
     <div
