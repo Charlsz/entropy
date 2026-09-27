@@ -25,18 +25,23 @@ export function searchSnapshot(
 ): { truncated: boolean; hits: GlobalSearchHit[] } {
   const trimmed = query.trim().toLowerCase();
   if (!trimmed) return { truncated: snapshot.truncated, hits: [] };
-  const hits: GlobalSearchHit[] = [];
+  const prefix: GlobalSearchHit[] = [];
+  const contains: GlobalSearchHit[] = [];
   for (const entry of snapshot.entries) {
-    if (!entry.name.toLowerCase().includes(trimmed)) continue;
-    hits.push({
+    const index = entry.name.toLowerCase().indexOf(trimmed);
+    if (index < 0) continue;
+    const hit: GlobalSearchHit = {
       path: entry.path,
       name: entry.name,
       excerpt: entry.path,
       source: entry.isDirectory ? "folder" : "file",
-    });
-    if (hits.length >= SEARCH_LIMIT) break;
+    };
+    if (index === 0) prefix.push(hit);
+    else contains.push(hit);
   }
-  return { truncated: snapshot.truncated, hits };
+  const total = prefix.length + contains.length;
+  const hits = [...prefix, ...contains].slice(0, SEARCH_LIMIT);
+  return { truncated: snapshot.truncated || total > SEARCH_LIMIT, hits };
 }
 
 export function recentSnapshot(
