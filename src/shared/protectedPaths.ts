@@ -228,7 +228,6 @@ export function isProtectedOsDirName(name: string, platform: HostPlatform): bool
   }
 
   if (platform === "darwin" && name === "Library") return true;
-  if (platform === "darwin" && name.toLowerCase() === "applications") return true;
 
   return false;
 }

@@ -25,6 +25,15 @@ describe("protected paths", () => {
     expect(() => assertPathMutable("C:\\Users\\ada\\file.txt", "win32", "trash")).not.toThrow();
   });
 
+  it("blocks the system Applications folder and allows a user Applications folder", () => {
+    expect(isUnsafeReclaimPath("/Applications/Safari.app/Contents/Info.plist", "darwin")).toBe(
+      true,
+    );
+    expect(
+      isUnsafeReclaimPath("/Users/ada/Applications/MyApp.app/Contents/Info.plist", "darwin"),
+    ).toBe(false);
+  });
+
   it("treats tooling directories as unsafe to reclaim", () => {
     expect(isUnsafeReclaimPath("C:\\Users\\ada\\proj\\node_modules\\pkg\\index.js", "win32")).toBe(
       true,
