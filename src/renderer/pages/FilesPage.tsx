@@ -139,6 +139,8 @@ export function FilesPage({
   const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed ?? true;
   const trimmedSearch = searchQuery.trim();
   const isSearching = trimmedSearch.length > 0;
+  const isSearchingRef = useRef(false);
+  isSearchingRef.current = isSearching;
   const [indexEpoch, setIndexEpoch] = useState(0);
   const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
@@ -192,7 +194,7 @@ export function FilesPage({
         const stillHere = listing.find((entry) => entry.path === current.path);
         if (stillHere) return stillHere;
         // Global search hits often live outside the open folder — keep FI open.
-        if (isSearching) return current;
+        if (isSearchingRef.current) return current;
         return null;
       });
       if (quiet) setError(null);
@@ -201,7 +203,7 @@ export function FilesPage({
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [workspace.currentFolder, isSearching]);
+  }, [workspace.currentFolder]);
 
   const refresh = useCallback(async () => {
     await refreshListing({ quiet: true });
@@ -305,7 +307,6 @@ export function FilesPage({
 
   useEffect(() => {
     if (workspace.currentSection !== "inventory") return;
-    setSelected(null);
     void refreshListing();
   }, [refreshListing, workspace.currentSection]);
 
@@ -1240,7 +1241,7 @@ export function FilesPage({
                   homePath={homePath}
                   selected={selected?.path === entry.path}
                   dropTarget={false}
-                  sizePending={false}
+                  sizePending={entry.isDirectory && sizeByPath[entry.path] === undefined}
                   onSelect={() => selectLibraryEntry(entry)}
                   onOpen={() => void openEntry(entry)}
                   onDragStart={(event) => onDragStart(event, entry)}
@@ -1323,6 +1324,7 @@ export function FilesPage({
             context={
               selected && !selected.isDirectory ? (
                 <FileIntelligencePanel
+                  key={selected.path}
                   entry={selected}
                   scanRoot={scanRoot}
                   onClose={() => setSelected(null)}

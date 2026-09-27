@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import type { FileEntry } from "../../shared/types";
 import { findFileConnections } from "../lib/fileConnections";
-import { formatBytes, formatModifiedLabel } from "../lib/format";
+import { formatModifiedLabel, formatSimilarConsumption } from "../lib/format";
 import { isPreviewableEntry, mediaKind } from "../lib/media";
 import { figma } from "../lib/figmaTokens";
 import { useWorkspace } from "../state/useWorkspace";
@@ -60,7 +60,7 @@ export function FileIntelligencePanel({
       if (cancelled) return;
       const others = dups.filter((item) => item.path !== entry.path);
       setRelatedCount(others.length);
-      setDupBytes(others.reduce((sum, item) => sum + (item.size || entry.size), 0));
+      setDupBytes(others.reduce((sum, item) => sum + item.size, 0));
     })();
     return () => {
       cancelled = true;
@@ -168,7 +168,7 @@ export function FileIntelligencePanel({
               <>
                 Consuming{" "}
                 <strong className="font-semibold">
-                  {dupBytes == null ? "…" : formatBytes(dupBytes || entry.size)}
+                  {formatSimilarConsumption(dupBytes)}
                 </strong>{" "}
                 with similar files
               </>

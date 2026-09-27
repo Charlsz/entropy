@@ -1,3 +1,12 @@
+/**
+ * Label for File Intelligence "consuming … with similar files".
+ * Zero other bytes must stay zero — a file with no duplicates is not consuming its own size again.
+ */
+export function formatSimilarConsumption(otherBytes: number | null): string {
+  if (otherBytes == null) return "…";
+  return formatBytes(otherBytes);
+}
+
 /** Shared byte formatting for Inventory / Storage. */
 export function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
