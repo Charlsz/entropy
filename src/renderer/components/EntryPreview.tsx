@@ -472,6 +472,8 @@ function VideoThumb({
   }, [path]);
 
   useEffect(() => {
+    window.clearTimeout(clipTimerRef.current);
+    clipTimerRef.current = 0;
     setThumbFailed(false);
     setVideoFailed(false);
     setHasFrame(false);
