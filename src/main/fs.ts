@@ -7,7 +7,10 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
+import { pathsMatchLink } from "../shared/linkMatch";
 import { assertPathMutable, isProtectedOsDirName, isProtectedOsPath } from "../shared/protectedPaths";
+import { noteFilesystemChanged } from "./libraryIndex";
+import { writeTextIfMtimeMatches } from "./textWrite";
 import { releaseFileReaders } from "./protocol";
 import { removeToTrash } from "./trash";
 import { mapPool } from "./asyncPool";
@@ -137,6 +140,7 @@ export async function writeText(filePath: string, content: string): Promise<void
     }
     throw error;
   }
+  noteFilesystemChanged(filePath);
 }
 
 export async function writeTextIfUnchanged(
@@ -144,31 +148,30 @@ export async function writeTextIfUnchanged(
   content: string,
   expectedMtimeMs: number | null,
 ): Promise<{ ok: true; mtimeMs: number } | { ok: false; reason: "missing" | "conflict"; mtimeMs: number | null }> {
-  try {
-    const info = await fs.stat(filePath);
-    if (expectedMtimeMs !== null && Math.abs(info.mtimeMs - expectedMtimeMs) > 1) {
-      return { ok: false, reason: "conflict", mtimeMs: info.mtimeMs };
-    }
-  } catch {
-    if (expectedMtimeMs !== null) {
-      return { ok: false, reason: "missing", mtimeMs: null };
-    }
+  assertPathMutable(filePath, platform, "write");
+  if (expectedMtimeMs === null) {
+    await writeText(filePath, content);
+    const next = await fs.stat(filePath);
+    return { ok: true, mtimeMs: next.mtimeMs };
   }
 
-  await writeText(filePath, content);
-  const next = await fs.stat(filePath);
-  return { ok: true, mtimeMs: next.mtimeMs };
+  const result = await writeTextIfMtimeMatches(filePath, content, expectedMtimeMs);
+  if (result.ok) noteFilesystemChanged(filePath);
+  return result;
 }
 
 export async function mkdir(dirPath: string): Promise<void> {
   assertPathMutable(dirPath, platform, "create");
   await fs.mkdir(dirPath, { recursive: true });
+  noteFilesystemChanged(dirPath);
 }
 
 export async function rename(fromPath: string, toPath: string): Promise<void> {
   assertPathMutable(fromPath, platform, "rename");
   assertPathMutable(toPath, platform, "rename into");
   await fs.rename(fromPath, toPath);
+  noteFilesystemChanged(fromPath);
+  noteFilesystemChanged(toPath);
 }
 
 export async function remove(targetPath: string, sender?: WebContents): Promise<void> {
@@ -184,6 +187,7 @@ export async function remove(targetPath: string, sender?: WebContents): Promise<
   }
   await releaseFileReaders(targetPath);
   await removeToTrash(targetPath);
+  noteFilesystemChanged(targetPath);
 }
 
 export async function exists(targetPath: string): Promise<boolean> {
@@ -343,7 +347,6 @@ export async function findBacklinks(
   targetNotePath: string,
 ): Promise<NoteSearchResult[]> {
   const targetKey = normalizePathKey(targetNotePath);
-  const targetBase = path.basename(targetNotePath).toLowerCase();
   const notes = await listMarkdown(rootPath);
   const results: NoteSearchResult[] = [];
 
@@ -367,14 +370,8 @@ export async function findBacklinks(
       if (/^(https?:|mailto:)/i.test(href)) continue;
 
       const resolved = path.resolve(noteDir, href);
-      const resolvedKey = normalizePathKey(resolved);
-      const hrefBase = path.basename(href).toLowerCase();
 
-      if (
-        resolvedKey === targetKey ||
-        resolvedKey === `${targetKey}.md` ||
-        hrefBase === targetBase
-      ) {
+      if (pathsMatchLink(resolved, targetNotePath)) {
         linked = true;
         break;
       }
@@ -558,6 +555,7 @@ export async function duplicate(targetPath: string): Promise<string> {
     await fs.copyFile(targetPath, next);
   }
 
+  noteFilesystemChanged(next);
   return next;
 }
 
