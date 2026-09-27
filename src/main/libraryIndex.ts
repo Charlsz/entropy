@@ -29,6 +29,8 @@ interface RootIndex {
   abort: AbortController | null;
   retryAfter: number | null;
   buildPromise: Promise<LibraryIndexSnapshot | null> | null;
+  /** Disk cache was shown; one background walk is already queued. */
+  scheduledDiskRefresh: boolean;
 }
 
 const indexes = new Map<string, RootIndex>();
@@ -50,6 +52,7 @@ function stateFor(rootPath: string): RootIndex {
       abort: null,
       retryAfter: null,
       buildPromise: null,
+      scheduledDiskRefresh: false,
     };
     indexes.set(key, state);
   }
@@ -84,8 +87,8 @@ async function writeDisk(snapshot: LibraryIndexSnapshot): Promise<void> {
   });
 }
 
-function publishLibraryIndex(rootPath: string, sender?: WebContents): void {
-  const payload = { root: path.normalize(rootPath) };
+function publishLibraryIndex(rootPath: string, sender?: WebContents, quiet = false): void {
+  const payload = { root: path.normalize(rootPath), quiet };
   const sent = new Set<number>();
   for (const win of BrowserWindow.getAllWindows()) {
     const contents = win.webContents;
@@ -98,7 +101,7 @@ function publishLibraryIndex(rootPath: string, sender?: WebContents): void {
   }
 }
 
-function scheduleRebuild(rootPath: string): void {
+function scheduleRebuild(rootPath: string, quiet = false): void {
   const key = rootKey(rootPath);
   const existing = rebuildTimers.get(key);
   if (existing) clearTimeout(existing);
@@ -106,7 +109,7 @@ function scheduleRebuild(rootPath: string): void {
     key,
     setTimeout(() => {
       rebuildTimers.delete(key);
-      void ensureLibraryIndex(rootPath, undefined, { force: true }).catch(() => undefined);
+      void ensureLibraryIndex(rootPath, undefined, { force: true, quiet }).catch(() => undefined);
     }, REBUILD_DEBOUNCE_MS),
   );
 }
@@ -202,11 +205,12 @@ async function walkRoot(rootPath: string, signal: AbortSignal): Promise<LibraryI
 export async function ensureLibraryIndex(
   rootPath: string,
   sender?: WebContents,
-  options?: { force?: boolean },
+  options?: { force?: boolean; quiet?: boolean },
 ): Promise<LibraryIndexSnapshot | null> {
   if (!rootPath.trim()) return null;
   const state = stateFor(rootPath);
   const force = Boolean(options?.force);
+  const quiet = Boolean(options?.quiet);
 
   if (!force && state.buildPromise) return state.buildPromise;
   if (
@@ -236,6 +240,10 @@ export async function ensureLibraryIndex(
         // A filesystem change during the cache read leaves stale set — keep walking.
         if (!state.stale && disk) {
           state.retryAfter = null;
+          if (!state.scheduledDiskRefresh) {
+            state.scheduledDiskRefresh = true;
+            scheduleRebuild(rootPath, true);
+          }
           return state.snapshot;
         }
       }
@@ -246,7 +254,7 @@ export async function ensureLibraryIndex(
       state.stale = false;
       state.retryAfter = null;
       await writeDisk(snapshot).catch(() => undefined);
-      publishLibraryIndex(state.rootPath, sender);
+      publishLibraryIndex(state.rootPath, sender, quiet);
       return snapshot;
     } catch {
       state.stale = true;

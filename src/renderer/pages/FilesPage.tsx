@@ -142,15 +142,26 @@ export function FilesPage({
   const isSearchingRef = useRef(false);
   isSearchingRef.current = isSearching;
   const [indexEpoch, setIndexEpoch] = useState(0);
+  const quietIndexEpoch = useRef(-1);
+  const seenRecentEpoch = useRef(0);
+  const seenRecentRoot = useRef("");
+  const recentCountRef = useRef(0);
+  const seenSearchEpoch = useRef(0);
+  const seenSearchScope = useRef("");
   const [recentEntries, setRecentEntries] = useState<FileEntry[]>([]);
+  recentCountRef.current = recentEntries.length;
   const [recentLoading, setRecentLoading] = useState(false);
   const [recentTruncated, setRecentTruncated] = useState(false);
   const [recentScanId, setRecentScanId] = useState(0);
   const forceRecentRef = useRef(false);
 
   useEffect(() => {
-    return window.entropy.library.onUpdated(() => {
-      setIndexEpoch((value) => value + 1);
+    return window.entropy.library.onUpdated((info) => {
+      setIndexEpoch((value) => {
+        const next = value + 1;
+        if (info.quiet) quietIndexEpoch.current = next;
+        return next;
+      });
     });
   }, []);
 
@@ -453,6 +464,19 @@ export function FilesPage({
   }
 
   useEffect(() => {
+    const epochChanged = seenSearchEpoch.current !== indexEpoch;
+    seenSearchEpoch.current = indexEpoch;
+    const scopeKey = [
+      trimmedSearch,
+      scanRoot,
+      workspace.inventoryScanRoot,
+      workspace.currentFolder,
+      workspace.path,
+      workspace.name,
+    ].join("\0");
+    const scopeChanged = seenSearchScope.current !== scopeKey;
+    seenSearchScope.current = scopeKey;
+
     if (!isSearching) {
       setRemoteSearchEntries([]);
       setSearchHitMeta(new Map());
@@ -461,11 +485,14 @@ export function FilesPage({
     }
 
     let cancelled = false;
-    // Drop prior hits immediately so a new query shows the searching state,
-    // including when you are still inside a folder from the last open.
-    setSearchLoading(true);
-    setRemoteSearchEntries([]);
-    setSearchHitMeta(new Map());
+    const quiet =
+      epochChanged && !scopeChanged && quietIndexEpoch.current === indexEpoch;
+    // A new query clears immediately. A quiet index refresh keeps the current hits.
+    if (!quiet) {
+      setSearchLoading(true);
+      setRemoteSearchEntries([]);
+      setSearchHitMeta(new Map());
+    }
     const handle = window.setTimeout(() => {
       void (async () => {
         try {
@@ -569,9 +596,19 @@ export function FilesPage({
     const root = scanRoot || workspace.inventoryScanRoot || workspace.currentFolder;
     if (!root) return;
     let cancelled = false;
-    setRecentLoading(true);
     const force = forceRecentRef.current;
     forceRecentRef.current = false;
+    const rootChanged = seenRecentRoot.current !== root;
+    seenRecentRoot.current = root;
+    const epochChanged = seenRecentEpoch.current !== indexEpoch;
+    seenRecentEpoch.current = indexEpoch;
+    const quiet =
+      epochChanged &&
+      !rootChanged &&
+      !force &&
+      recentCountRef.current > 0 &&
+      quietIndexEpoch.current === indexEpoch;
+    if (!quiet) setRecentLoading(true);
     void (async () => {
       try {
         const result = await window.entropy.library.recent(root, { force });

@@ -67,7 +67,10 @@ const api: EntropyApi = {
     recent: (rootPath, options) => ipcRenderer.invoke("library:recent", rootPath, options),
     invalidate: (rootPath) => ipcRenderer.invoke("library:invalidate", rootPath),
     onUpdated: (callback) => {
-      const listener = (_event: Electron.IpcRendererEvent, info: { root: string }) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        info: { root: string; quiet?: boolean },
+      ) => {
         callback(info);
       };
       ipcRenderer.on("library:updated", listener);

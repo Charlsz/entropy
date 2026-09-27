@@ -186,7 +186,7 @@ export interface EntropyApi {
       options?: { force?: boolean },
     ) => Promise<{ ready: boolean; truncated: boolean; files: FileEntry[] }>;
     invalidate: (rootPath: string) => Promise<void>;
-    onUpdated: (callback: (info: { root: string }) => void) => () => void;
+    onUpdated: (callback: (info: { root: string; quiet?: boolean }) => void) => () => void;
   };
   fs: {
     listDir: (dirPath: string) => Promise<FileEntry[]>;
