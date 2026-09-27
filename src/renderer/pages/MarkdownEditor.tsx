@@ -51,7 +51,7 @@ interface MarkdownEditorProps {
   onNotePathChange?: (fromPath: string, toPath: string) => void;
   onStatsChange?: (stats: string) => void;
   /** Fires when the active tab's in-memory markdown changes (before disk save). */
-  onLiveContentChange?: (content: string | null) => void;
+  onLiveContentChange?: (path: string | null, content: string | null) => void;
   onOpenLocalPath?: (absolutePath: string) => void;
   /** Notebook inspector availability + quiet show/hide control (no tooltip). */
   contextPanelAvailable?: boolean;
@@ -458,10 +458,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   useEffect(() => {
     if (!onLiveContentChange) return;
     if (!activeTab || activeTab.loading || activeTab.missing) {
-      onLiveContentChange(null);
+      onLiveContentChange(activeTab?.path ?? null, null);
       return;
     }
-    onLiveContentChange(activeTab.content);
+    onLiveContentChange(activeTab.path, activeTab.content);
   }, [
     activeTab?.path,
     activeTab?.content,

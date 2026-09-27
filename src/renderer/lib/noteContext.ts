@@ -1,5 +1,16 @@
 import type { FileEntry } from "../../shared/types";
+import { pathsEqual, type HostPlatform } from "../../shared/platform";
 import { parseMarkdownBlocks } from "./markdownBlocks";
+
+/** Live editor buffer only when it belongs to this note. */
+export function noteBufferFor(
+  notePath: string | null,
+  live: { path: string; content: string } | null,
+  platform: HostPlatform,
+): string | null {
+  if (!notePath || !live) return null;
+  return pathsEqual(notePath, live.path, platform) ? live.content : null;
+}
 
 export interface NoteFileReference {
   label: string;

@@ -66,6 +66,7 @@ export function NoteContextPanel({
   const [linkedFile, setLinkedFile] = useState<FileEntry | null>(null);
   const [previewHistory, setPreviewHistory] = useState<FileEntry[]>([]);
   const [meta, setMeta] = useState<{ title: string; words: number; chars: number } | null>(null);
+  const [readyPath, setReadyPath] = useState<string | null>(null);
 
   useEffect(() => {
     setPreviewHistory([]);
@@ -80,6 +81,7 @@ export function NoteContextPanel({
       setLinkedFile(null);
       setPreviewHistory([]);
       setMeta(null);
+      setReadyPath(null);
       return;
     }
 
@@ -104,13 +106,17 @@ export function NoteContextPanel({
             chars: content.length,
           });
           const related = await window.entropy.fs.findBacklinks(workspace.path, notePath);
-          if (!cancelled) setBacklinks(related);
+          if (!cancelled) {
+            setBacklinks(related);
+            setReadyPath(notePath);
+          }
         } catch {
           if (!cancelled) {
             setLinks([]);
             setRawContent("");
             setBacklinks([]);
             setMeta(null);
+            setReadyPath(notePath);
           }
         }
       })();
@@ -197,6 +203,17 @@ export function NoteContextPanel({
     Boolean(preview) || broken.length > 0 || okLinks.length > 0 || backlinks.length > 0;
 
   if (!notePath && !previewEntry) return null;
+  if (notePath && readyPath !== notePath && !preview) {
+    return (
+      <div
+        className="flex h-full min-h-0 px-4 py-3 text-[12px] text-muted-foreground"
+        aria-busy="true"
+        aria-label="Note context"
+      >
+        …
+      </div>
+    );
+  }
   if (!hasUseful && notePath) return null;
 
   const headerTitle = preview

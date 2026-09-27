@@ -21,13 +21,13 @@ import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { NoteContextPanel } from "../components/NoteContextPanel";
 import { WorkspaceExplorerTree } from "../components/WorkspaceExplorerTree";
 import { copyPath, moveEntryToFolder, revealPath, type ItemAction } from "../lib/itemActions";
-import { noteContextIsUseful } from "../lib/noteContext";
+import { noteBufferFor, noteContextIsUseful } from "../lib/noteContext";
 import { parentDirOfNote } from "../lib/noteFolderTree";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { portableFileMarkdown } from "../lib/markdownBlocks";
 import { formatBytes } from "../lib/format";
 import { figma } from "../lib/figmaTokens";
-import { osTrashName, samePath } from "../lib/platform";
+import { hostPlatform, osTrashName, samePath } from "../lib/platform";
 import { revealInFolderLabel } from "../../shared/platform";
 import { useAppToasts } from "../components/ToastProvider";
 
@@ -67,7 +67,8 @@ export function NotebookPage({
   const activePathRef = useRef<string | null>(null);
   const insertedReferenceKeysRef = useRef(new Set<string>());
   const [queuedReference, setQueuedReference] = useState<string | null>(null);
-  const [liveContent, setLiveContent] = useState<string | null>(null);
+  const [liveNote, setLiveNote] = useState<{ path: string; content: string } | null>(null);
+  const liveContent = noteBufferFor(activePath, liveNote, hostPlatform());
   const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
   const { pushToast } = useAppToasts();
   const openNoteRef = useRef<(path: string) => void>(() => undefined);
@@ -304,26 +305,27 @@ export function NotebookPage({
     setQueuedReference(null);
     setContextEpoch((value) => value + 1);
 
-    let cancelled = false;
+    const signal = { cancelled: false };
     void (async () => {
       try {
         const entry = await window.entropy.fs.stat(filePath);
-        if (cancelled) return;
-        const inserted = await insertReferenceIntoOpenNote(notePath, entry, {
-          cancelled: false,
-        });
-        if (cancelled) return;
+        if (signal.cancelled) return;
+        const inserted = await insertReferenceIntoOpenNote(notePath, entry, signal);
+        if (signal.cancelled) {
+          if (!inserted) insertedReferenceKeysRef.current.delete(key);
+          return;
+        }
         if (!inserted) {
           insertedReferenceKeysRef.current.delete(key);
           setQueuedReference(filePath);
         }
       } catch {
-        insertedReferenceKeysRef.current.delete(key);
+        if (!signal.cancelled) insertedReferenceKeysRef.current.delete(key);
       }
     })();
 
     return () => {
-      cancelled = true;
+      signal.cancelled = true;
     };
   }, [queuedReference, activePath, insertReferenceIntoOpenNote]);
 
@@ -858,7 +860,13 @@ export function NotebookPage({
               visitNote(toPath);
             }}
             onStatsChange={setStatusRight}
-            onLiveContentChange={setLiveContent}
+            onLiveContentChange={(path, content) => {
+              if (!path || content == null) {
+                setLiveNote(null);
+                return;
+              }
+              setLiveNote({ path, content });
+            }}
             onOpenLocalPath={(absolutePath) => {
               void (async () => {
                 try {
