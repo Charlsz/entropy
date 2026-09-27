@@ -50,7 +50,10 @@ export async function fullHash(filePath: string): Promise<string> {
     stream.on("data", (chunk: string | Buffer) => {
       hasher.update(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
     });
-    stream.on("error", reject);
+    stream.on("error", (error) => {
+      stream.destroy();
+      reject(error);
+    });
     stream.on("end", () => resolve(hex(hasher.digest())));
   });
 }

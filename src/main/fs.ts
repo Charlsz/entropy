@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { FileEntry, NoteSearchResult, TreeNode } from "../shared/types";
+import { pathIdentityKey } from "../shared/pathIdentity";
 import { pathsMatchLink } from "../shared/linkMatch";
 import { assertPathMutable, isProtectedOsDirName, isProtectedOsPath } from "../shared/protectedPaths";
 import { noteFilesystemChanged } from "./libraryIndex";
@@ -402,12 +403,20 @@ export async function findFileReferences(
 
 const DUP_MAX_DEPTH = 10;
 const DUP_MAX_RESULTS = 24;
+const DUP_HASH_CACHE_MAX = 256;
 const DUP_HASH_CACHE = new Map<string, { hash: string; mtimeMs: number; size: number }>();
+
+function hashCacheKey(filePath: string): string {
+  return pathIdentityKey(path.normalize(filePath), platform);
+}
 
 export async function hashFile(filePath: string): Promise<string> {
   const info = await fs.stat(filePath);
-  const cached = DUP_HASH_CACHE.get(filePath);
+  const key = hashCacheKey(filePath);
+  const cached = DUP_HASH_CACHE.get(key);
   if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
+    DUP_HASH_CACHE.delete(key);
+    DUP_HASH_CACHE.set(key, cached);
     return cached.hash;
   }
 
@@ -415,11 +424,20 @@ export async function hashFile(filePath: string): Promise<string> {
     const hasher = createHash("sha256");
     const stream = createReadStream(filePath);
     stream.on("data", (chunk) => hasher.update(chunk));
-    stream.on("error", reject);
+    stream.on("error", (error) => {
+      stream.destroy();
+      reject(error);
+    });
     stream.on("end", () => resolve(hasher.digest("hex")));
   });
 
-  DUP_HASH_CACHE.set(filePath, { hash, mtimeMs: info.mtimeMs, size: info.size });
+  DUP_HASH_CACHE.delete(key);
+  DUP_HASH_CACHE.set(key, { hash, mtimeMs: info.mtimeMs, size: info.size });
+  while (DUP_HASH_CACHE.size > DUP_HASH_CACHE_MAX) {
+    const oldest = DUP_HASH_CACHE.keys().next().value;
+    if (oldest === undefined) break;
+    DUP_HASH_CACHE.delete(oldest);
+  }
   return hash;
 }
 
@@ -460,6 +478,10 @@ export async function findDuplicates(
 
   const targetSize = targetStat.size;
   const targetKey = normalizePathKey(target);
+  const seenInodes = new Set<string>();
+  if (typeof targetStat.dev === "number" && typeof targetStat.ino === "number") {
+    seenInodes.add(`${targetStat.dev}:${targetStat.ino}`);
+  }
   const candidates: Array<{ path: string; name: string; size: number; mtimeMs: number }> = [];
 
   async function walk(dir: string, depth: number): Promise<void> {
@@ -489,6 +511,11 @@ export async function findDuplicates(
         if (link.isSymbolicLink() || !link.isFile()) continue;
         if (link.size !== targetSize) continue;
         if (normalizePathKey(full) === targetKey) continue;
+        if (typeof link.dev === "number" && typeof link.ino === "number") {
+          const inode = `${link.dev}:${link.ino}`;
+          if (seenInodes.has(inode)) continue;
+          seenInodes.add(inode);
+        }
         candidates.push({
           path: full,
           name: dirent.name,
