@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { InventoryRoot, TreemapFileLeaf, TreemapScanResult, GlobalSearchHit } from "../shared/types";
+import { sizeCacheKeyMatchesChange } from "../shared/sizeCacheInvalidate";
 import { kindFromExtension } from "../shared/fileKinds";
 import { isProtectedOsDirName, isProtectedOsPath } from "../shared/protectedPaths";
 import { mapPool } from "./asyncPool";
@@ -271,16 +272,9 @@ export function clearSizeCache(): void {
 
 /** Drop cached sizes under a folder after an external change. */
 export function invalidateSizeCacheUnder(dirPath: string): void {
-  const prefix = path.normalize(dirPath).replace(/[/\\]+$/, "").toLowerCase();
+  const changed = path.normalize(dirPath);
   for (const key of [...sizeCache.keys()]) {
-    const normalized = key.replace(/[/\\]+$/, "").toLowerCase();
-    if (
-      normalized === prefix ||
-      normalized.startsWith(`${prefix}\\`) ||
-      normalized.startsWith(`${prefix}/`)
-    ) {
-      sizeCache.delete(key);
-    }
+    if (sizeCacheKeyMatchesChange(key, changed)) sizeCache.delete(key);
   }
 }
 
