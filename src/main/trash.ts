@@ -3,6 +3,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { assertPathMutable } from "../shared/protectedPaths";
+import { noteFilesystemChanged } from "./libraryIndex";
+import { bytesUntilCap, planUndo, trashInfoPath, UNDO_COPY_MAX_BYTES } from "./undoPolicy";
 import { releaseFileReaders } from "./protocol";
 
 /**
@@ -13,6 +15,7 @@ import { releaseFileReaders } from "./protocol";
  * 3. Dismiss / quit only deletes the undo cache (OS trash already has the file).
  */
 const pending = new Map<string, string>(); // originalPath -> undoCachePath
+const inflight = new Map<string, Promise<void>>();
 
 function undoCacheRoot(): string {
   return path.join(app.getPath("userData"), "undo-staging");
@@ -169,13 +172,21 @@ async function clearUndoCache(cachePath: string | undefined): Promise<void> {
 
 /**
  * Copy for in-app Undo, then move the real file into the OS Recycle Bin / Trash.
- * Huge files skip the undo buffer so userData does not temporarily 2× their size —
- * OS trash still holds the original for recovery outside Entropy.
+ * Files and folders over UNDO_COPY_MAX_BYTES skip the undo buffer so userData
+ * does not temporarily 2× their size — OS trash still holds the original.
  */
-const UNDO_COPY_MAX_BYTES = 80 * 1024 * 1024;
-
-export async function removeToTrash(targetPath: string): Promise<void> {
+export function removeToTrash(targetPath: string): Promise<void> {
   const normalized = normalizeKey(targetPath);
+  const current = inflight.get(normalized);
+  if (current) return current;
+  const job = removeToTrashNow(normalized).finally(() => {
+    if (inflight.get(normalized) === job) inflight.delete(normalized);
+  });
+  inflight.set(normalized, job);
+  return job;
+}
+
+async function removeToTrashNow(normalized: string): Promise<void> {
   assertPathMutable(normalized, process.platform, "delete");
 
   if (!(await pathExists(normalized))) return;
@@ -186,8 +197,12 @@ export async function removeToTrash(targetPath: string): Promise<void> {
     await clearUndoCache(existing);
   }
 
-  const info = await fs.stat(normalized);
-  const canUndoCopy = info.size <= UNDO_COPY_MAX_BYTES;
+  let canUndoCopy = false;
+  try {
+    canUndoCopy = (await bytesUntilCap(normalized, UNDO_COPY_MAX_BYTES)) != null;
+  } catch {
+    canUndoCopy = false;
+  }
 
   let cachePath: string | undefined;
   if (canUndoCopy) {
@@ -231,20 +246,16 @@ export async function undoRemoves(
   for (const originalPath of originalPaths) {
     const key = normalizeKey(originalPath);
     const cachePath = pending.get(key);
+    const destinationExists = await pathExists(key);
+    const cacheExists = Boolean(cachePath && (await pathExists(cachePath)));
+    const plan = planUndo(destinationExists, cacheExists);
 
-    if (await pathExists(key)) {
-      // Already on disk (user recovered manually, etc.) — drop undo cache.
-      pending.delete(key);
-      await clearUndoCache(cachePath);
-      restored += 1;
-      continue;
-    }
-
-    if (cachePath && (await pathExists(cachePath))) {
+    if (plan.action === "restore-cache" && cachePath) {
       try {
         await moveWithRetry(cachePath, key);
         pending.delete(key);
         restored += 1;
+        noteFilesystemChanged(key);
         continue;
       } catch {
         failed.push(originalPath);
@@ -252,12 +263,25 @@ export async function undoRemoves(
       }
     }
 
-    // Fallback: pull out of OS trash when the platform allows (macOS / Linux).
+    if (plan.action === "count-restored") {
+      pending.delete(key);
+      restored += 1;
+      continue;
+    }
+
+    if (plan.action === "fail") {
+      // Occupied path — keep the undo copy so a later undo can still restore.
+      failed.push(originalPath);
+      continue;
+    }
+
+    // Fallback: pull out of OS trash only when metadata names this exact path.
     const fromOs = await restoreFromSystemTrash(key);
     if (fromOs) {
       pending.delete(key);
       await clearUndoCache(cachePath);
       restored += 1;
+      noteFilesystemChanged(key);
     } else {
       failed.push(originalPath);
     }
@@ -303,54 +327,34 @@ export async function finalizeOrphanedStaging(): Promise<void> {
 }
 
 /**
- * Best-effort restore from the OS trash (macOS / Linux).
- * Windows Recycle Bin has no supported restore API — undo-cache covers that path.
+ * Best-effort restore from the OS trash.
+ * Windows and macOS have no safe restore-by-path API (basename matches can
+ * bring back a different file). Linux uses the trashinfo Path field only.
  */
 async function restoreFromSystemTrash(originalPath: string): Promise<boolean> {
-  const name = path.basename(originalPath);
+  if (process.platform !== "linux") return false;
 
-  if (process.platform === "darwin") {
-    const candidate = path.join(os.homedir(), ".Trash", name);
-    if (await pathExists(candidate)) {
+  const filesDir = path.join(os.homedir(), ".local", "share", "Trash", "files");
+  const infoDir = path.join(os.homedir(), ".local", "share", "Trash", "info");
+  try {
+    const infos = await fs.readdir(infoDir);
+    for (const infoName of infos) {
+      if (!infoName.endsWith(".trashinfo")) continue;
+      const infoPath = path.join(infoDir, infoName);
+      const body = await fs.readFile(infoPath, "utf8");
+      const trashedPath = trashInfoPath(body);
+      if (!trashedPath) continue;
+      if (path.normalize(trashedPath) !== path.normalize(originalPath)) continue;
+      const stagedName = infoName.replace(/\.trashinfo$/i, "");
+      const staged = path.join(filesDir, stagedName);
+      if (!(await pathExists(staged))) continue;
       await fs.mkdir(path.dirname(originalPath), { recursive: true });
-      await fs.rename(candidate, originalPath);
+      await fs.rename(staged, originalPath);
+      await fs.rm(infoPath, { force: true }).catch(() => undefined);
       return true;
     }
+  } catch {
     return false;
-  }
-
-  if (process.platform === "linux") {
-    const filesDir = path.join(os.homedir(), ".local", "share", "Trash", "files");
-    const infoDir = path.join(os.homedir(), ".local", "share", "Trash", "info");
-    try {
-      const infos = await fs.readdir(infoDir);
-      for (const infoName of infos) {
-        if (!infoName.endsWith(".trashinfo")) continue;
-        const infoPath = path.join(infoDir, infoName);
-        const body = await fs.readFile(infoPath, "utf8");
-        const match = /^Path=(.+)$/m.exec(body);
-        if (!match) continue;
-        const trashedPath = decodeURIComponent(match[1].trim());
-        if (path.normalize(trashedPath) !== path.normalize(originalPath)) continue;
-        const stagedName = infoName.replace(/\.trashinfo$/i, "");
-        const staged = path.join(filesDir, stagedName);
-        if (!(await pathExists(staged))) continue;
-        await fs.mkdir(path.dirname(originalPath), { recursive: true });
-        await fs.rename(staged, originalPath);
-        await fs.rm(infoPath, { force: true }).catch(() => undefined);
-        return true;
-      }
-    } catch {
-      // Fall through.
-    }
-
-    const candidate = path.join(filesDir, name);
-    if (await pathExists(candidate)) {
-      await fs.mkdir(path.dirname(originalPath), { recursive: true });
-      await fs.rename(candidate, originalPath);
-      await fs.rm(path.join(infoDir, `${name}.trashinfo`), { force: true }).catch(() => undefined);
-      return true;
-    }
   }
 
   return false;
