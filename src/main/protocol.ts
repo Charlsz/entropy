@@ -4,6 +4,7 @@ import { createReadStream, type ReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { pathIdentityKey } from "../shared/pathIdentity";
 
 export const FILE_PROTOCOL = "entropy";
 
@@ -20,7 +21,7 @@ const thumbWaiters: Array<() => void> = [];
 const activeReaders = new Map<string, Set<ReadStream>>();
 
 function readerKey(filePath: string): string {
-  return path.normalize(filePath);
+  return pathIdentityKey(path.normalize(filePath), process.platform);
 }
 
 function trackReader(filePath: string, stream: ReadStream): void {
