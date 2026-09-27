@@ -44,15 +44,58 @@ export function searchSnapshot(
   return { truncated: snapshot.truncated || total > SEARCH_LIMIT, hits };
 }
 
+interface RecentRank {
+  entry: LibraryIndexEntry;
+  index: number;
+}
+
+/** Higher mtime first; equal mtimes keep earlier index, matching a stable sort. */
+function recentBefore(left: RecentRank, right: RecentRank): boolean {
+  if (left.entry.modifiedAt !== right.entry.modifiedAt) {
+    return left.entry.modifiedAt > right.entry.modifiedAt;
+  }
+  return left.index < right.index;
+}
+
+function insertRecent(ranked: RecentRank[], item: RecentRank): void {
+  let low = 0;
+  let high = ranked.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (recentBefore(item, ranked[mid]!)) high = mid;
+    else low = mid + 1;
+  }
+  ranked.splice(low, 0, item);
+}
+
+/** Newest files, same order as sorting the full list, without sorting every entry. */
+export function selectRecentEntries(
+  entries: readonly LibraryIndexEntry[],
+  limit: number,
+): LibraryIndexEntry[] {
+  if (limit <= 0) return [];
+  const ranked: RecentRank[] = [];
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index]!;
+    if (entry.isDirectory) continue;
+    const item = { entry, index };
+    if (ranked.length < limit) {
+      insertRecent(ranked, item);
+      continue;
+    }
+    const worst = ranked[ranked.length - 1]!;
+    if (!recentBefore(item, worst)) continue;
+    ranked.pop();
+    insertRecent(ranked, item);
+  }
+  return ranked.map((item) => item.entry);
+}
+
 export function recentSnapshot(
   snapshot: LibraryIndexSnapshot,
   limit = RECENT_LIMIT,
 ): { truncated: boolean; files: FileEntry[] } {
-  const files = snapshot.entries
-    .filter((entry) => !entry.isDirectory)
-    .sort((a, b) => b.modifiedAt - a.modifiedAt)
-    .slice(0, limit)
-    .map(
+  const files = selectRecentEntries(snapshot.entries, limit).map(
       (entry): FileEntry => ({
         name: entry.name,
         path: entry.path,
