@@ -98,18 +98,6 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
   };
 
   useEffect(() => {
-    return window.entropy.duplicates.onProgress((next) => {
-      setProgress(next);
-      if (next.logLine) {
-        setLogLines((prev) => [...prev.slice(-120), next.logLine!]);
-      }
-      if (next.latestGroup) {
-        setLiveGroups((prev) => upsertGroup(prev, next.latestGroup!));
-      }
-    });
-  }, []);
-
-  useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "auto", block: "nearest" });
   }, [logLines.length]);
 
@@ -121,6 +109,16 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
     setProgress(null);
     setLiveGroups([]);
     setLogLines([]);
+    const unsubscribe = window.entropy.duplicates.onProgress((next) => {
+      if (cancelled) return;
+      setProgress(next);
+      if (next.logLine) {
+        setLogLines((prev) => [...prev.slice(-120), next.logLine!]);
+      }
+      if (next.latestGroup) {
+        setLiveGroups((prev) => upsertGroup(prev, next.latestGroup!));
+      }
+    });
     void window.entropy.duplicates
       .scan(rootPath, { scope: activeScope })
       .then((next) => {
@@ -141,6 +139,7 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
       });
     return () => {
       cancelled = true;
+      unsubscribe();
       void window.entropy.duplicates.cancel();
     };
   }, [phase, rootPath, activeScope, scanKey]);
