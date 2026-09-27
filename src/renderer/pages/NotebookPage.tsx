@@ -21,7 +21,7 @@ import { ThreeColumnLayout } from "../components/ThreeColumnLayout";
 import { NoteContextPanel } from "../components/NoteContextPanel";
 import { WorkspaceExplorerTree } from "../components/WorkspaceExplorerTree";
 import { copyPath, moveEntryToFolder, revealPath, type ItemAction } from "../lib/itemActions";
-import { noteBufferFor, noteContextIsUseful } from "../lib/noteContext";
+import { listLocalFileReferences, noteBufferFor, noteContextIsUseful } from "../lib/noteContext";
 import { parentDirOfNote } from "../lib/noteFolderTree";
 import { useDirWatch } from "../hooks/useDirWatch";
 import { portableFileMarkdown } from "../lib/markdownBlocks";
@@ -594,8 +594,30 @@ export function NotebookPage({
     ];
   }
 
+  const contextUsefulCache = useRef<{ path: string; epoch: string; useful: boolean } | null>(null);
+
   useEffect(() => {
     let cancelled = false;
+    if (previewEntry) {
+      setContextUseful(true);
+      return;
+    }
+    if (!activePath) {
+      setContextUseful(false);
+      return;
+    }
+    if (liveContent != null && listLocalFileReferences(liveContent).length > 0) {
+      setContextUseful(true);
+      return;
+    }
+
+    const epoch = `${contextEpoch}:${diskEpoch}`;
+    const cached = contextUsefulCache.current;
+    if (cached && samePath(cached.path, activePath) && cached.epoch === epoch) {
+      setContextUseful(cached.useful);
+      return;
+    }
+
     void (async () => {
       const useful = await noteContextIsUseful(
         activePath,
@@ -603,12 +625,14 @@ export function NotebookPage({
         workspace.path,
         liveContent,
       );
-      if (!cancelled) setContextUseful(useful);
+      if (cancelled) return;
+      contextUsefulCache.current = { path: activePath, epoch, useful };
+      setContextUseful(useful);
     })();
     return () => {
       cancelled = true;
     };
-  }, [activePath, previewEntry, workspace.path, contextEpoch, liveContent]);
+  }, [activePath, previewEntry, workspace.path, contextEpoch, diskEpoch, liveContent]);
 
   if (needsNotebookWorkspace) {
     return (
