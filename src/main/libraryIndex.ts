@@ -1,9 +1,9 @@
-import { app } from "electron";
+import { app, BrowserWindow, type WebContents } from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { WebContents } from "electron";
 import type { FileEntry, GlobalSearchHit } from "../shared/types";
+import { indexCoversChange, libraryIndexNeedsBuild } from "../shared/libraryIndexPlan";
 import { isProtectedOsDirName, isProtectedOsPath } from "../shared/protectedPaths";
 import {
   recentSnapshot,
@@ -18,15 +18,21 @@ export { recentSnapshot, searchSnapshot };
 const MAX_DEPTH = 16;
 const MAX_VISITS = 120_000;
 const MAX_ENTRIES = 80_000;
+const REBUILD_DEBOUNCE_MS = 1500;
+const REBUILD_RETRY_MS = 8_000;
 
 interface RootIndex {
+  rootPath: string;
   snapshot: LibraryIndexSnapshot | null;
   stale: boolean;
   building: boolean;
   abort: AbortController | null;
+  retryAfter: number | null;
+  buildPromise: Promise<LibraryIndexSnapshot | null> | null;
 }
 
 const indexes = new Map<string, RootIndex>();
+const rebuildTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function rootKey(rootPath: string): string {
   return path.normalize(rootPath).replace(/[/\\]+$/, "").toLowerCase();
@@ -36,7 +42,15 @@ function stateFor(rootPath: string): RootIndex {
   const key = rootKey(rootPath);
   let state = indexes.get(key);
   if (!state) {
-    state = { snapshot: null, stale: false, building: false, abort: null };
+    state = {
+      rootPath,
+      snapshot: null,
+      stale: false,
+      building: false,
+      abort: null,
+      retryAfter: null,
+      buildPromise: null,
+    };
     indexes.set(key, state);
   }
   return state;
@@ -45,11 +59,6 @@ function stateFor(rootPath: string): RootIndex {
 function cacheFile(rootPath: string): string {
   const hash = createHash("sha1").update(rootKey(rootPath)).digest("hex");
   return path.join(app.getPath("userData"), "library-indexes", `${hash}.json`);
-}
-
-function fresh(state: RootIndex): LibraryIndexSnapshot | null {
-  if (!state.snapshot || state.stale) return null;
-  return state.snapshot;
 }
 
 async function readDisk(rootPath: string): Promise<LibraryIndexSnapshot | null> {
@@ -75,16 +84,59 @@ async function writeDisk(snapshot: LibraryIndexSnapshot): Promise<void> {
   });
 }
 
-export function invalidateLibraryIndex(rootPath: string): void {
-  const state = stateFor(rootPath);
-  state.stale = true;
-  state.abort?.abort();
+function publishLibraryIndex(rootPath: string, sender?: WebContents): void {
+  const payload = { root: path.normalize(rootPath) };
+  const sent = new Set<number>();
+  for (const win of BrowserWindow.getAllWindows()) {
+    const contents = win.webContents;
+    if (contents.isDestroyed()) continue;
+    contents.send("library:updated", payload);
+    sent.add(contents.id);
+  }
+  if (sender && !sender.isDestroyed() && !sent.has(sender.id)) {
+    sender.send("library:updated", payload);
+  }
 }
 
-async function walkRoot(
-  rootPath: string,
-  signal: AbortSignal,
-): Promise<LibraryIndexSnapshot> {
+function scheduleRebuild(rootPath: string): void {
+  const key = rootKey(rootPath);
+  const existing = rebuildTimers.get(key);
+  if (existing) clearTimeout(existing);
+  rebuildTimers.set(
+    key,
+    setTimeout(() => {
+      rebuildTimers.delete(key);
+      void ensureLibraryIndex(rootPath, undefined, { force: true }).catch(() => undefined);
+    }, REBUILD_DEBOUNCE_MS),
+  );
+}
+
+function markStale(state: RootIndex): void {
+  state.stale = true;
+  state.abort?.abort();
+  scheduleRebuild(state.rootPath);
+}
+
+/** Mark one root stale and rebuild it. Used by the explicit invalidate IPC. */
+export function invalidateLibraryIndex(rootPath: string): void {
+  if (!rootPath.trim()) return;
+  markStale(stateFor(rootPath));
+}
+
+/**
+ * Refresh any index that already covers this path.
+ * Does not start an index for a root the user has not opened.
+ */
+export function noteFilesystemChanged(changedPath: string): void {
+  if (!changedPath.trim()) return;
+  const changed = rootKey(changedPath);
+  for (const state of indexes.values()) {
+    if (!indexCoversChange(rootKey(state.rootPath), changed)) continue;
+    markStale(state);
+  }
+}
+
+async function walkRoot(rootPath: string, signal: AbortSignal): Promise<LibraryIndexSnapshot> {
   const entries: LibraryIndexEntry[] = [];
   let visited = 0;
   let truncated = false;
@@ -154,41 +206,69 @@ export async function ensureLibraryIndex(
 ): Promise<LibraryIndexSnapshot | null> {
   if (!rootPath.trim()) return null;
   const state = stateFor(rootPath);
-  if (!options?.force) {
-    const ready = fresh(state);
-    if (ready) return ready;
-    if (!state.snapshot && !state.building) {
-      const disk = await readDisk(rootPath);
-      if (disk && !state.stale) {
-        state.snapshot = disk;
-        return disk;
-      }
-    }
+  const force = Boolean(options?.force);
+
+  if (!force && state.buildPromise) return state.buildPromise;
+  if (
+    !force &&
+    !libraryIndexNeedsBuild({
+      hasSnapshot: Boolean(state.snapshot),
+      stale: state.stale,
+      building: false,
+      retryAfter: state.retryAfter,
+    })
+  ) {
+    return state.snapshot;
   }
-  if (state.building && !options?.force) return fresh(state);
 
   state.abort?.abort();
   const abort = new AbortController();
   state.abort = abort;
   state.building = true;
-  state.stale = false;
 
-  try {
-    const snapshot = await walkRoot(rootPath, abort.signal);
-    if (abort.signal.aborted) return fresh(state);
-    state.snapshot = snapshot;
-    state.stale = false;
-    await writeDisk(snapshot).catch(() => undefined);
-    if (sender && !sender.isDestroyed()) {
-      sender.send("library:updated", { root: path.normalize(rootPath) });
+  const holder: { promise: Promise<LibraryIndexSnapshot | null> | null } = { promise: null };
+  holder.promise = (async (): Promise<LibraryIndexSnapshot | null> => {
+    try {
+      if (!force && !state.stale) {
+        const disk = await readDisk(rootPath);
+        if (abort.signal.aborted || state.abort !== abort) return state.snapshot;
+        if (disk && !state.snapshot) state.snapshot = disk;
+        // A filesystem change during the cache read leaves stale set — keep walking.
+        if (!state.stale && disk) {
+          state.retryAfter = null;
+          return state.snapshot;
+        }
+      }
+
+      const snapshot = await walkRoot(rootPath, abort.signal);
+      if (abort.signal.aborted || state.abort !== abort) return state.snapshot;
+      state.snapshot = snapshot;
+      state.stale = false;
+      state.retryAfter = null;
+      await writeDisk(snapshot).catch(() => undefined);
+      publishLibraryIndex(state.rootPath, sender);
+      return snapshot;
+    } catch {
+      state.stale = true;
+      state.retryAfter = Date.now() + REBUILD_RETRY_MS;
+      return state.snapshot;
+    } finally {
+      if (state.abort === abort) {
+        state.building = false;
+        state.abort = null;
+      }
+      if (state.buildPromise === holder.promise) state.buildPromise = null;
     }
-    return snapshot;
-  } finally {
-    if (state.abort === abort) {
-      state.building = false;
-      state.abort = null;
-    }
+  })();
+
+  if (!holder.promise) {
+    state.building = false;
+    state.abort = null;
+    return state.snapshot;
   }
+  const promise = holder.promise;
+  state.buildPromise = promise;
+  return promise;
 }
 
 export async function searchLibraryIndex(
@@ -197,14 +277,22 @@ export async function searchLibraryIndex(
   sender?: WebContents,
 ): Promise<{ ready: boolean; truncated: boolean; hits: GlobalSearchHit[] }> {
   const state = stateFor(rootPath);
-  const ready = fresh(state) ?? (state.building ? null : await readDisk(rootPath));
-  if (ready && !state.snapshot) state.snapshot = ready;
-  if (ready && !state.stale) {
-    const found = searchSnapshot(ready, query);
-    return { ready: true, ...found };
+  if (!state.snapshot) {
+    const snapshot = await ensureLibraryIndex(rootPath, sender);
+    if (!snapshot) return { ready: false, truncated: false, hits: [] };
+    return { ready: true, ...searchSnapshot(snapshot, query) };
   }
-  void ensureLibraryIndex(rootPath, sender).catch(() => undefined);
-  return { ready: false, truncated: false, hits: [] };
+  if (
+    libraryIndexNeedsBuild({
+      hasSnapshot: true,
+      stale: state.stale,
+      building: state.building,
+      retryAfter: state.retryAfter,
+    })
+  ) {
+    void ensureLibraryIndex(rootPath, sender).catch(() => undefined);
+  }
+  return { ready: true, ...searchSnapshot(state.snapshot, query) };
 }
 
 export async function recentLibraryIndex(
@@ -215,22 +303,24 @@ export async function recentLibraryIndex(
   if (options?.force) {
     const snapshot = await ensureLibraryIndex(rootPath, sender, { force: true });
     if (!snapshot) return { ready: false, truncated: false, files: [] };
-    const recent = recentSnapshot(snapshot);
-    return { ready: true, ...recent };
+    return { ready: true, ...recentSnapshot(snapshot) };
   }
-  const found = await searchReadyRecent(rootPath);
-  if (found) return found;
-  void ensureLibraryIndex(rootPath, sender).catch(() => undefined);
-  return { ready: false, truncated: false, files: [] };
-}
 
-async function searchReadyRecent(
-  rootPath: string,
-): Promise<{ ready: true; truncated: boolean; files: FileEntry[] } | null> {
   const state = stateFor(rootPath);
-  const ready = fresh(state) ?? (await readDisk(rootPath));
-  if (!ready || state.stale) return null;
-  if (!state.snapshot) state.snapshot = ready;
-  const recent = recentSnapshot(ready);
-  return { ready: true, ...recent };
+  if (!state.snapshot) {
+    const snapshot = await ensureLibraryIndex(rootPath, sender);
+    if (!snapshot) return { ready: false, truncated: false, files: [] };
+    return { ready: true, ...recentSnapshot(snapshot) };
+  }
+  if (
+    libraryIndexNeedsBuild({
+      hasSnapshot: true,
+      stale: state.stale,
+      building: state.building,
+      retryAfter: state.retryAfter,
+    })
+  ) {
+    void ensureLibraryIndex(rootPath, sender).catch(() => undefined);
+  }
+  return { ready: true, ...recentSnapshot(state.snapshot) };
 }

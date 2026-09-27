@@ -2,6 +2,7 @@ import { type WebContents } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { invalidateSizeCacheUnder } from "./inventory";
+import { noteFilesystemChanged } from "./libraryIndex";
 
 const DEBOUNCE_MS = 220;
 
@@ -56,6 +57,7 @@ function scheduleNotify(webContents: WebContents, dirPath: string, active: Activ
   active.timer = setTimeout(() => {
     active.timer = null;
     invalidateSizeCacheUnder(dirPath);
+    noteFilesystemChanged(dirPath);
     notify(webContents, dirPath);
   }, DEBOUNCE_MS);
 }
