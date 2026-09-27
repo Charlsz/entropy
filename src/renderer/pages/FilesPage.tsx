@@ -1552,5 +1552,6 @@ const FileGridCard = memo(
     prev.homePath === next.homePath &&
     prev.selected === next.selected &&
     prev.dropTarget === next.dropTarget &&
-    prev.sizePending === next.sizePending,
+    prev.sizePending === next.sizePending &&
+    prev.dismissKey === next.dismissKey,
 );
