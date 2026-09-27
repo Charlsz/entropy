@@ -146,12 +146,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }, []);
   const saveTimers = useRef(new Map<string, number>());
   const tabsRef = useRef(tabs);
+  const openPathsRef = useRef(openPaths);
   const liveEditorRef = useRef<WysiwygMarkdownEditorHandle>(null);
   const activePathRef = useRef(activePath);
 
   useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
+
+  useEffect(() => {
+    openPathsRef.current = openPaths;
+  }, [openPaths]);
 
   useEffect(() => {
     activePathRef.current = activePath;
@@ -242,8 +247,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     [applyDiskSnapshot, clearSaveTimer],
   );
 
-  const syncOpenTabsFromDisk = useCallback(async () => {
-    const paths = tabsRef.current.filter((tab) => !tab.loading).map((tab) => tab.path);
+  const syncOpenTabsFromDisk = useCallback(async (scope: "open" | "all" = "all") => {
+    const open = new Set(openPathsRef.current);
+    const paths = tabsRef.current
+      .filter((tab) => !tab.loading && (scope === "all" || open.has(tab.path)))
+      .map((tab) => tab.path);
     for (const filePath of paths) {
       const tab = tabsRef.current.find((item) => item.path === filePath);
       if (!tab || tab.loading) continue;
@@ -388,14 +396,22 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   useEffect(() => {
     if (openPaths.length === 0) return;
     let cancelled = false;
+    let running = false;
+    let ticks = 0;
 
-    const tick = () => {
-      if (cancelled) return;
-      void syncOpenTabsFromDisk();
+    const tick = (scope: "open" | "all") => {
+      if (cancelled || running) return;
+      running = true;
+      void syncOpenTabsFromDisk(scope).finally(() => {
+        running = false;
+      });
     };
 
-    tick();
-    const timer = window.setInterval(tick, 200);
+    tick("all");
+    const timer = window.setInterval(() => {
+      ticks += 1;
+      tick(ticks % 10 === 0 ? "all" : "open");
+    }, 200);
 
     return () => {
       cancelled = true;
