@@ -200,7 +200,13 @@ export function InventoryDuplicatesPanel({ rootPath, onBack }: InventoryDuplicat
         },
       });
       const removed = new Set(batch);
-      setLiveGroups((prev) => pruneGroups(prev, removed));
+      setLiveGroups((prev) => {
+        const next = pruneGroups(prev, removed);
+        window.dispatchEvent(
+          new CustomEvent("entropy:duplicates-count", { detail: next.length }),
+        );
+        return next;
+      });
       setResult((prev) => {
         if (!prev) return prev;
         return { ...prev, groups: pruneGroups(prev.groups, removed) };
