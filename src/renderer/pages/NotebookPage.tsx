@@ -46,8 +46,14 @@ export function NotebookPage({
   onPickWorkspace?: (path: string) => void;
   needsNotebookWorkspace?: boolean;
 } = {}) {
-  const { workspace, addRecentFile, visitNote, openFolder, updateSettings, closeWorkspace } =
-    useWorkspace();
+  const {
+    workspace,
+    addRecentFile,
+    visitNote,
+    openFileLocation,
+    updateSettings,
+    closeWorkspace,
+  } = useWorkspace();
   const [openPaths, setOpenPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   /** Folder that receives New Note (workspace root or a nested folder). */
@@ -426,14 +432,7 @@ export function NotebookPage({
     perspective: "folders" | "gallery",
   ): Promise<void> {
     updateSettings({ libraryPerspective: perspective });
-    try {
-      const info = await window.entropy.fs.stat(filePath).catch(() => null);
-      const dir = info?.isDirectory ? filePath : dirname(filePath);
-      openFolder(dir);
-    } catch {
-      // Fall back to switching Library even if dirname fails.
-      openFolder(workspace.path);
-    }
+    await openFileLocation(filePath);
   }
 
   async function confirmDelete(): Promise<void> {
