@@ -337,12 +337,33 @@ export async function searchMarkdown(
 }
 
 const MD_LINK_RE = /\[([^\]]*)\]\(([^)\s]+)\)/g;
+/** Obsidian-style wiki links / embeds: [[target]] or [[target|alias]]. */
+const WIKI_LINK_RE = /!?\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
 
 function normalizePathKey(filePath: string): string {
   return path.resolve(filePath).replace(/[/\\]+$/, "").toLowerCase();
 }
 
-/** Notes that contain a markdown link resolving to targetNotePath. */
+function noteContentLinksTo(content: string, noteDir: string, targetPath: string): boolean {
+  MD_LINK_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = MD_LINK_RE.exec(content)) !== null) {
+    const href = match[2];
+    if (/^(https?:|mailto:)/i.test(href)) continue;
+    if (pathsMatchLink(path.resolve(noteDir, href), targetPath)) return true;
+  }
+
+  WIKI_LINK_RE.lastIndex = 0;
+  while ((match = WIKI_LINK_RE.exec(content)) !== null) {
+    const href = match[1]!.trim().replace(/\\/g, "/");
+    if (!href || /^(https?:|mailto:)/i.test(href)) continue;
+    if (pathsMatchLink(path.resolve(noteDir, href), targetPath)) return true;
+  }
+
+  return false;
+}
+
+/** Notes that contain a markdown or wiki link resolving to targetNotePath. */
 export async function findBacklinks(
   rootPath: string,
   targetNotePath: string,
@@ -362,23 +383,7 @@ export async function findBacklinks(
     }
 
     const noteDir = path.dirname(note.path);
-    MD_LINK_RE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    let linked = false;
-
-    while ((match = MD_LINK_RE.exec(content)) !== null) {
-      const href = match[2];
-      if (/^(https?:|mailto:)/i.test(href)) continue;
-
-      const resolved = path.resolve(noteDir, href);
-
-      if (pathsMatchLink(resolved, targetNotePath)) {
-        linked = true;
-        break;
-      }
-    }
-
-    if (!linked) continue;
+    if (!noteContentLinksTo(content, noteDir, targetNotePath)) continue;
 
     const excerpt = content.slice(0, 120).replace(/\s+/g, " ").trim();
     results.push({
