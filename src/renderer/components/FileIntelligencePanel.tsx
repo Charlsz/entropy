@@ -8,10 +8,11 @@ import {
   X,
 } from "lucide-react";
 import type { FileEntry } from "../../shared/types";
-import { findFileConnections } from "../lib/fileConnections";
+import { findFileConnections, type FileConnection } from "../lib/fileConnections";
 import { formatModifiedLabel, formatSimilarConsumption } from "../lib/format";
 import { isPreviewableEntry, mediaKind } from "../lib/media";
 import { figma } from "../lib/figmaTokens";
+import { samePath } from "../lib/platform";
 import { useWorkspace } from "../state/useWorkspace";
 import { EntryPreview } from "./EntryPreview";
 import { Button } from "./ui/button";
@@ -21,25 +22,30 @@ interface FileIntelligencePanelProps {
   entry: FileEntry;
   scanRoot: string;
   onClose: () => void;
+  /** Open a similar file in Library (select / navigate). */
+  onOpenSimilar?: (filePath: string) => void;
 }
 
 export function FileIntelligencePanel({
   entry,
   scanRoot,
   onClose,
+  onOpenSimilar,
 }: FileIntelligencePanelProps) {
-  const { workspace } = useWorkspace();
-  const [noteCount, setNoteCount] = useState<number | null>(null);
+  const { workspace, openNote, openInWorkspace } = useWorkspace();
+  const [connections, setConnections] = useState<FileConnection[] | null>(null);
+  const [similar, setSimilar] = useState<FileEntry[] | null>(null);
   const [dupBytes, setDupBytes] = useState<number | null>(null);
-  const [relatedCount, setRelatedCount] = useState<number | null>(null);
+
   useEffect(() => {
     let cancelled = false;
+    setConnections(null);
     void (async () => {
-      const connections = await findFileConnections(entry.path, {
+      const found = await findFileConnections(entry.path, {
         path: workspace.path,
         name: workspace.name,
       });
-      if (!cancelled) setNoteCount(connections.length);
+      if (!cancelled) setConnections(found);
     })();
     return () => {
       cancelled = true;
@@ -48,10 +54,14 @@ export function FileIntelligencePanel({
 
   useEffect(() => {
     let cancelled = false;
+    setSimilar(null);
+    setDupBytes(null);
     void (async () => {
       if (entry.isDirectory || !scanRoot) {
-        setDupBytes(null);
-        setRelatedCount(null);
+        if (!cancelled) {
+          setSimilar([]);
+          setDupBytes(0);
+        }
         return;
       }
       const dups = await window.entropy.fs
@@ -59,7 +69,7 @@ export function FileIntelligencePanel({
         .catch(() => [] as FileEntry[]);
       if (cancelled) return;
       const others = dups.filter((item) => item.path !== entry.path);
-      setRelatedCount(others.length);
+      setSimilar(others);
       setDupBytes(others.reduce((sum, item) => sum + item.size, 0));
     })();
     return () => {
@@ -67,8 +77,8 @@ export function FileIntelligencePanel({
     };
   }, [entry.isDirectory, entry.path, entry.size, scanRoot]);
 
-  // Preview whenever the entry is previewable — do not gate on OS thumbs.
-  // Videos play via entropy:// even when createThumbnailFromPath fails.
+  const noteCount = connections?.length ?? null;
+  const relatedCount = similar?.length ?? null;
   const showPreview = isPreviewableEntry(entry);
 
   const parentName =
@@ -79,6 +89,14 @@ export function FileIntelligencePanel({
   const previewLabel =
     kind === "image" ? "Image Analysis - Preview" : "Preview";
   const modified = formatModifiedLabel(entry.modifiedAt);
+
+  function openConnection(connection: FileConnection): void {
+    if (samePath(connection.workspacePath, workspace.path)) {
+      openNote(connection.notePath);
+      return;
+    }
+    openInWorkspace(connection.workspacePath, connection.notePath);
+  }
 
   return (
     <aside
@@ -115,7 +133,7 @@ export function FileIntelligencePanel({
         </Tooltip>
       </div>
 
-      <div className="flex flex-col gap-4 p-5">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
         <p className="text-[12px] font-semibold uppercase" style={{ color: figma.muted }}>
           Connections & context
         </p>
@@ -133,6 +151,23 @@ export function FileIntelligencePanel({
               </>
             }
           />
+          {connections && connections.length > 0 ? (
+            <ul className="ml-[22px] flex flex-col gap-1">
+              {connections.slice(0, 8).map((connection) => (
+                <li key={`${connection.workspacePath}\0${connection.notePath}`}>
+                  <button
+                    type="button"
+                    className="max-w-full truncate text-left text-[12px] underline-offset-2 hover:underline"
+                    style={{ color: figma.ink }}
+                    title={connection.notePath}
+                    onClick={() => openConnection(connection)}
+                  >
+                    {connection.noteName}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <IntelRow
             icon={FolderOpen}
             text={
@@ -157,11 +192,28 @@ export function FileIntelligencePanel({
                 <strong className="font-semibold">
                   {relatedCount == null
                     ? "…"
-                    : `${relatedCount} document${relatedCount === 1 ? "" : "s"}`}
+                    : `${relatedCount} file${relatedCount === 1 ? "" : "s"}`}
                 </strong>
               </>
             }
           />
+          {similar && similar.length > 0 ? (
+            <ul className="ml-[22px] flex flex-col gap-1">
+              {similar.slice(0, 8).map((item) => (
+                <li key={item.path}>
+                  <button
+                    type="button"
+                    className="max-w-full truncate text-left text-[12px] underline-offset-2 hover:underline"
+                    style={{ color: figma.ink }}
+                    title={item.path}
+                    onClick={() => onOpenSimilar?.(item.path)}
+                  >
+                    {item.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <IntelRow
             icon={DatabaseBackup}
             text={
@@ -175,26 +227,26 @@ export function FileIntelligencePanel({
             }
           />
         </div>
-      </div>
 
-      {showPreview ? (
-        <div className="flex min-h-0 flex-col gap-2.5 p-5 pt-0">
-          <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
-            {previewLabel}
-          </p>
-          <div
-            className="relative h-[220px] w-full overflow-hidden rounded-[6px]"
-            style={{ border: `1px solid ${figma.border}`, backgroundColor: figma.canvas }}
-          >
-            <EntryPreview
-              entry={entry}
-              size="lg"
-              fit="contain"
-              className="!aspect-auto !h-full !w-full !rounded-[6px]"
-            />
+        {showPreview ? (
+          <div className="flex flex-col gap-2.5 pt-1">
+            <p className="text-[11px] font-semibold uppercase" style={{ color: figma.muted }}>
+              {previewLabel}
+            </p>
+            <div
+              className="relative h-[220px] w-full overflow-hidden rounded-[6px]"
+              style={{ border: `1px solid ${figma.border}`, backgroundColor: figma.canvas }}
+            >
+              <EntryPreview
+                entry={entry}
+                size="lg"
+                fit="contain"
+                className="!aspect-auto !h-full !w-full !rounded-[6px]"
+              />
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </aside>
   );
 }
