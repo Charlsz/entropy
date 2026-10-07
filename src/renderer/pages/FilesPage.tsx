@@ -42,7 +42,6 @@ import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../l
 import { isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
 import { formatBytes, formatModifiedLabel, formatUserPath } from "../lib/format";
-import { fileReferenceClipboardMarkdown } from "../lib/markdownBlocks";
 import { onTreemapPanelToggle, setTreemapChromeActive } from "../lib/treemapPanelBus";
 import {
   getLargeFilesCache,
@@ -102,6 +101,7 @@ export function FilesPage({
     openInWorkspace,
     openNote,
     openFolder,
+    referenceInNote,
   } = useWorkspace();
   const [roots, setRoots] = useState<InventoryRoot[]>([]);
   const [scanRoot, setScanRoot] = useState<string>("");
@@ -136,6 +136,22 @@ export function FilesPage({
 
   const rawPerspective = workspace.settings.libraryPerspective ?? "folders";
   const perspective = normalizePerspective(rawPerspective as string);
+
+  useEffect(() => {
+    if (perspective === "recent") {
+      setSortKey("modified");
+      setSortAsc(false);
+      return;
+    }
+    if (perspective === "large-files") {
+      setSortKey("size");
+      setSortAsc(false);
+      return;
+    }
+    setSortKey("name");
+    setSortAsc(true);
+  }, [perspective]);
+
   const treemapCollapsed = workspace.settings.inventoryTreemapCollapsed ?? true;
   const trimmedSearch = searchQuery.trim();
   const isSearching = trimmedSearch.length > 0;
@@ -729,6 +745,9 @@ export function FilesPage({
         ? recentLoading
         : loading;
 
+  const tableEntriesRef = useRef(tableEntries);
+  tableEntriesRef.current = tableEntries;
+
   function clearLibrarySearch(): void {
     onSearchQueryChange?.("");
   }
@@ -747,9 +766,9 @@ export function FilesPage({
       const hit = searchHitMeta.get(entry.path.replace(/\\/g, "/").toLowerCase());
       if (hit?.source === "note") {
         clearLibrarySearch();
-        const targetWorkspace = hit.workspacePath ?? workspace.path;
-        if (!samePath(targetWorkspace, workspace.path)) {
-          openInWorkspace(targetWorkspace, hit.path);
+        // Prefer the note's workspace so Library-only Home still opens Notebook.
+        if (hit.workspacePath) {
+          openInWorkspace(hit.workspacePath, hit.path);
         } else {
           openNote(hit.path);
         }
@@ -818,6 +837,65 @@ export function FilesPage({
     setPendingDelete(entry);
   }
 
+  useEffect(() => {
+    if (workspace.currentSection !== "inventory") return;
+    if (perspective === "duplicates") return;
+
+    function onKeyDown(event: KeyboardEvent): void {
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest(
+          "input, textarea, select, [contenteditable='true'], [role='dialog']",
+        )
+      ) {
+        return;
+      }
+
+      const rows = tableEntriesRef.current;
+      const current = selectedRef.current;
+
+      if (event.key === "Escape") {
+        if (!current) return;
+        event.preventDefault();
+        setSelected(null);
+        return;
+      }
+
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        if (rows.length === 0) return;
+        event.preventDefault();
+        const index = current
+          ? rows.findIndex((entry) => samePath(entry.path, current.path))
+          : -1;
+        const nextIndex =
+          event.key === "ArrowDown"
+            ? Math.min(rows.length - 1, index < 0 ? 0 : index + 1)
+            : Math.max(0, index < 0 ? 0 : index - 1);
+        const next = rows[nextIndex];
+        if (!next) return;
+        setSelected(next);
+        if (!next.isDirectory) addRecentFile(next.path);
+        return;
+      }
+
+      if (!current) return;
+
+      if (event.key === "F2") {
+        event.preventDefault();
+        void handleRename(current);
+        return;
+      }
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        requestDelete(current);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [workspace.currentSection, perspective, addRecentFile]);
+
   async function trashEntry(entry: FileEntry): Promise<void> {
     const targetPath = entry.path;
     if (isProtectedOsPath(targetPath, hostPlatform())) {
@@ -835,6 +913,7 @@ export function FilesPage({
           setRemoteSearchEntries((prev) =>
             prev.filter((item) => !samePath(item.path, targetPath)),
           );
+          setRecentEntries((prev) => prev.filter((item) => !samePath(item.path, targetPath)));
           setSizeByPath((prev) => {
             const key = Object.keys(prev).find((item) => samePath(item, targetPath));
             if (!key) return prev;
@@ -921,20 +1000,7 @@ export function FilesPage({
         referenceLabel: "Reference",
         onRename: () => void handleRename(entry),
         onReference: () => {
-          void (async () => {
-            const markdown = fileReferenceClipboardMarkdown(
-              entry.path,
-              entry.extension,
-              entry.name,
-            );
-            try {
-              await navigator.clipboard.writeText(markdown);
-              setError(null);
-              pushToast({ title: "Reference copied to clipboard" });
-            } catch {
-              setError("Could not copy reference to the clipboard.");
-            }
-          })();
+          referenceInNote(entry.path);
         },
         onCopyPath: () => void copyPath(entry.path),
         onReveal: () => void revealPath(entry.path),
@@ -976,8 +1042,10 @@ export function FilesPage({
   function cycleSort(): void {
     const keys: SortKey[] = ["name", "modified", "size", "type"];
     const index = keys.indexOf(sortKey);
-    setSortKey(keys[(index + 1) % keys.length] ?? "name");
-    setSortAsc(true);
+    const next = keys[(index + 1) % keys.length] ?? "name";
+    setSortKey(next);
+    // Name/type A–Z; modified newest first; size largest first.
+    setSortAsc(next === "name" || next === "type");
   }
 
   async function selectTreemapLeaf(leaf: TreemapFileLeaf): Promise<void> {
@@ -1349,7 +1417,7 @@ export function FilesPage({
       <div className="min-h-0 flex-1">
         {perspective === "duplicates" ? (
           <InventoryDuplicatesPanel
-            rootPath={workspace.currentFolder}
+            rootPath={scanRoot || workspace.currentFolder}
             onBack={() => updateSettings({ libraryPerspective: "folders" })}
           />
         ) : (
@@ -1365,6 +1433,17 @@ export function FilesPage({
                   entry={selected}
                   scanRoot={scanRoot}
                   onClose={() => setSelected(null)}
+                  onOpenSimilar={(filePath) => {
+                    void (async () => {
+                      try {
+                        const info = await window.entropy.fs.stat(filePath);
+                        setSelected(info);
+                        addRecentFile(info.path);
+                      } catch {
+                        setError("Could not open that similar file.");
+                      }
+                    })();
+                  }}
                 />
               ) : showTreemap ? (
                 <StorageTreemap
