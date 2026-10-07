@@ -197,7 +197,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   const persistTab = useCallback(
     async (tab: EditorTab): Promise<void> => {
-      if (tab.missing || tab.content === tab.savedContent) return;
+      if (tab.missing || tab.conflict || tab.content === tab.savedContent) return;
 
       const result = await window.entropy.fs.writeTextSafe(tab.path, tab.content, tab.mtimeMs);
 
@@ -230,21 +230,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         return;
       }
 
-      // Someone else wrote first — take disk instantly (no Reload button).
-      try {
-        const content = await window.entropy.fs.readText(tab.path);
-        const info = await window.entropy.fs.stat(tab.path);
-        applyDiskSnapshot(tab.path, content, info.modifiedAt);
-      } catch {
-        clearSaveTimer(tab.path);
-        setTabs((prev) =>
-          prev.map((item) =>
-            item.path === tab.path ? { ...item, missing: true, conflict: false } : item,
-          ),
-        );
+      // Someone else wrote first — keep the buffer and ask before discarding edits.
+      clearSaveTimer(tab.path);
+      setTabs((prev) =>
+        prev.map((item) =>
+          item.path === tab.path ? { ...item, conflict: true, missing: false } : item,
+        ),
+      );
+      if (activePathRef.current === tab.path) {
+        setStatusMessage("File changed outside Entropy.");
       }
     },
-    [applyDiskSnapshot, clearSaveTimer],
+    [clearSaveTimer],
   );
 
   const syncOpenTabsFromDisk = useCallback(async (scope: "open" | "all" = "all") => {
@@ -280,6 +277,21 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           latest.mtimeMs == null || Math.abs(info.modifiedAt - latest.mtimeMs) > 1;
 
         if (!diskNewer && !latest.missing) continue;
+
+        const dirty = latest.content !== latest.savedContent;
+        if (dirty || latest.conflict) {
+          if (!latest.conflict) {
+            setTabs((prev) =>
+              prev.map((item) =>
+                item.path === latest.path ? { ...item, conflict: true, missing: false } : item,
+              ),
+            );
+            if (activePathRef.current === latest.path) {
+              setStatusMessage("File changed outside Entropy.");
+            }
+          }
+          continue;
+        }
 
         const content = await window.entropy.fs.readText(latest.path);
         if (
@@ -493,7 +505,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
       const timer = window.setTimeout(() => {
         const tab = tabsRef.current.find((item) => item.path === filePath);
-        if (!tab) return;
+        if (!tab || tab.conflict) return;
         void persistTab({ ...tab, content });
       }, 450);
 
@@ -505,10 +517,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   function handleChange(value: string): void {
     if (!activePath) return;
     setTabs((prev) =>
-      prev.map((tab) =>
-        tab.path === activePath ? { ...tab, content: value, conflict: false } : tab,
-      ),
+      prev.map((tab) => (tab.path === activePath ? { ...tab, content: value } : tab)),
     );
+    const tab = tabsRef.current.find((item) => item.path === activePath);
+    if (tab?.conflict) return;
     scheduleSave(activePath, value);
   }
 
@@ -717,6 +729,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           <div className="min-w-0 flex-1 px-3 text-[12px] text-muted-foreground">Reading view</div>
         )}
         <div className="flex shrink-0 items-center gap-0.5 px-1">
+          {activeTab && !activeTab.loading ? (
+            <span className="mr-1 px-1 text-[11px] text-muted-foreground">
+              {activeTab.conflict
+                ? "Conflict"
+                : activeTab.missing
+                  ? "Missing"
+                  : isDirty
+                    ? "Unsaved"
+                    : "Saved"}
+            </span>
+          ) : null}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
