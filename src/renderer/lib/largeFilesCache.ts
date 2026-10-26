@@ -11,7 +11,7 @@ const listeners = new Set<() => void>();
 
 export function largeFilesCacheKey(roots: string[]): string {
   return roots
-    .map((root) => root.replace(/[/\\]+$/, "").toLowerCase())
+    .map((root) => root.replace(/[/\\]+$/, "").replace(/\\/g, "/").toLowerCase())
     .sort()
     .join("|");
 }

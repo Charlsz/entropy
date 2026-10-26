@@ -14,4 +14,10 @@ describe("folder size cache invalidation", () => {
     expect(sizeCacheKeyMatchesChange("C:\\Users\\me-backup", "C:\\Users\\me\\Desktop")).toBe(false);
     expect(sizeCacheKeyMatchesChange("D:\\Users\\me", "C:\\Users\\me\\Desktop")).toBe(false);
   });
+
+  it("folds case on Windows and keeps it on Linux", () => {
+    expect(sizeCacheKeyMatchesChange("C:\\Users\\Me", "c:\\users\\me\\Desktop", "win32")).toBe(true);
+    expect(sizeCacheKeyMatchesChange("/home/Ada", "/home/ada", "linux")).toBe(false);
+    expect(sizeCacheKeyMatchesChange("/home/Ada", "/home/Ada/Desktop", "linux")).toBe(true);
+  });
 });

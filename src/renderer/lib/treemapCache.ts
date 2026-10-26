@@ -8,7 +8,7 @@ export interface TreemapCacheSnapshot {
 let cache: TreemapCacheSnapshot | null = null;
 
 export function treemapCacheKey(folderPath: string): string {
-  return folderPath.replace(/[/\\]+$/, "").toLowerCase();
+  return folderPath.replace(/[/\\]+$/, "").replace(/\\/g, "/").toLowerCase();
 }
 
 export function getTreemapCache(): TreemapCacheSnapshot | null {
