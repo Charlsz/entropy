@@ -12,3 +12,20 @@ describe("similar file consumption", () => {
     expect(formatSimilarConsumption(null)).toBe("…");
   });
 });
+
+describe("formatBytes", () => {
+  it("steps through KB / MB / GB / TB without overflowing into a huge GB label", () => {
+    expect(formatBytes(0)).toBe("0 B");
+    expect(formatBytes(1023)).toBe("1023 B");
+    expect(formatBytes(1024)).toBe("1.0 KB");
+    expect(formatBytes(1024 * 1024)).toBe("1.0 MB");
+    expect(formatBytes(1024 * 1024 * 1024)).toBe("1.0 GB");
+    expect(formatBytes(2 * 1024 * 1024 * 1024 * 1024)).toBe("2.0 TB");
+  });
+
+  it("does not invent a size for invalid measurements", () => {
+    expect(formatBytes(Number.NaN)).toBe("—");
+    expect(formatBytes(-4)).toBe("—");
+    expect(formatBytes(Number.POSITIVE_INFINITY)).toBe("—");
+  });
+});

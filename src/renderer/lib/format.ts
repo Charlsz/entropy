@@ -7,12 +7,21 @@ export function formatSimilarConsumption(otherBytes: number | null): string {
   return formatBytes(otherBytes);
 }
 
+const KB = 1024;
+const MB = KB * 1024;
+const GB = MB * 1024;
+const TB = GB * 1024;
+const PB = TB * 1024;
+
 /** Shared byte formatting for Inventory / Storage. */
 export function formatBytes(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  if (!Number.isFinite(size) || size < 0) return "—";
+  if (size < KB) return `${size} B`;
+  if (size < MB) return `${(size / KB).toFixed(1)} KB`;
+  if (size < GB) return `${(size / MB).toFixed(1)} MB`;
+  if (size < TB) return `${(size / GB).toFixed(1)} GB`;
+  if (size < PB) return `${(size / TB).toFixed(1)} TB`;
+  return `${(size / PB).toFixed(1)} PB`;
 }
 
 /** Compact modified labels for the Library table (Figma-style). */
