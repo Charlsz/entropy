@@ -3,7 +3,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { InventoryRoot, TreemapFileLeaf, TreemapScanResult, GlobalSearchHit } from "../shared/types";
+import { collectDiskSpaceProbes, volumeSpaceFromStatfs } from "../shared/diskSpace";
+import { pathIdentityKey } from "../shared/pathIdentity";
 import { sizeCacheKeyMatchesChange } from "../shared/sizeCacheInvalidate";
+import { capTreemapLeaves, otherLeafPath } from "../shared/treemapLeaves";
 import { kindFromExtension } from "../shared/fileKinds";
 import { isProtectedOsDirName, isProtectedOsPath } from "../shared/protectedPaths";
 import { mapPool } from "./asyncPool";
@@ -16,6 +19,10 @@ const MEASURE_CONCURRENCY = 6;
 const sizeCache = new Map<string, { size: number; mtimeMs: number }>();
 /** Coalesce concurrent measurePath calls (measureChildren ∥ scanTreemapLevel). */
 const measureInflight = new Map<string, Promise<number>>();
+
+function measureCacheKey(targetPath: string): string {
+  return pathIdentityKey(path.normalize(targetPath), process.platform);
+}
 
 async function pushIfDir(
   roots: InventoryRoot[],
@@ -162,20 +169,15 @@ export function getHomePath(): string {
 export async function getDiskSpace(
   targetPath?: string,
 ): Promise<{ free: number; total: number }> {
-  const probe = path.normalize(targetPath || app.getPath("home"));
-  try {
-    const stats = await fs.statfs(probe);
-    const block = Number(stats.bsize) || 4096;
-    const total = Number(stats.blocks) * block;
-    const free = Number(stats.bavail ?? stats.bfree) * block;
-    if (total > 0) {
-      return {
-        free: Math.max(0, free),
-        total: Math.max(total, free),
-      };
+  const home = path.normalize(app.getPath("home"));
+  const start = path.normalize(targetPath || home);
+  for (const probe of collectDiskSpaceProbes(start, home)) {
+    try {
+      const space = volumeSpaceFromStatfs(await fs.statfs(probe));
+      if (space) return space;
+    } catch {
+      // Try the parent / Home.
     }
-  } catch {
-    // Fall through.
   }
   return { free: 0, total: 0 };
 }
@@ -183,17 +185,18 @@ export async function getDiskSpace(
 /** Recursive size; caches by path+mtime. Skips heavy/system dirs. */
 export async function measurePath(targetPath: string): Promise<number> {
   const normalized = path.normalize(targetPath);
-  const inflight = measureInflight.get(normalized);
+  const cacheKey = measureCacheKey(normalized);
+  const inflight = measureInflight.get(cacheKey);
   if (inflight) return inflight;
 
-  const job = measurePathUncached(normalized).finally(() => {
-    measureInflight.delete(normalized);
+  const job = measurePathUncached(normalized, cacheKey).finally(() => {
+    measureInflight.delete(cacheKey);
   });
-  measureInflight.set(normalized, job);
+  measureInflight.set(cacheKey, job);
   return job;
 }
 
-async function measurePathUncached(normalized: string): Promise<number> {
+async function measurePathUncached(normalized: string, cacheKey: string): Promise<number> {
   if (isProtectedOsPath(normalized, process.platform)) {
     return 0;
   }
@@ -211,12 +214,12 @@ async function measurePathUncached(normalized: string): Promise<number> {
     return info.size;
   }
 
-  const cached = sizeCache.get(normalized);
+  const cached = sizeCache.get(cacheKey);
   if (cached && cached.mtimeMs === info.mtimeMs) return cached.size;
 
   const name = path.basename(normalized);
   if (shouldSkipMeasureDir(name)) {
-    sizeCache.set(normalized, { size: 0, mtimeMs: info.mtimeMs });
+    sizeCache.set(cacheKey, { size: 0, mtimeMs: info.mtimeMs });
     return 0;
   }
 
@@ -242,23 +245,24 @@ async function measurePathUncached(normalized: string): Promise<number> {
   let total = 0;
   for (const size of sizes) total += size;
 
-  sizeCache.set(normalized, { size: total, mtimeMs: info.mtimeMs });
+  sizeCache.set(cacheKey, { size: total, mtimeMs: info.mtimeMs });
   return total;
 }
 
 export async function measureChildren(
   dirPath: string,
 ): Promise<Array<{ path: string; size: number }>> {
+  const root = path.normalize(dirPath);
   let dirents;
   try {
-    dirents = await fs.readdir(path.normalize(dirPath), { withFileTypes: true });
+    dirents = await fs.readdir(root, { withFileTypes: true });
   } catch {
     return [];
   }
 
   const children = dirents
     .filter((dirent) => dirent.name !== "." && dirent.name !== ".." && !shouldSkipMeasureDir(dirent.name))
-    .map((dirent) => path.join(dirPath, dirent.name));
+    .map((dirent) => path.join(root, dirent.name));
 
   return mapPool(children, MEASURE_CONCURRENCY, async (child) => ({
     path: child,
@@ -274,7 +278,7 @@ export function clearSizeCache(): void {
 export function invalidateSizeCacheUnder(dirPath: string): void {
   const changed = path.normalize(dirPath);
   for (const key of [...sizeCache.keys()]) {
-    if (sizeCacheKeyMatchesChange(key, changed)) sizeCache.delete(key);
+    if (sizeCacheKeyMatchesChange(key, changed, process.platform)) sizeCache.delete(key);
   }
 }
 
@@ -293,32 +297,19 @@ export async function scanTreemapFiles(
   for (const file of collected) totalSize += file.size;
   collected.sort((a, b) => b.size - a.size);
 
-  if (collected.length <= maxLeaves) {
-    return {
-      files: collected,
-      totalSize,
-      fileCount: collected.length,
-      truncated: false,
-    };
-  }
-
-  const kept = collected.slice(0, maxLeaves - 1);
-  const rest = collected.slice(maxLeaves - 1);
-  let restSize = 0;
-  for (const file of rest) restSize += file.size;
-  kept.push({
-    path: path.join(rootPath, ".__entropy_other__"),
+  const { files, truncated } = capTreemapLeaves(collected, maxLeaves, (rest, restSize) => ({
+    path: otherLeafPath(path.normalize(rootPath)),
     name: `Other (${rest.length.toLocaleString()} files)`,
     size: restSize,
     extension: "",
-    kind: "other",
-  });
+    kind: "other" as const,
+  }));
 
   return {
-    files: kept,
+    files,
     totalSize,
     fileCount: collected.length,
-    truncated: true,
+    truncated,
   };
 }
 
@@ -433,7 +424,15 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
   for (const file of collected) totalSize += file.size;
   collected.sort((a, b) => b.size - a.size);
 
-  const { files, truncated } = capLeafCount(collected, root, location);
+  const { files, truncated } = capTreemapLeaves(collected, LEVEL_MAX_LEAVES, (rest, restSize) => ({
+    path: otherLeafPath(root),
+    name: `Other (${rest.length.toLocaleString()} items)`,
+    size: restSize,
+    extension: "",
+    kind: "other" as const,
+    isDirectory: false,
+    location,
+  }));
 
   return {
     files,
@@ -441,40 +440,6 @@ export async function scanTreemapLevel(dirPath: string): Promise<TreemapScanResu
     fileCount: collected.length,
     truncated,
   };
-}
-
-/**
- * Keep every sized leaf visible. Only fold into Other when there are simply
- * too many siblings for a usable map (not because they are small).
- */
-function capLeafCount(
-  collected: TreemapFileLeaf[],
-  root: string,
-  location: string,
-): { files: TreemapFileLeaf[]; truncated: boolean } {
-  if (collected.length === 0) {
-    return { files: collected, truncated: false };
-  }
-
-  if (collected.length <= LEVEL_MAX_LEAVES) {
-    return { files: collected, truncated: false };
-  }
-
-  const kept = collected.slice(0, LEVEL_MAX_LEAVES - 1);
-  const rest = collected.slice(LEVEL_MAX_LEAVES - 1);
-  let restSize = 0;
-  for (const file of rest) restSize += file.size;
-  kept.push({
-    path: path.join(root, ".__entropy_other__"),
-    name: `Other (${rest.length.toLocaleString()} items)`,
-    size: restSize,
-    extension: "",
-    kind: "other",
-    isDirectory: false,
-    location,
-  });
-
-  return { files: kept, truncated: true };
 }
 
 const LEVEL_MAX_LEAVES = 500;

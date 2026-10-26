@@ -44,9 +44,10 @@ function isPermissionError(error: unknown): boolean {
 }
 
 export async function listDir(dirPath: string): Promise<FileEntry[]> {
+  const root = path.normalize(dirPath);
   let dirents;
   try {
-    dirents = await fs.readdir(dirPath, { withFileTypes: true });
+    dirents = await fs.readdir(root, { withFileTypes: true });
   } catch (error) {
     if (isPermissionError(error)) return [];
     throw error;
@@ -61,7 +62,7 @@ export async function listDir(dirPath: string): Promise<FileEntry[]> {
     const batch = targets.slice(i, i + STAT_BATCH);
     const settled = await Promise.all(
       batch.map(async (dirent) => {
-        const fullPath = path.join(dirPath, dirent.name);
+        const fullPath = path.join(root, dirent.name);
         try {
           // Fast path: plain files — one lstat (size + mtime).
           if (dirent.isFile()) {
