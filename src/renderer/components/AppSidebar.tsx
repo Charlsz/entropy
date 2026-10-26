@@ -14,6 +14,12 @@ import searchIcon from "../assets/icons/search.svg";
 import logoDark from "../assets/entropy_dark.png";
 import logoLight from "../assets/entropy-logo.png";
 import { cn } from "../lib/utils";
+import {
+  occupiedDiskRatio,
+  storageFillCss,
+  storageFillTone,
+  volumeLabel,
+} from "../../shared/diskSpace";
 import { formatBytes } from "../lib/format";
 import { osModKey } from "../lib/platform";
 import { figma } from "../lib/figmaTokens";
@@ -35,13 +41,6 @@ interface AppSidebarProps {
   duplicateCount?: number | null;
 }
 
-function storageFillColor(occupiedRatio: number): string {
-  if (occupiedRatio >= 0.9) return "var(--color-ink)";
-  if (occupiedRatio >= 0.75) return "color-mix(in srgb, var(--color-ink) 72%, var(--color-accent))";
-  if (occupiedRatio >= 0.5) return "var(--color-accent)";
-  return "color-mix(in srgb, var(--color-accent) 70%, var(--color-muted))";
-}
-
 function readLargeFilesBytesFromCache(): number | null {
   const cached = getLargeFilesCache();
   return cached?.result.totalBytes ?? null;
@@ -59,6 +58,7 @@ export function AppSidebar({
   const perspective = workspace.settings.libraryPerspective;
   const settingsLargeFilesBytes = workspace.settings.largeFilesApproxBytes;
   const theme = workspace.settings.theme;
+  const currentFolder = workspace.currentFolder;
   const [storage, setStorage] = useState<{ free: number; total: number } | null>(null);
   const [cacheLargeFilesBytes, setCacheLargeFilesBytes] = useState<number | null>(
     readLargeFilesBytesFromCache,
@@ -77,19 +77,33 @@ export function AppSidebar({
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+    async function load(): Promise<void> {
       try {
-        const info = await window.entropy.fs.getDiskSpace();
-        if (cancelled || !info.total) return;
+        const info = await window.entropy.fs.getDiskSpace(currentFolder || undefined);
+        if (cancelled) return;
+        if (!info.total) {
+          setStorage(null);
+          return;
+        }
         setStorage({ free: info.free, total: info.total });
       } catch {
-        // Optional.
+        if (!cancelled) setStorage(null);
       }
-    })();
+    }
+    void load();
+    const stop = window.entropy.fs.onDirChanged(() => {
+      void load();
+    });
+    function onFocus(): void {
+      void load();
+    }
+    window.addEventListener("focus", onFocus);
     return () => {
       cancelled = true;
+      stop();
+      window.removeEventListener("focus", onFocus);
     };
-  }, []);
+  }, [currentFolder]);
 
   function goNotebook(): void {
     visitSection("notebook");
@@ -108,10 +122,10 @@ export function AppSidebar({
 
   const libraryActive = section === "inventory";
   const notebookActive = section === "notebook";
-  const occupiedRatio =
-    storage && storage.total > 0
-      ? Math.min(1, Math.max(0, (storage.total - storage.free) / storage.total))
-      : 0;
+  const occupiedRatio = storage
+    ? occupiedDiskRatio(storage.free, storage.total)
+    : 0;
+  const driveLabel = volumeLabel(currentFolder, window.entropy.platform);
   const isMac = window.entropy.platform === "darwin";
   const logoSrc = theme === "dark" ? logoLight : logoDark;
   const searchShortcut = osModKey() === "⌘" ? "⌘K" : "Ctrl+K";
@@ -250,7 +264,9 @@ export function AppSidebar({
         <div className="mb-2 flex items-start justify-between text-[11px]">
           <span style={{ color: figma.muted }}>Local Storage</span>
           <span className="font-mono" style={{ color: figma.ink }}>
-            {storage ? `${formatBytes(storage.free)} free` : "Local disk"}
+            {storage
+              ? `${driveLabel ? `${driveLabel} · ` : ""}${formatBytes(storage.free)} free`
+              : "Local disk"}
           </span>
         </div>
         <div
@@ -265,7 +281,7 @@ export function AppSidebar({
           <div
             className="h-full rounded-[2px]"
             style={{
-              backgroundColor: storageFillColor(occupiedRatio),
+              backgroundColor: storageFillCss(storageFillTone(occupiedRatio)),
               width: `${Math.round(occupiedRatio * 100)}%`,
             }}
           />
