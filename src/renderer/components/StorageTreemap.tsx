@@ -10,17 +10,15 @@ import {
   FOLDER_FILL_LIGHT,
   type FileKindId,
 } from "../../shared/fileKinds";
+import { isAggregateLeaf } from "../../shared/treemapLeaves";
 import { cn } from "../lib/utils";
 import { samePath } from "../lib/platform";
-import { squarify } from "../lib/squarify";
+import { hoverCardPosition, layoutTreemapTiles, treemapHoverMeta } from "../lib/treemapView";
 import { useWorkspace } from "../state/useWorkspace";
-import { formatBytes } from "../lib/format";
+import { formatBytes, formatModifiedLabel } from "../lib/format";
 import { Button } from "./ui/button";
 import { Skeleton } from "./ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-
-/** Minimum tile edge — readable blocks; tiny leaves still render via soft squarify floor. */
-const MIN_TILE_EDGE = 16;
 
 interface StorageTreemapProps {
   scan?: TreemapScanResult | null;
@@ -44,10 +42,6 @@ interface LegendRow {
   label: string;
   fill: string;
   size: number;
-}
-
-function isAggregateLeaf(leaf: TreemapFileLeaf): boolean {
-  return leaf.path.endsWith(".__entropy_other__") || leaf.name.startsWith("Other (");
 }
 
 function kindLabelFor(leaf: TreemapFileLeaf): string {
@@ -132,44 +126,17 @@ export function StorageTreemap({
     return () => observer.disconnect();
   }, [frameEl]);
 
-  const files = scan?.files ?? [];
+  const files = useMemo(() => scan?.files ?? [], [scan]);
   const total = scan?.totalSize ?? 0;
   const showMap = files.length > 0 && total > 0;
   const legend = useMemo(() => buildLegend(files, light), [files, light]);
 
   const layout = useMemo(() => {
-    if (!showMap || size.width < MIN_TILE_EDGE || size.height < MIN_TILE_EDGE) return [];
-    const gap = 1;
-    // Soft area floor so squarify still places very small siblings — do not drop them.
-    const frameArea = Math.max(size.width * size.height, 1);
-    const floor = Math.max(1, Math.floor((total * (MIN_TILE_EDGE * MIN_TILE_EDGE)) / frameArea));
-    const rects = squarify(
-      files.map((file) => ({
-        id: file.path,
-        size: Math.max(file.size, floor),
-      })),
-      0,
-      0,
-      size.width,
-      size.height,
-    );
-    const byPath = new Map(files.map((file) => [file.path, file]));
-    return rects
-      .map((rect) => {
-        const file = byPath.get(rect.id);
-        if (!file) return null;
-        const width = Math.max(MIN_TILE_EDGE, rect.width - gap);
-        const height = Math.max(MIN_TILE_EDGE, rect.height - gap);
-        return {
-          ...file,
-          x: rect.x + gap / 2,
-          y: rect.y + gap / 2,
-          width,
-          height,
-          fill: fillFor(file, light),
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item != null);
+    if (!showMap) return [];
+    return layoutTreemapTiles(files, total, size.width, size.height).map((cell) => ({
+      ...cell,
+      fill: fillFor(cell, light),
+    }));
   }, [files, light, showMap, size.height, size.width, total]);
 
   function clearHover(): void {
@@ -298,7 +265,8 @@ export function StorageTreemap({
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
                         if (isAggregateLeaf(cell)) return;
-                        onSelect?.(cell);
+                        if (cell.isDirectory && event.key === "Enter") onZoom?.(cell);
+                        else onSelect?.(cell);
                       }
                     }}
                   >
@@ -362,10 +330,11 @@ function HoverCard({
   frameWidth: number;
   frameHeight: number;
 }) {
+  const meta = treemapHoverMeta(leaf);
   const cardW = Math.min(200, Math.max(132, frameWidth - 16));
-  const cardH = 72;
-  const left = Math.min(Math.max(8, x + 12), Math.max(8, frameWidth - cardW - 8));
-  const top = Math.min(Math.max(8, y + 12), Math.max(8, frameHeight - cardH - 8));
+  const extra = (meta.location ? 1 : 0) + (meta.modifiedAt ? 1 : 0);
+  const cardH = 56 + extra * 16;
+  const { left, top } = hoverCardPosition(x, y, frameWidth, frameHeight, cardW, cardH);
 
   return (
     <div
@@ -381,6 +350,16 @@ function HoverCard({
         <span className="mx-1.5 opacity-50">·</span>
         {formatBytes(leaf.size)}
       </p>
+      {meta.location ? (
+        <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground" title={meta.location}>
+          {meta.location}
+        </p>
+      ) : null}
+      {meta.modifiedAt ? (
+        <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+          {formatModifiedLabel(meta.modifiedAt)}
+        </p>
+      ) : null}
     </div>
   );
 }
