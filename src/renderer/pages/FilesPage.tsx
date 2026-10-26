@@ -42,6 +42,7 @@ import { buildEntryActions, copyPath, moveEntryToFolder, revealPath } from "../l
 import { isPreviewableEntry, mediaKind } from "../lib/media";
 import { withMediaReleased } from "../lib/mediaRelease";
 import { formatBytes, formatModifiedLabel, formatUserPath } from "../lib/format";
+import { lookupMeasuredSize } from "../lib/measuredSize";
 import { onTreemapPanelToggle, setTreemapChromeActive } from "../lib/treemapPanelBus";
 import {
   getLargeFilesCache,
@@ -237,6 +238,14 @@ export function FilesPage({
     setDiskEpoch((value) => value + 1);
   }, [refreshListing]);
   refreshRef.current = refresh;
+
+  useEffect(() => {
+    if (diskEpoch === 0) return;
+    invalidateTreemapCache();
+    invalidateLargeFilesCache();
+    setTreemapScanId((value) => value + 1);
+    setLargeFilesScanId((value) => value + 1);
+  }, [diskEpoch]);
 
   useDirWatch(
     workspace.currentFolder,
@@ -662,13 +671,14 @@ export function FilesPage({
     if (!loading) setPendingSelectPath(null);
   }, [pendingSelectPath, entries, loading]);
 
+  const host = hostPlatform();
   const sizedEntries = useMemo(
     () =>
       entries.map((entry) => ({
         ...entry,
-        size: sizeByPath[entry.path] ?? entry.size,
+        size: lookupMeasuredSize(sizeByPath, entry.path, host) ?? entry.size,
       })),
-    [entries, sizeByPath],
+    [entries, host, sizeByPath],
   );
 
   const folderVisible = useMemo(() => {
@@ -1227,7 +1237,7 @@ export function FilesPage({
               const parentPath = parentFolderPath(entry.path);
               const pathLabel = formatUserPath(parentPath, homePath);
               const sizePending =
-                entry.isDirectory && sizeByPath[entry.path] === undefined;
+                entry.isDirectory && lookupMeasuredSize(sizeByPath, entry.path, host) === undefined;
               const selectedRow = selected?.path === entry.path;
               return (
                 <ItemContextMenu
@@ -1346,7 +1356,9 @@ export function FilesPage({
                   homePath={homePath}
                   selected={selected?.path === entry.path}
                   dropTarget={false}
-                  sizePending={entry.isDirectory && sizeByPath[entry.path] === undefined}
+                  sizePending={
+                    entry.isDirectory && lookupMeasuredSize(sizeByPath, entry.path, host) === undefined
+                  }
                   onSelect={() => selectLibraryEntry(entry)}
                   onOpen={() => void openEntry(entry)}
                   onDragStart={(event) => onDragStart(event, entry)}
@@ -1453,7 +1465,14 @@ export function FilesPage({
                   onRefresh={refreshTreemap}
                   onSelect={(leaf) => void selectTreemapLeaf(leaf)}
                   onOpen={(leaf) => {
-                    if (leaf.isDirectory) goToFolder(leaf.path);
+                    if (leaf.isDirectory) {
+                      goToFolder(leaf.path);
+                      return;
+                    }
+                    void (async () => {
+                      await selectTreemapLeaf(leaf);
+                      visitPreview(leaf.path, workspace.currentFolder);
+                    })();
                   }}
                   onZoom={(leaf) => {
                     if (leaf.isDirectory) goToFolder(leaf.path);
